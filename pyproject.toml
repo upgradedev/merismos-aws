@@ -1,5 +1,5 @@
 [project]
-name = "mitos"
+name = "merismos"
 version = "0.1.0"
 description = "A fleet of institutional agents for groups that cannot afford one"
 requires-python = ">=3.10"

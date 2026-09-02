@@ -12,12 +12,11 @@ depends on the model misbehaving is a demo that works until the one recording
 you keep. So the poison is planted in the corpus instead, a faithful generator
 carries it forward, and this catches it every time with no credential.
 
-The order in ``judge`` is load bearing and is the correction mitos-gcp shipped
-too late. The deterministic verdict runs **first, always**. A refusal returns
-without consulting the model at all, because asking and discarding the answer
-costs a request and invites a later edit that uses it. Where the rules pass, a
-model's opinion is unioned in and can only add. There is no branch here that
-clears a finding.
+The order in ``judge`` is load bearing. The deterministic verdict runs **first,
+always**. A refusal returns without consulting the model at all, because asking
+and discarding the answer costs a request and invites a later edit that uses it.
+Where the rules pass, a model's opinion is unioned in and can only add. There is
+no branch here that clears a finding.
 """
 
 from __future__ import annotations
@@ -313,10 +312,10 @@ def check_arithmetic(draft: Draft) -> list[Finding]:
 def check_orgs_exist(draft: Draft) -> list[Finding]:
     """Refuse a share allocated to an organisation nobody has heard of.
 
-    The equivalent of mitos-gcp's hallucinated-path check, and it matters more
-    here: a plausible name for a charity that does not exist is much easier to
-    produce than a plausible file path, and much harder for a tired coordinator
-    to notice at 22:00.
+    A model asked to be fair will invent a plausible charity, and a plausible
+    name for a charity that does not exist is much easier to produce than a
+    plausible file path and much harder for a tired coordinator to notice at
+    22:00. So the register is the authority on who exists.
     """
     if not draft.known_orgs:
         return []

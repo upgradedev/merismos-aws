@@ -1,12 +1,12 @@
 """A model may make the fleet more careful. It may never make it less careful.
 
 This runs through ``run_chore`` rather than through the specialist helper,
-deliberately. mitos-gcp had this exact invariant, asserted on the helper, and
-shipped the opposite for weeks: the model branch returned before the
-deterministic rules were reached, so in production the rules did not execute at
-all. Every test passed throughout, because the suite exercised the deterministic
-path with no model and the model path with a stub, separately, and never crossed
-them on an input the rules refuse.
+deliberately. An invariant asserted on the helper can hold while the shipped
+behaviour is the opposite of it: if the model branch returns before the
+deterministic rules are reached, the rules do not execute in production at all.
+A suite that exercises the deterministic path with no model, and the model path
+with a stub, separately, agrees with that bug for as long as it exists, because
+it never crosses them on an input the rules refuse.
 
 So the crossing is the test. A model that insists everything is fine is run
 against the offer whose cold chain was broken for six hours.
@@ -14,10 +14,10 @@ against the offer whose cold chain was broken for six hours.
 
 from __future__ import annotations
 
-from mitos.corpus import LocalCorpus
-from mitos.envelope import Envelope, Status
-from mitos.fleet import new_run_id, run_chore, subject_for_offer
-from mitos.ledger import InMemoryLedger, Thread
+from merismos.corpus import LocalCorpus
+from merismos.envelope import Envelope, Status
+from merismos.fleet import new_run_id, run_chore, subject_for_offer
+from merismos.ledger import InMemoryLedger, Thread
 
 
 def _offer(corpus: LocalCorpus, offer_id: str) -> dict:

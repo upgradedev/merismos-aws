@@ -1,31 +1,28 @@
 """A deferral until Thursday actually wakes the fleet on Thursday.
 
-This is the one component where the AWS build is not a translation of the Google
-one but a straight improvement, and the reason is worth stating precisely rather
-than as a boast.
+The shelter cannot confirm fridge space until Thursday, so the decision is
+parked. The question this module answers is what happens on Thursday, and the
+usual answer is worse than it sounds.
 
-mitos-gcp's control plane is a Firestore query subscription: the fleet holds an
-open subscription to *every finding whose deferral is still open* and is handed
-the set whenever it changes. That is genuinely good, and its own README records
-the hole in it, in its own words: the query carries no date, so a deferral
-reaching its expiry writes nothing, changes no result set, and produces no
-snapshot. An expired deferral is noticed the next time the set changes for some
-other reason. Making the calendar itself wake the fleet, that README says, needs
-a durable timer with an authenticated idempotent callback, and it calls that a
-real subsystem it does not have.
+The common way to build this is a subscription to a standing query: hold an open
+subscription to *every finding whose deferral is still open* and act when that
+set changes. It is a good design and it has one hole, which is easy to miss
+because nothing reports it. **The query carries no date.** A deferral reaching
+its expiry writes nothing, changes no result set, and produces no event. So the
+expiry is noticed the next time the set changes for some unrelated reason, which
+might be Friday, or next week, or after the food has gone. The calendar alone
+wakes nothing.
 
-On AWS that subsystem is one API call. ``CreateSchedule`` with a one-shot
-``at(...)`` expression, a target that is this fleet's Lambda, a role the
-scheduler assumes, a ``ClientToken`` for idempotency, a dead-letter queue for
-the delivery that fails, and ``ActionAfterCompletion=DELETE`` so a fired
-schedule removes itself instead of accumulating.
+Closing that needs a durable timer: something that fires at a wall-clock moment,
+authenticates its callback, and is idempotent under retry. On AWS that is one
+API call rather than a subsystem. ``CreateSchedule`` with a one-shot ``at(...)``
+expression, a target that is this fleet's Lambda, a role the scheduler assumes,
+a ``ClientToken`` for idempotency, a dead-letter queue for the delivery that
+fails, and ``ActionAfterCompletion=DELETE`` so a fired schedule removes itself
+instead of accumulating against an account quota.
 
-So the honest comparison, which belongs in the README and not only here:
-
-    Google  the fleet wakes when the open set changes. The calendar alone
-            wakes nothing.
-    AWS     the fleet wakes when the open set changes **and** when the
-            calendar reaches the date, because the date is a scheduled call.
+So the fleet wakes when the open set changes **and** when the calendar reaches
+the date, because here the date is itself a scheduled call.
 
 What this does **not** buy is any additional authority. An unattended wake may
 append an escalation to the thread and may do nothing else. Waking is cheap and
@@ -133,12 +130,12 @@ class Scheduler:
         dead_letter_arn: str = "",
         client: Any = None,
     ) -> None:
-        self.target_arn = target_arn or os.environ.get("MITOS_WAKE_TARGET_ARN", "")
-        self.role_arn = role_arn or os.environ.get("MITOS_SCHEDULER_ROLE_ARN", "")
+        self.target_arn = target_arn or os.environ.get("MERISMOS_WAKE_TARGET_ARN", "")
+        self.role_arn = role_arn or os.environ.get("MERISMOS_SCHEDULER_ROLE_ARN", "")
         self.group_name = group_name or os.environ.get(
-            "MITOS_SCHEDULE_GROUP", "default"
+            "MERISMOS_SCHEDULE_GROUP", "default"
         )
-        self.dead_letter_arn = dead_letter_arn or os.environ.get("MITOS_WAKE_DLQ_ARN", "")
+        self.dead_letter_arn = dead_letter_arn or os.environ.get("MERISMOS_WAKE_DLQ_ARN", "")
         self._client = client
 
     @property
@@ -165,13 +162,13 @@ class Scheduler:
         if not self.configured:
             raise DeferralRefused(
                 "no wake target or scheduler role is configured, so this "
-                "deferral would never fire. Set MITOS_WAKE_TARGET_ARN and "
-                "MITOS_SCHEDULER_ROLE_ARN"
+                "deferral would never fire. Set MERISMOS_WAKE_TARGET_ARN and "
+                "MERISMOS_SCHEDULER_ROLE_ARN"
             )
-        name = deferral.schedule_name or schedule_name("mitos-wake", deferral.deferral_id)
+        name = deferral.schedule_name or schedule_name("merismos-wake", deferral.deferral_id)
         payload = json.dumps(
             {
-                "source": "mitos.deferral",
+                "source": "merismos.deferral",
                 "deferral_id": deferral.deferral_id,
                 "subject": deferral.subject,
                 "run_id": deferral.run_id,
@@ -205,7 +202,7 @@ class Scheduler:
             # Idempotency. A retried create for the same deferral is the same
             # schedule, not a second wake for the same finding.
             ClientToken=hashlib.sha256(name.encode("utf-8")).hexdigest()[:64],
-            Description=f"Mitos deferral {deferral.deferral_id}: {deferral.reason[:180]}",
+            Description=f"Merismos deferral {deferral.deferral_id}: {deferral.reason[:180]}",
             Target=target,
         )
         return Deferral(
@@ -274,12 +271,12 @@ def escalate(
 def scheduler_from_env(env: dict[str, str] | None = None) -> Any:
     """Pick a scheduler, defaulting to the real one."""
     env = dict(os.environ) if env is None else env
-    if env.get("MITOS_SCHEDULER", "eventbridge").strip().lower() == "none":
+    if env.get("MERISMOS_SCHEDULER", "eventbridge").strip().lower() == "none":
         return NullScheduler()
     scheduler = Scheduler(
-        target_arn=env.get("MITOS_WAKE_TARGET_ARN", ""),
-        role_arn=env.get("MITOS_SCHEDULER_ROLE_ARN", ""),
-        group_name=env.get("MITOS_SCHEDULE_GROUP", "default"),
-        dead_letter_arn=env.get("MITOS_WAKE_DLQ_ARN", ""),
+        target_arn=env.get("MERISMOS_WAKE_TARGET_ARN", ""),
+        role_arn=env.get("MERISMOS_SCHEDULER_ROLE_ARN", ""),
+        group_name=env.get("MERISMOS_SCHEDULE_GROUP", "default"),
+        dead_letter_arn=env.get("MERISMOS_WAKE_DLQ_ARN", ""),
     )
     return scheduler if scheduler.configured else NullScheduler()

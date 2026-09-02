@@ -13,10 +13,11 @@ with a shared identifier. That is what makes "follow the thread back" a walk
 instead of a sort.
 
 The subject a run writes under is derived from the delivery, never from a module
-constant. mitos-gcp shipped a constant and every organisation it watched shared
-one memory with every other and with the demo corpus. The bug is cheap to
-recreate and expensive to notice, because with one tenant a shared key and a
-scoped key return identical rows.
+constant. A module constant here means every network the deployment watches
+shares one memory with every other and with the demo corpus, so one network's
+parked decision is recalled as prior knowledge about another's. That bug is
+cheap to write and expensive to notice: with a single tenant a shared key and a
+scoped key return identical rows, so a whole test suite agrees with it.
 """
 
 from __future__ import annotations
@@ -202,9 +203,9 @@ class DynamoDbLedger:
     backend = "dynamodb"
 
     def __init__(self, table_name: str = "", client: Any = None) -> None:
-        self.table_name = table_name or os.environ.get("MITOS_LEDGER_TABLE", "")
+        self.table_name = table_name or os.environ.get("MERISMOS_LEDGER_TABLE", "")
         if not self.table_name:
-            raise ValueError("MITOS_LEDGER_TABLE is not set, so there is no ledger")
+            raise ValueError("MERISMOS_LEDGER_TABLE is not set, so there is no ledger")
         self._client = client
 
     @property
@@ -372,10 +373,10 @@ def ledger_from_env(env: Mapping[str, str] | None = None) -> Any:
     is opt-in by name and announces itself.
     """
     env = os.environ if env is None else env
-    choice = env.get("MITOS_LEDGER", "dynamodb").strip().lower()
+    choice = env.get("MERISMOS_LEDGER", "dynamodb").strip().lower()
     if choice == "memory":
         return InMemoryLedger()
-    return DynamoDbLedger(table_name=env.get("MITOS_LEDGER_TABLE", ""))
+    return DynamoDbLedger(table_name=env.get("MERISMOS_LEDGER_TABLE", ""))
 
 
 def entries_as_json(entries: Iterable[Entry]) -> str:

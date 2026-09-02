@@ -170,9 +170,9 @@ class ApprovalStore:
     """
 
     def __init__(self, table_name: str = "", client: Any = None) -> None:
-        self.table_name = table_name or os.environ.get("MITOS_APPROVALS_TABLE", "")
+        self.table_name = table_name or os.environ.get("MERISMOS_APPROVALS_TABLE", "")
         if not self.table_name:
-            raise ValueError("MITOS_APPROVALS_TABLE is not set")
+            raise ValueError("MERISMOS_APPROVALS_TABLE is not set")
         self._client = client
 
     @property

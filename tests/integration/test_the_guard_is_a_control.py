@@ -16,8 +16,8 @@ import asyncio
 
 import pytest
 
-from mitos.guard import Guard
-from mitos.scripted import ScriptedPlanner
+from merismos.guard import Guard
+from merismos.scripted import ScriptedPlanner
 
 strands = pytest.importorskip("strands")
 

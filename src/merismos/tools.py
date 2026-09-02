@@ -8,11 +8,11 @@ Four bounds. Scope: only the register, the offers and the policies. Traversal:
 no ``..`` and no absolute path. Size: one read is capped. Budget: a finite number
 of successful reads per run.
 
-**Why the budget is counted here and not at the caller.** mitos-gcp enforced all
-four in ``read_file`` and none of them in ``search``, which checked scope inline
-and then read every in-scope file whole. Measured on a thousand-file corpus with
-the limit at twelve: a thousand reads served, zero counted. An agent that wanted
-the whole corpus only had to search for a common word. So ``search`` here spends
+**Why the budget is counted here and not at the caller.** The obvious shape puts
+all four bounds in ``read_file`` and none in ``search``, which checks scope
+inline and then reads every in-scope file whole. On a thousand-file corpus with
+the limit at twelve that is a thousand reads served and zero counted, and an
+agent that wants the whole corpus only has to search for a common word. So ``search`` here spends
 the same budget, stops when it is gone, and reports that it stopped.
 
 **And why a per-call cap as well as a run budget.** Counting search reads without
@@ -130,8 +130,9 @@ def bounded_read(log: ReadLog, corpus: Corpus, tool: str, path: str) -> str:
     try:
         check_read(log, path)
     except ReadRefused as refusal:
-        # A refused read costs nothing. Counting refusals inflated the number
-        # past the cap in mitos-gcp, so the limit never stopped anything.
+        # A refused read costs nothing. Counting refusals against the cap
+        # inflates the number past the limit on bad guesses alone, and then the
+        # limit never stops the thing it exists to stop.
         log.record(tool, path, served=False, bytes_read=0, why=str(refusal))
         raise
     try:
@@ -162,7 +163,7 @@ class Toolbox:
     def build(self) -> list[Any]:
         """Return the Strands tools. Imported here so the domain stays clean.
 
-        ``src/mitos`` outside this module imports no SDK, which is the check
+        ``src/merismos`` outside this module imports no SDK, which is the check
         STANDARDS A5 makes with a grep. This module is the boundary.
         """
         from strands import tool

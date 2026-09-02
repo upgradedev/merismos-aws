@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import pytest
 
-from mitos.approval import (
+from merismos.approval import (
     AlreadySpent,
     BytesChanged,
     Expired,

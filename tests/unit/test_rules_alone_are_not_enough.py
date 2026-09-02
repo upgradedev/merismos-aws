@@ -20,9 +20,9 @@ from __future__ import annotations
 
 import pytest
 
-from mitos.corpus import LocalCorpus
-from mitos.corpus import orgs as read_orgs
-from mitos.fleet import premises
+from merismos.corpus import LocalCorpus
+from merismos.corpus import orgs as read_orgs
+from merismos.fleet import premises
 
 
 @pytest.fixture(scope="module")

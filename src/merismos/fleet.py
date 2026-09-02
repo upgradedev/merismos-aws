@@ -6,17 +6,20 @@ asking and discarding the answer costs a request and invites a later edit that
 uses it. Where the rules pass, a model's answer is unioned in through
 ``Envelope.union``, which tightens and cannot loosen.
 
-mitos-gcp shipped the opposite of that for weeks with a fully green suite: the
-model branch returned before the deterministic companion was ever called, so in
-production the rules did not execute and the model's answer was the whole
-answer. The two refusals lost were the two that exist precisely because a
-model's opinion is not good enough. The suite passed because it exercised the
-deterministic path with no model and the model path with a stub, separately, and
-never crossed them on an input the rules refuse.
+This ordering is easy to get backwards and the failure is silent. Write it as
+"run the deterministic rules unless an analyst is configured" and the model
+branch returns before the rules are ever reached, so in production the rules do
+not execute at all and the model's answer is the whole answer. What is lost is
+exactly the set of refusals that exist because a model's opinion is not good
+enough: here, an irreversible cold-chain break and an absolute premises
+constraint.
 
-``test_the_model_cannot_clear_a_refusal.py`` crosses them, through ``run_chore``,
-because the helper looked correct in isolation and the chore is what the handler
-calls.
+A suite can agree with that bug indefinitely. Exercise the deterministic path
+with no model, and the model path with a stub, and both pass; the two are never
+crossed on an input the rules refuse.
+``test_the_model_cannot_clear_a_refusal.py`` crosses them, through ``run_chore``
+rather than through the helper, because a helper can look correct in isolation
+and the chore is what the handler actually calls.
 """
 
 from __future__ import annotations

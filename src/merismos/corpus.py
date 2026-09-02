@@ -76,10 +76,10 @@ class S3Corpus:
     backend = "s3"
 
     def __init__(self, bucket: str = "", prefix: str = "", client: Any = None) -> None:
-        self.bucket = bucket or os.environ.get("MITOS_CORPUS_BUCKET", "")
+        self.bucket = bucket or os.environ.get("MERISMOS_CORPUS_BUCKET", "")
         if not self.bucket:
-            raise ValueError("MITOS_CORPUS_BUCKET is not set, so there is no corpus")
-        self.prefix = (prefix or os.environ.get("MITOS_CORPUS_PREFIX", "")).lstrip("/")
+            raise ValueError("MERISMOS_CORPUS_BUCKET is not set, so there is no corpus")
+        self.prefix = (prefix or os.environ.get("MERISMOS_CORPUS_PREFIX", "")).lstrip("/")
         self._client = client
 
     @property
@@ -147,10 +147,10 @@ def org_names(corpus: Corpus) -> frozenset[str]:
 def corpus_from_env(env: dict[str, str] | None = None) -> Corpus:
     """Pick a corpus, defaulting to S3 in a deployment and local otherwise."""
     env = dict(os.environ) if env is None else env
-    if env.get("MITOS_CORPUS", "").strip().lower() == "local":
-        return LocalCorpus(env.get("MITOS_CORPUS_ROOT") or None)
-    if env.get("MITOS_CORPUS_BUCKET"):
+    if env.get("MERISMOS_CORPUS", "").strip().lower() == "local":
+        return LocalCorpus(env.get("MERISMOS_CORPUS_ROOT") or None)
+    if env.get("MERISMOS_CORPUS_BUCKET"):
         return S3Corpus(
-            bucket=env["MITOS_CORPUS_BUCKET"], prefix=env.get("MITOS_CORPUS_PREFIX", "")
+            bucket=env["MERISMOS_CORPUS_BUCKET"], prefix=env.get("MERISMOS_CORPUS_PREFIX", "")
         )
-    return LocalCorpus(env.get("MITOS_CORPUS_ROOT") or None)
+    return LocalCorpus(env.get("MERISMOS_CORPUS_ROOT") or None)

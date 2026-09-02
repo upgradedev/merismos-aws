@@ -16,8 +16,8 @@ import inspect
 
 import pytest
 
-from mitos import gate
-from mitos.gate import Draft, Verdict, judge, sanitise_for_independent_review
+from merismos import gate
+from merismos.gate import Draft, Verdict, judge, sanitise_for_independent_review
 
 CLEAN = Draft(
     body="# Allocation\n\nKypseli Food Pantry: 96 kg\nOmonoia Soup Kitchen: 96 kg",

@@ -17,7 +17,7 @@ import boto3
 import pytest
 from botocore.stub import ANY, Stubber
 
-from mitos.deferral import Deferral, NullScheduler, Scheduler, at_expression, schedule_name
+from merismos.deferral import Deferral, NullScheduler, Scheduler, at_expression, schedule_name
 
 
 def _deferral(until: dt.datetime) -> Deferral:
@@ -35,10 +35,10 @@ def test_create_schedule_matches_the_published_api():
     stubber = Stubber(client)
     stubber.add_response(
         "create_schedule",
-        {"ScheduleArn": "arn:aws:scheduler:eu-west-1:1:schedule/default/mitos-wake-x"},
+        {"ScheduleArn": "arn:aws:scheduler:eu-west-1:1:schedule/default/merismos-wake-x"},
         {
             "Name": ANY,
-            "GroupName": "mitos",
+            "GroupName": "merismos",
             "ScheduleExpression": "at(2026-09-10T06:00:00)",
             "ScheduleExpressionTimezone": "UTC",
             "FlexibleTimeWindow": {"Mode": "OFF"},
@@ -46,22 +46,22 @@ def test_create_schedule_matches_the_published_api():
             "ClientToken": ANY,
             "Description": ANY,
             "Target": {
-                "Arn": "arn:aws:lambda:eu-west-1:1:function:mitos-reader",
-                "RoleArn": "arn:aws:iam::1:role/mitos-scheduler",
+                "Arn": "arn:aws:lambda:eu-west-1:1:function:merismos-reader",
+                "RoleArn": "arn:aws:iam::1:role/merismos-scheduler",
                 "Input": ANY,
                 "RetryPolicy": {
                     "MaximumRetryAttempts": 3,
                     "MaximumEventAgeInSeconds": 3600,
                 },
-                "DeadLetterConfig": {"Arn": "arn:aws:sqs:eu-west-1:1:mitos-wake-dlq"},
+                "DeadLetterConfig": {"Arn": "arn:aws:sqs:eu-west-1:1:merismos-wake-dlq"},
             },
         },
     )
     scheduler = Scheduler(
-        target_arn="arn:aws:lambda:eu-west-1:1:function:mitos-reader",
-        role_arn="arn:aws:iam::1:role/mitos-scheduler",
-        group_name="mitos",
-        dead_letter_arn="arn:aws:sqs:eu-west-1:1:mitos-wake-dlq",
+        target_arn="arn:aws:lambda:eu-west-1:1:function:merismos-reader",
+        role_arn="arn:aws:iam::1:role/merismos-scheduler",
+        group_name="merismos",
+        dead_letter_arn="arn:aws:sqs:eu-west-1:1:merismos-wake-dlq",
         client=client,
     )
 
@@ -95,8 +95,8 @@ def test_a_naive_time_is_taken_as_utc():
 def test_two_long_deferral_ids_do_not_collide_on_one_schedule_name():
     """Truncation without a digest would silently drop one of two wakes."""
     stem = "finding-" + "a" * 90
-    first = schedule_name("mitos-wake", stem + "-one")
-    second = schedule_name("mitos-wake", stem + "-two")
+    first = schedule_name("merismos-wake", stem + "-one")
+    second = schedule_name("merismos-wake", stem + "-two")
 
     assert first != second
     assert len(first) <= 64 and len(second) <= 64
