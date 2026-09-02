@@ -37,11 +37,11 @@ trust. What follows is what runs today.
 | the deterministic gate | **runs**, 7 checks, no credential needed |
 | a deferral wakes the fleet on the day | **built and validated against the AWS API shape**, not yet deployed |
 | an approval binds exact bytes, once | **runs**, 22 tests across the offline and the DynamoDB path |
-| three identities, three roles | **enforced twice**: the handler refuses the route and IAM refuses the credential. `/identity` attempts the read and reports what AWS said. No IaC yet, so nothing is deployed |
+| three identities, three roles | **written as IAM in `infra/`, and asserted by 19 tests.** Not applied: nothing is deployed |
 | Bedrock reads the offers | **wired, not yet run against the live endpoint.** Two model families, two variables. The offline path is the default and announces itself |
-| a live URL a judge can open | **not yet** |
+| a live URL a judge can open | **not yet.** The Terraform and the deploy-then-teardown pipeline exist and have never been run |
 
-**233 tests, `ruff` clean, coverage 91.70% against an 85% floor.** The floor is enforced rather than
+**252 tests, `ruff` clean, coverage 91.70% against an 85% floor.** The floor is enforced rather than
 reported: it is in `addopts`, so the suite fails below it on a developer machine and in CI alike. Run
 it yourself, and prefer the number this prints to the number written here:
 
@@ -140,10 +140,23 @@ flowchart TB
 the evaluator **ask** for the publish credential and AWS IAM refuses them. No code of ours decides
 that, which is why it is worth more than a policy document saying the same thing.
 
-**What is not deployed yet.** Every Lambda, every IAM role, the DynamoDB tables, the buckets, the
-scheduler and the secret. The boxes are the design and the code that fills them runs offline today.
-The IaC that creates them is the next commit, and until it lands this diagram describes a program
-rather than a deployment.
+**What is not deployed yet.** Every box above exists as Terraform in [`infra/`](infra/) and none of
+it has been applied. So this diagram describes a program and a plan rather than a running system,
+and the difference matters: `terraform validate` passing proves the plan is well formed and proves
+nothing about what AWS will actually do with it.
+
+The boundary is asserted where it lives. [`infra/iam.tf`](infra/iam.tf) is its own file because it
+is this entry's central claim, and
+[`test_the_infrastructure_expresses_the_boundary.py`](tests/unit/test_the_infrastructure_expresses_the_boundary.py)
+reads it and asserts that the reader and the evaluator are granted no
+`secretsmanager:GetSecretValue` and are denied it explicitly. That is a text-level check and it says
+so in its own docstring: it cannot prove what AWS will do, only that the file still says what this
+README says it says. Proving the rest needs a deployment, which is what `/identity` is for.
+
+**Why the deny as well as the absence.** Not granting the permission is the primary control and
+would be enough today. The explicit `Deny` exists for six months from now, when somebody attaches a
+broad managed policy to the reader for an unrelated reason. A `Deny` survives that. A missing
+`Allow` does not.
 
 ## The write, in the order it happens
 
@@ -314,7 +327,7 @@ pip install -e ".[dev]"
 python -m pytest -q
 ```
 
-Expected: `233 passed` and `Required test coverage of 85% reached`, in about seven seconds.
+Expected: `252 passed` and `Required test coverage of 85% reached`, in about seven seconds.
 
 ```bash
 python -m pytest tests/integration/test_the_guard_is_a_control.py -q
@@ -332,7 +345,8 @@ Python 3.10+.
 | `src/merismos/` | the domain. `guard`, `gate`, `fleet`, `ledger`, `approval`, `deferral`, `corpus`, `tools` |
 | `src/merismos/bedrock.py` | the two models, and the only file in `src/` that knows what a Bedrock is |
 | `src/merismos/handler.py` | one Lambda entry point, three roles. `/identity`, `/catalog`, `/config`, `/run`, `/publish` |
-| `.github/workflows/` | gitleaks over history with no ignore file, then lint, tests and the coverage floor |
+| `.github/workflows/` | gitleaks over history with no ignore file, then lint, tests, the coverage floor and `terraform validate` |
+| `infra/` | the whole fleet as Terraform. `iam.tf` is the privilege boundary and is its own file |
 | `corpus/` | one network's own filing: five organisations, three offers with manifests, three policies |
 | `tests/` | `unit`, `integration`, `e2e` |
 

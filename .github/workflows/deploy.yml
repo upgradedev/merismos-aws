@@ -1,0 +1,146 @@
+name: Deploy, prove, tear down
+
+# Manual only, and never on a push. A workflow that can create billable
+# infrastructure on a push is a workflow that can do it on somebody else's push,
+# and this repository is public.
+on:
+  workflow_dispatch:
+    inputs:
+      keep:
+        description: "Leave the fleet standing after the checks (yes/no). 'no' tears it down in the same run."
+        required: true
+        default: "no"
+        type: choice
+        options: ["no", "yes"]
+      model:
+        description: "Bedrock inference profile, or 'none' for the deterministic path."
+        required: false
+        default: "none"
+
+permissions:
+  contents: read
+  id-token: write # OIDC. No long lived AWS keys are stored in this repository.
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: aws
+    env:
+      TF_VAR_model_id: ${{ inputs.model }}
+      TF_VAR_build_sha: ${{ github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version-file: .python-version
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION || 'eu-west-1' }}
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.8
+
+      - name: Build the dependency layer
+        run: infra/build.sh
+
+      - name: Apply
+        id: apply
+        run: |
+          terraform -chdir=infra init
+          terraform -chdir=infra apply -auto-approve
+          echo "url=$(terraform -chdir=infra output -raw reader_url)" >> "$GITHUB_OUTPUT"
+
+      # Everything below runs against the deployed system with no credentials,
+      # which is the point: it is the same thing a judge can run. Green CI
+      # proves the code that was pushed. It does not prove the thing running.
+      - name: The reader answers a stranger
+        run: |
+          set -euo pipefail
+          url="${{ steps.apply.outputs.url }}"
+          code=$(curl -s -o body.json -w '%{http_code}' "${url}identity")
+          cat body.json
+          test "${code}" = "200" || { echo "::error::reader answered ${code}"; exit 1; }
+
+      - name: And it reports that AWS refuses it the publish credential
+        run: |
+          set -euo pipefail
+          reaches=$(jq -r '.reaches_publish_credential' body.json)
+          said=$(jq -r '.what_aws_said' body.json)
+          echo "reaches=${reaches} what_aws_said=${said}"
+          test "${reaches}" = "false" || {
+            echo "::error::the reader reached the publish credential. The boundary is gone."
+            exit 1
+          }
+          # The refusal has to come from IAM, not from a missing configuration.
+          case "${said}" in
+            *AccessDenied*|*Unauthorized*) : ;;
+            *) echo "::error::expected an IAM refusal, got '${said}'"; exit 1 ;;
+          esac
+
+      - name: The other two refuse a stranger
+        run: |
+          set -euo pipefail
+          for who in evaluator writer; do
+            u=$(terraform -chdir=infra output -json check_the_boundary | jq -r ".${who}")
+            code=$(eval "${u}")
+            echo "${who} answered ${code}"
+            test "${code}" = "403" || {
+              echo "::error::${who} answered ${code} to an anonymous caller, expected 403"
+              exit 1
+            }
+          done
+
+      - name: A run reaches a card and publishes nothing
+        run: |
+          set -euo pipefail
+          url="${{ steps.apply.outputs.url }}"
+          curl -s -X POST "${url}run" -H 'content-type: application/json' \
+            -d '{"offer":"offer-4471"}' > run.json
+          jq '{outcome, note}' run.json
+          test "$(jq -r '.outcome' run.json)" = "awaiting_approval"
+          test "$(jq -r '.approval_card' run.json)" = "null" || {
+            echo "::error::an anonymous run minted an approval"
+            exit 1
+          }
+
+      - name: The refused offer is still refused when deployed
+        run: |
+          set -euo pipefail
+          url="${{ steps.apply.outputs.url }}"
+          curl -s -X POST "${url}run" -H 'content-type: application/json' \
+            -d '{"offer":"offer-4477"}' > blocked.json
+          test "$(jq -r '.outcome' blocked.json)" = "blocked"
+          jq -r '.note' blocked.json | grep -qi 'cold chain'
+
+      - name: The bounds it publishes match the bounds it enforces
+        run: |
+          set -euo pipefail
+          url="${{ steps.apply.outputs.url }}"
+          curl -s "${url}config" | tee config.json | jq .
+          test "$(jq -r '.read_budget_per_run' config.json)" = "12"
+          test "$(jq -r '.deferrals_wake_on_a_schedule' config.json)" = "true"
+
+      # Always, even when a check above failed. A failed proof that leaves a
+      # fleet standing is a bill, and this is the row STANDARDS D2 asks for.
+      - name: Tear down
+        if: always() && inputs.keep != 'yes'
+        run: terraform -chdir=infra destroy -auto-approve
+
+      - name: What is still standing
+        if: always()
+        run: |
+          if [ "${{ inputs.keep }}" = "yes" ]; then
+            echo "### Fleet left standing" >> "$GITHUB_STEP_SUMMARY"
+            echo "\`${{ steps.apply.outputs.url }}\`" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "### Torn down" >> "$GITHUB_STEP_SUMMARY"
+            echo "Nothing is billing." >> "$GITHUB_STEP_SUMMARY"
+          fi

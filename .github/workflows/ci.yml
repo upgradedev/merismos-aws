@@ -91,3 +91,43 @@ jobs:
         run: |
           pytest --no-cov -q \
             tests/integration/test_the_guard_is_a_control.py::test_the_same_demand_succeeds_with_the_guard_removed
+
+  # The IaC is validated on every push. It is not applied here: an apply needs
+  # credentials and creates real, billable resources, and a CI job that can
+  # deploy on a push is a CI job that can deploy on somebody else's push.
+  infra:
+    runs-on: ubuntu-latest
+    needs: secrets
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.8
+
+      - name: Formatting
+        run: terraform -chdir=infra fmt -check -recursive -diff
+
+      - name: Initialise without a backend or credentials
+        run: terraform -chdir=infra init -backend=false
+
+      - name: Validate
+        run: terraform -chdir=infra validate
+
+      # The boundary this entry argues for lives in iam.tf, so it is linted as
+      # policy rather than only as syntax.
+      - name: The publish credential is granted to exactly one role
+        run: |
+          set -euo pipefail
+          grants=$(grep -c 'secretsmanager:GetSecretValue' infra/iam.tf)
+          echo "GetSecretValue appears ${grants} times in iam.tf"
+          # Once as the writer's grant, once in the shared Deny document.
+          test "${grants}" -eq 2 || {
+            echo "::error::GetSecretValue appears ${grants} times, expected 2."
+            echo "::error::One grant (writer) and one deny (reader and evaluator)."
+            exit 1
+          }
+          grep -q 'effect    = "Deny"' infra/iam.tf || {
+            echo "::error::the explicit deny on the publish credential is gone"
+            exit 1
+          }
