@@ -101,6 +101,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: actions/setup-python@v5
+        with:
+          python-version-file: .python-version
+
       - uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: 1.9.8
@@ -108,11 +112,30 @@ jobs:
       - name: Formatting
         run: terraform -chdir=infra fmt -check -recursive -diff
 
+      # validate evaluates filebase64sha256 on the layer, so the artifact has to
+      # exist before it runs. Building it here rather than stubbing it means the
+      # build script is exercised on every push instead of only on a deploy,
+      # which is where it would otherwise first fail.
+      - name: Build the dependency layer
+        run: infra/build.sh
+
       - name: Initialise without a backend or credentials
         run: terraform -chdir=infra init -backend=false
 
       - name: Validate
         run: terraform -chdir=infra validate
+
+      # The layer has a hard 50 MB zipped limit and an apply that breaches it
+      # fails after everything else has already been created.
+      - name: The layer is inside the Lambda limit
+        run: |
+          set -euo pipefail
+          bytes=$(stat -c%s infra/.build/deps.zip)
+          echo "layer: ${bytes} bytes, $((bytes / 1048576)) MB"
+          test "${bytes}" -lt 52428800 || {
+            echo "::error::the layer is ${bytes} bytes, over the 50 MB zipped limit"
+            exit 1
+          }
 
       # The boundary this entry argues for lives in iam.tf, so it is linted as
       # policy rather than only as syntax.
