@@ -137,8 +137,6 @@ jobs:
             exit 1
           }
 
-      # The boundary this entry argues for lives in iam.tf, so it is linted as
-      # policy rather than only as syntax.
       # The layer cannot be built on Windows: pip resolves mcp's pywin32 marker
       # against the host interpreter even with --platform, and Git Bash has no
       # zip. So the artifact CI produces on Linux is the one a deploy uses,
@@ -152,6 +150,8 @@ jobs:
           retention-days: 5
           if-no-files-found: error
 
+      # The boundary this entry argues for lives in iam.tf, so it is linted as
+      # policy rather than only as syntax.
       - name: The publish credential is granted to exactly one role
         run: |
           set -euo pipefail
