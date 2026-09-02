@@ -25,10 +25,10 @@ trust. What follows is what runs today.
 | a deferral wakes the fleet on the day | **built and validated against the AWS API shape**, not yet deployed |
 | an approval binds exact bytes, once | **runs**, 22 tests across the offline and the DynamoDB path |
 | three identities, three roles | **enforced in the guard**, 100% covered. No IaC yet, so nothing is deployed |
-| Bedrock reads the offers | **not built.** The offline planner is deterministic and says so |
+| Bedrock reads the offers | **wired, not yet run against the live endpoint.** Two model families, two variables. The offline path is the default and announces itself |
 | a live URL a judge can open | **not yet** |
 
-**178 tests, `ruff` clean, coverage 92.49% against an 85% floor.** The floor is enforced rather than
+**207 tests, `ruff` clean, coverage 92.75% against an 85% floor.** The floor is enforced rather than
 reported: it is in `addopts`, so the suite fails below it on a developer machine and in CI alike. Run
 it yourself, and prefer the number this prints to the number written here:
 
@@ -41,8 +41,8 @@ hand-rolled mocks. A mock accepts whatever you send it, so a suite built on one 
 calls the mock the way the code calls the mock. `Stubber` validates parameters the way a real call
 does, so a misspelled key or a wrong attribute type fails here rather than in a deployment.
 
-What is **not** covered: `fleet.py` at 87% and `gate.py` at 85% are the two lowest, and both gaps are
-error branches rather than the decision paths.
+What is **not** covered: `fleet.py` at 87% and `bedrock.py` at 88% are the two lowest. The Bedrock gap
+is the live call itself, which no offline test can reach and which is honestly still unproven.
 
 ## Who this is for
 
@@ -85,9 +85,11 @@ A gate nobody has watched go red is a gate nobody should believe.
 
 ## Is this agentic, or a rules engine with a model attached
 
-A fair question, and the honest answer is that **the model is not wired up yet**, so today it is the
-second one. What is built is the seam the model plugs into, and the case that decides whether it
-earns its place.
+A fair question, and the honest answer today is **half**. The model is wired: a specialist is handed
+the network and a question rather than an answer, with tools to open the filing and a small read
+budget, and the files it chooses are recorded. What has **not** happened is a run against the live
+Bedrock endpoint, so every number below comes from the deterministic path. Until that runs, treat
+this section as the case for why the model earns its place rather than as evidence that it does.
 
 **Offer 4483.** A wholesaler clears a pallet. The offer says category `ambient`, `allergens: []`,
 long dated. Every pattern in this repository passes it, and correctly: the donor described the
@@ -155,6 +157,15 @@ and nobody is watching, so the wake path holds no credential that can publish.
 No AWS account, no credentials, no network.
 
 ```bash
+python -m merismos.demo
+```
+
+The three offers, each to an outcome, then the comparison below run live rather than quoted. The
+first three lines name the ledger, the model and the scheduler this run actually used, and the
+offline path says so in as many words. A demo that quietly falls back to a stub shows a stub and
+nobody watching can tell.
+
+```bash
 pip install -e ".[dev]"
 ```
 
@@ -162,7 +173,7 @@ pip install -e ".[dev]"
 python -m pytest -q
 ```
 
-Expected: `178 passed` and `Required test coverage of 85% reached`, in about four seconds.
+Expected: `207 passed` and `Required test coverage of 85% reached`, in about seven seconds.
 
 ```bash
 python -m pytest tests/integration/test_the_guard_is_a_control.py -q
@@ -178,6 +189,7 @@ Python 3.10+.
 | Path | What is in it |
 |---|---|
 | `src/merismos/` | the domain. `guard`, `gate`, `fleet`, `ledger`, `approval`, `deferral`, `corpus`, `tools` |
+| `src/merismos/bedrock.py` | the two models, and the only file in `src/` that knows what a Bedrock is |
 | `.github/workflows/` | gitleaks over history with no ignore file, then lint, tests and the coverage floor |
 | `corpus/` | one network's own filing: five organisations, three offers with manifests, three policies |
 | `tests/` | `unit`, `integration`, `e2e` |
