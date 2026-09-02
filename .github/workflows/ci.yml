@@ -139,6 +139,19 @@ jobs:
 
       # The boundary this entry argues for lives in iam.tf, so it is linted as
       # policy rather than only as syntax.
+      # The layer cannot be built on Windows: pip resolves mcp's pywin32 marker
+      # against the host interpreter even with --platform, and Git Bash has no
+      # zip. So the artifact CI produces on Linux is the one a deploy uses,
+      # which is the right way round anyway: the thing that ships is the thing
+      # that was built by the pipeline rather than on somebody's laptop.
+      - name: Publish the layer so a deploy uses this exact artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: deps-layer
+          path: infra/.build/deps.zip
+          retention-days: 5
+          if-no-files-found: error
+
       - name: The publish credential is granted to exactly one role
         run: |
           set -euo pipefail
