@@ -38,7 +38,7 @@ trust. What follows is what runs today.
 | a deferral wakes the fleet on the day | **built and validated against the AWS API shape**, not yet deployed |
 | an approval binds exact bytes, once | **runs**, 22 tests across the offline and the DynamoDB path |
 | three identities, three roles | **written as IAM in `infra/`, and asserted by 19 tests.** Not applied: nothing is deployed |
-| Bedrock reads the offers | **wired, not yet run against the live endpoint.** Two model families, two variables. The offline path is the default and announces itself |
+| Bedrock reads the offers | **run against the live endpoint once**, Claude Opus 5 in `eu-west-1`, 2026-09-02. It opened 10 files, found two things the rules miss, and reported one it could not determine. [The whole run](docs/live-run-2026-09-02.md) |
 | a live URL a judge can open | **not yet.** The Terraform and the deploy-then-teardown pipeline exist and have never been run |
 
 **252 tests, `ruff` clean, coverage 91.70% against an 85% floor.** The floor is enforced rather than
@@ -233,11 +233,21 @@ A gate nobody has watched go red is a gate nobody should believe.
 
 ## Is this agentic, or a rules engine with a model attached
 
-A fair question, and the honest answer today is **half**. The model is wired: a specialist is handed
-the network and a question rather than an answer, with tools to open the filing and a small read
-budget, and the files it chooses are recorded. What has **not** happened is a run against the live
-Bedrock endpoint, so every number below comes from the deterministic path. Until that runs, treat
-this section as the case for why the model earns its place rather than as evidence that it does.
+It has now been run once against live Claude Opus 5 on Bedrock, and **the model found two things the
+deterministic rules do not**. The whole run is recorded in
+[`docs/live-run-2026-09-02.md`](docs/live-run-2026-09-02.md), unedited.
+
+The first is a gap in our own rules. `_MANIFEST_TOKENS` covers alcohol, pork and nuts, because those
+are the three somebody thought to write down. The manifest also has hard cheese, pasta and crackers,
+so the true undeclared allergen set includes milk and gluten. The model read the manifest instead of
+matching against a list.
+
+The second is better. The donor requires the whole 180 units in one collection; the network's policy
+caps any member at 40%, which is 72 units. Both cannot hold. **Nothing in this repository compares an
+offer's conditions against the policy**, so no rule here could have found that, and it was not
+planted in the fixture for the model to find.
+
+One run is not a measurement, and the recording says so. It cost 104.6 seconds for one specialist.
 
 **Offer 4483.** A wholesaler clears a pallet. The offer says category `ambient`, `allergens: []`,
 long dated. Every pattern in this repository passes it, and correctly: the donor described the

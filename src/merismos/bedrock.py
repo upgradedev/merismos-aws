@@ -314,7 +314,15 @@ class BedrockCritic:
                 }
             ],
             messages=[{"role": "user", "content": [{"text": envelope}]}],
-            inferenceConfig={"maxTokens": CRITIC_MAX_TOKENS, "temperature": 0.0},
+            # No temperature. The critic is meant to be swappable across model
+            # families, and sampling parameters were removed on the Claude 5
+            # family: sending temperature to eu.anthropic.claude-opus-5 is a
+            # ValidationException, verified against the live endpoint on
+            # 2026-09-02. Hardcoding it here worked on Nova, which is the
+            # default, and would have failed the moment anyone pointed the
+            # critic at a Claude model. Determinism on a three line critique is
+            # not worth a request that cannot succeed.
+            inferenceConfig={"maxTokens": CRITIC_MAX_TOKENS},
         )
         text = "".join(
             block.get("text", "")

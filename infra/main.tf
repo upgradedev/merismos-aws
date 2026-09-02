@@ -58,9 +58,11 @@ resource "aws_lambda_function" "fleet" {
   filename         = data.archive_file.bundle.output_path
   source_code_hash = data.archive_file.bundle.output_base64sha256
 
-  # The reader runs a model that reads files and thinks. The other two do
-  # arithmetic and one write, so they get less of both.
-  timeout     = each.key == "reader" ? 300 : 30
+  # Measured, not guessed. One specialist reading offer-4483 with Claude Opus 5
+  # on Bedrock took 104.6s (docs/live-run-2026-09-02.md), and a run wakes four,
+  # so 300 was not enough and the run would have been killed mid-flight. 900 is
+  # the Lambda maximum. The other two do arithmetic and one write.
+  timeout     = each.key == "reader" ? 900 : 30
   memory_size = each.key == "reader" ? 1024 : 512
 
   layers = [aws_lambda_layer_version.deps.arn]

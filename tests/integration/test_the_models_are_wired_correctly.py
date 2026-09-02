@@ -70,7 +70,7 @@ def test_the_critic_request_matches_bedrocks_api_and_carries_no_tools():
             "modelId": DEFAULT_CRITIC_MODEL,
             "system": ANY,
             "messages": ANY,
-            "inferenceConfig": {"maxTokens": 600, "temperature": 0.0},
+            "inferenceConfig": {"maxTokens": 600},
         },
     )
     critic = BedrockCritic(model_id=DEFAULT_CRITIC_MODEL, _client=client)
@@ -81,6 +81,27 @@ def test_the_critic_request_matches_bedrocks_api_and_carries_no_tools():
     stubber.assert_no_pending_responses()
     assert len(advisories) == 2
     assert model == DEFAULT_CRITIC_MODEL
+
+
+def test_the_critic_sends_no_sampling_parameters():
+    """Verified against the live endpoint, so it is pinned here.
+
+    eu.anthropic.claude-opus-5 rejects temperature with a ValidationException:
+    sampling parameters were removed on the Claude 5 family. The critic is meant
+    to be swappable across families, so it sends none. This passed on Nova for
+    as long as Nova was the only thing it was pointed at.
+    """
+    seen: list[dict] = []
+    critic = BedrockCritic(
+        model_id="eu.anthropic.claude-opus-5",
+        _client=_Recorder(lambda **kw: seen.append(kw) or _converse_response("None.")),
+    )
+
+    critic(DRAFT, Verdict(passed=True))
+
+    config = seen[0]["inferenceConfig"]
+    for banned in ("temperature", "topP", "topK"):
+        assert banned not in config, f"the critic sends {banned}, which 400s on Claude 5"
 
 
 def test_the_critic_is_handed_no_tools_to_call():
