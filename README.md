@@ -14,15 +14,15 @@ Built for **Agents for Humans (AWS)**, track **Good Neighbor Agents**.
 
 ## Contents
 
-- [Status, stated honestly](#status-stated-honestly) — what does not work yet, first
+- [Status, stated honestly](#status-stated-honestly). What does not work yet, first
 - [Who this is for](#who-this-is-for)
-- [Architecture](#architecture) — and [the write, in the order it happens](#the-write-in-the-order-it-happens)
+- [Architecture](#architecture), and [the write, in the order it happens](#the-write-in-the-order-it-happens)
 - [The one thing it does](#the-one-thing-it-does)
-- [Why the Strands Agents SDK is load-bearing](#why-the-strands-agents-sdk-is-load-bearing) — proven by removing it
+- [Why the Strands Agents SDK is load-bearing](#why-the-strands-agents-sdk-is-load-bearing). Proven by removing it
 - [Is this agentic, or a rules engine with a model attached](#is-this-agentic-or-a-rules-engine-with-a-model-attached)
 - [The controls](#the-controls)
 - [The deferral, and why it is an AWS build](#the-deferral-and-why-it-is-an-aws-build)
-- [Run it](#run-it) — no account, no credentials, no network
+- [Run it](#run-it). No account, no credentials, no network
 - [Repository](#repository) · [Pre-existing components](#pre-existing-components) · [Licence](#licence)
 
 ## Status, stated honestly
