@@ -22,10 +22,10 @@ output "the_boundary_in_one_table" {
   description = "What each identity holds. /identity proves it live rather than asserting it."
   value = {
     for r in sort(tolist(local.roles)) : r => {
-      role_arn                = aws_iam_role.fleet[r].arn
-      may_publish             = r == "writer"
-      reads_publish_secret    = r == "writer" ? "granted" : "explicitly denied"
-      answers_a_stranger      = r == "reader" ? "yes, 200" : "no, 403"
+      role_arn             = aws_iam_role.fleet[r].arn
+      may_publish          = r == "writer"
+      reads_publish_secret = r == "writer" ? "granted" : "explicitly denied"
+      answers_a_stranger   = r == "reader" ? "yes, 200" : "no, 403"
     }
   }
 }

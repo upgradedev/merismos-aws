@@ -11,7 +11,7 @@ provider "aws" {
   region = var.region
   default_tags {
     tags = {
-      Project = var.project
+      Project   = var.project
       ManagedBy = "terraform"
     }
   }
@@ -83,7 +83,7 @@ resource "aws_lambda_function" "fleet" {
       MERISMOS_MODEL        = each.key == "reader" ? var.model_id : "none"
       MERISMOS_CRITIC_MODEL = each.key == "reader" ? var.critic_model_id : ""
 
-      MERISMOS_WAKE_TARGET_ARN   = "arn:aws:lambda:${var.region}:${data.aws_caller_identity.me.account_id}:function:${var.project}-reader"
+      MERISMOS_WAKE_TARGET_ARN    = "arn:aws:lambda:${var.region}:${data.aws_caller_identity.me.account_id}:function:${var.project}-reader"
       MERISMOS_SCHEDULER_ROLE_ARN = aws_iam_role.scheduler.arn
       MERISMOS_SCHEDULE_GROUP     = aws_scheduler_schedule_group.wakes.name
       MERISMOS_WAKE_DLQ_ARN       = aws_sqs_queue.wake_dlq.arn
