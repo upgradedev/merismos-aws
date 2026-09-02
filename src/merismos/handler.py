@@ -142,6 +142,17 @@ def _attempt_publish_credential() -> tuple[bool, str]:
 
         boto3.client("secretsmanager").get_secret_value(SecretId=secret)
     except Exception as error:  # noqa: BLE001 - the refusal is the answer
+        # AWS's own error code, not the Python class name. botocore raises a
+        # bare ClientError for an IAM refusal on this call, and "ClientError"
+        # is not evidence of anything: a typo in the secret name produces one
+        # too. The code inside it says AccessDeniedException, and that is the
+        # word that means IAM refused. Reported live as "ClientError" on the
+        # first deployment, which is how this was noticed.
+        response = getattr(error, "response", None)
+        if isinstance(response, dict):
+            code = response.get("Error", {}).get("Code")
+            if code:
+                return False, str(code)
         return False, type(error).__name__
     return True, "granted"
 

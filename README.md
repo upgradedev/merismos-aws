@@ -37,9 +37,9 @@ trust. What follows is what runs today.
 | the deterministic gate | **runs**, 7 checks, no credential needed |
 | a deferral wakes the fleet on the day | **built and validated against the AWS API shape**, not yet deployed |
 | an approval binds exact bytes, once | **runs**, 22 tests across the offline and the DynamoDB path |
-| three identities, three roles | **written as IAM in `infra/`, and asserted by 19 tests.** Not applied: nothing is deployed |
+| three identities, three roles | **deployed and proven live.** The reader and evaluator got `AccessDeniedException` from IAM asking for the publish credential; the writer got it. [The deployment](docs/deploy-2026-09-02.md) |
 | Bedrock reads the offers | **run against the live endpoint once**, Claude Opus 5 in `eu-west-1`, 2026-09-02. It opened 10 files, found two things the rules miss, and reported one it could not determine. [The whole run](docs/live-run-2026-09-02.md) |
-| a live URL a judge can open | **not yet.** The Terraform and the deploy-then-teardown pipeline exist and have never been run |
+| a live URL a judge can open | **no, and not for want of trying.** Public Lambda Function URLs are refused in the deploying account, proven with a two-line throwaway function. Not a code problem and no change to `infra/` fixes it. The published record in S3 **is** readable with no account |
 
 **252 tests, `ruff` clean, coverage 91.70% against an 85% floor.** The floor is enforced rather than
 reported: it is in `addopts`, so the suite fails below it on a developer machine and in CI alike. Run
@@ -140,10 +140,10 @@ flowchart TB
 the evaluator **ask** for the publish credential and AWS IAM refuses them. No code of ours decides
 that, which is why it is worth more than a policy document saying the same thing.
 
-**What is not deployed yet.** Every box above exists as Terraform in [`infra/`](infra/) and none of
-it has been applied. So this diagram describes a program and a plan rather than a running system,
-and the difference matters: `terraform validate` passing proves the plan is well formed and proves
-nothing about what AWS will actually do with it.
+**This has been deployed once and torn down**, on 2026-09-02: 61 resources, then `destroy`. What
+that found is in [`docs/deploy-2026-09-02.md`](docs/deploy-2026-09-02.md), including two defects that
+every green plan had missed and one constraint that is not fixable here at all. Nothing is standing
+now, so the diagram describes a program that has run rather than a program that is running.
 
 The boundary is asserted where it lives. [`infra/iam.tf`](infra/iam.tf) is its own file because it
 is this entry's central claim, and

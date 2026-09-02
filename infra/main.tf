@@ -129,6 +129,20 @@ resource "aws_lambda_function_url" "reader" {
   }
 }
 
+# authorization_type = "NONE" is not on its own enough. A Function URL still
+# checks the function's resource policy, so without this the reader answers
+# every stranger 403 and the one endpoint a judge can open is closed. Found by
+# deploying: terraform applied cleanly, every plan was green, and the first
+# curl came back Forbidden. That gap is the whole argument for running the
+# deploy-then-teardown pipeline rather than trusting a validated plan.
+resource "aws_lambda_permission" "reader_answers_anyone" {
+  statement_id           = "AllowPublicFunctionUrl"
+  action                 = "lambda:InvokeFunctionUrl"
+  function_name          = aws_lambda_function.fleet["reader"].function_name
+  principal              = "*"
+  function_url_auth_type = "NONE"
+}
+
 resource "aws_lambda_function_url" "private" {
   for_each           = toset(["evaluator", "writer"])
   function_name      = aws_lambda_function.fleet[each.key].function_name
