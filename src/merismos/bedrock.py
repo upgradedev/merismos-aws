@@ -127,6 +127,9 @@ class BedrockAnalyst:
     model_id: str = ""
     region: str = ""
     role: str = "reader"
+    #: Seconds. Short on purpose: see build_agent.
+    connect_timeout: int = 5
+    read_timeout: int = 120
     _model: Any = None
 
     def __post_init__(self) -> None:
@@ -138,11 +141,28 @@ class BedrockAnalyst:
         The guard is attached here rather than trusted to be attached somewhere.
         An agent constructed without it would be an agent whose tool authority is
         whatever its toolset happens to contain.
+
+        **The timeouts are not tuning, they are a control.** With botocore's
+        defaults a Lambda with no usable credentials retries with exponential
+        backoff for over a minute, which is a billed timeout rather than an
+        error, and nothing in the logs says why. A run that cannot reach its
+        model should fail in seconds so ``run_chore`` can record the finding
+        that says so. This was found by a test suite hanging, which is the
+        cheapest possible place to find it.
         """
+        from botocore.config import Config
         from strands import Agent
         from strands.models import BedrockModel
 
-        model = self._model or BedrockModel(model_id=self.model_id, region_name=self.region or None)
+        model = self._model or BedrockModel(
+            model_id=self.model_id,
+            region_name=self.region or None,
+            boto_client_config=Config(
+                connect_timeout=self.connect_timeout,
+                read_timeout=self.read_timeout,
+                retries={"max_attempts": 2, "mode": "standard"},
+            ),
+        )
         return Agent(
             model=model,
             tools=box.build(),
@@ -257,7 +277,20 @@ class BedrockCritic:
 
     @property
     def client(self) -> Any:
-        return _client("bedrock-runtime", self.region, self._client)
+        if self._client is not None:
+            return self._client
+        import boto3
+        from botocore.config import Config
+
+        return boto3.client(
+            "bedrock-runtime",
+            region_name=self.region or os.environ.get("AWS_REGION") or None,
+            config=Config(
+                connect_timeout=5,
+                read_timeout=60,
+                retries={"max_attempts": 2, "mode": "standard"},
+            ),
+        )
 
     def __call__(self, draft: Draft, verdict: Verdict) -> tuple[Sequence[str], str]:
         """Return ``(advisories, model_that_answered)``.

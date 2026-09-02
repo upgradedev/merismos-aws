@@ -37,11 +37,11 @@ trust. What follows is what runs today.
 | the deterministic gate | **runs**, 7 checks, no credential needed |
 | a deferral wakes the fleet on the day | **built and validated against the AWS API shape**, not yet deployed |
 | an approval binds exact bytes, once | **runs**, 22 tests across the offline and the DynamoDB path |
-| three identities, three roles | **enforced in the guard**, 100% covered. No IaC yet, so nothing is deployed |
+| three identities, three roles | **enforced twice**: the handler refuses the route and IAM refuses the credential. `/identity` attempts the read and reports what AWS said. No IaC yet, so nothing is deployed |
 | Bedrock reads the offers | **wired, not yet run against the live endpoint.** Two model families, two variables. The offline path is the default and announces itself |
 | a live URL a judge can open | **not yet** |
 
-**207 tests, `ruff` clean, coverage 92.75% against an 85% floor.** The floor is enforced rather than
+**228 tests, `ruff` clean, coverage 91.70% against an 85% floor.** The floor is enforced rather than
 reported: it is in `addopts`, so the suite fails below it on a developer machine and in CI alike. Run
 it yourself, and prefer the number this prints to the number written here:
 
@@ -308,7 +308,7 @@ pip install -e ".[dev]"
 python -m pytest -q
 ```
 
-Expected: `207 passed` and `Required test coverage of 85% reached`, in about seven seconds.
+Expected: `228 passed` and `Required test coverage of 85% reached`, in about five seconds.
 
 ```bash
 python -m pytest tests/integration/test_the_guard_is_a_control.py -q
@@ -325,6 +325,7 @@ Python 3.10+.
 |---|---|
 | `src/merismos/` | the domain. `guard`, `gate`, `fleet`, `ledger`, `approval`, `deferral`, `corpus`, `tools` |
 | `src/merismos/bedrock.py` | the two models, and the only file in `src/` that knows what a Bedrock is |
+| `src/merismos/handler.py` | one Lambda entry point, three roles. `/identity`, `/catalog`, `/config`, `/run`, `/publish` |
 | `.github/workflows/` | gitleaks over history with no ignore file, then lint, tests and the coverage floor |
 | `corpus/` | one network's own filing: five organisations, three offers with manifests, three policies |
 | `tests/` | `unit`, `integration`, `e2e` |
