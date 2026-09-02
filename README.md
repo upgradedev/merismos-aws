@@ -20,16 +20,29 @@ trust. What follows is what runs today.
 
 | Claim | State |
 |---|---|
-| the guard is a control, not a prompt | **proven in CI, both directions.** 3 tests |
+| the guard is a control, not a prompt | **proven in CI, both directions.** 3 tests, and a job that fails if that suite skips |
 | the deterministic gate | **runs**, 7 checks, no credential needed |
 | a deferral wakes the fleet on the day | **built and validated against the AWS API shape**, not yet deployed |
-| an approval binds exact bytes, once | **runs**, 10 tests |
-| three identities, three roles | **designed and enforced in the guard.** No IaC yet, so nothing is deployed |
+| an approval binds exact bytes, once | **runs**, 22 tests across the offline and the DynamoDB path |
+| three identities, three roles | **enforced in the guard**, 100% covered. No IaC yet, so nothing is deployed |
 | Bedrock reads the offers | **not built.** The offline planner is deterministic and says so |
 | a live URL a judge can open | **not yet** |
 
-37 tests, `ruff` clean, coverage **74%** against an 85% floor that is **not yet met**. The gaps are
-the S3 and DynamoDB adapters and the tool layer.
+**178 tests, `ruff` clean, coverage 92.49% against an 85% floor.** The floor is enforced rather than
+reported: it is in `addopts`, so the suite fails below it on a developer machine and in CI alike. Run
+it yourself, and prefer the number this prints to the number written here:
+
+```bash
+python -m pytest -q
+```
+
+The AWS adapters are covered against **botocore's own service models** using `Stubber`, not against
+hand-rolled mocks. A mock accepts whatever you send it, so a suite built on one asserts that the code
+calls the mock the way the code calls the mock. `Stubber` validates parameters the way a real call
+does, so a misspelled key or a wrong attribute type fails here rather than in a deployment.
+
+What is **not** covered: `fleet.py` at 87% and `gate.py` at 85% are the two lowest, and both gaps are
+error branches rather than the decision paths.
 
 ## Who this is for
 
@@ -149,7 +162,7 @@ pip install -e ".[dev]"
 python -m pytest -q
 ```
 
-Expected: `37 passed`, in about two seconds.
+Expected: `178 passed` and `Required test coverage of 85% reached`, in about four seconds.
 
 ```bash
 python -m pytest tests/integration/test_the_guard_is_a_control.py -q
@@ -165,6 +178,7 @@ Python 3.10+.
 | Path | What is in it |
 |---|---|
 | `src/merismos/` | the domain. `guard`, `gate`, `fleet`, `ledger`, `approval`, `deferral`, `corpus`, `tools` |
+| `.github/workflows/` | gitleaks over history with no ignore file, then lint, tests and the coverage floor |
 | `corpus/` | one network's own filing: five organisations, three offers with manifests, three policies |
 | `tests/` | `unit`, `integration`, `e2e` |
 

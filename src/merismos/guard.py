@@ -38,13 +38,20 @@ FORBIDDEN_EVERYWHERE = frozenset(
 
 # What each role may call. A role absent from this mapping may call nothing,
 # which is the safe direction for a typo in a deployment variable.
+#
+# **These names are the toolbox's names and drift between the two is a defect in
+# both directions**, so it is asserted rather than reviewed. A name here with no
+# tool behind it is a permission granted over nothing; a tool with no name here
+# is refused at runtime by a guard that looks like a bug. This list said
+# ``list_offers``, ``read_offer`` and ``read_org``, none of which exist, and
+# omitted ``list_paths`` and ``read_file``, which are how the reader reads. The
+# reader could not have opened a single file in a deployment.
 ROLE_TOOLS: dict[str, frozenset[str]] = {
     # The reader orchestrates the whole chore and holds no publish credential.
     "reader": frozenset(
         {
-            "list_offers",
-            "read_offer",
-            "read_org",
+            "list_paths",
+            "read_file",
             "search",
             "recall",
             "record_finding",
@@ -52,8 +59,10 @@ ROLE_TOOLS: dict[str, frozenset[str]] = {
             "propose_allocation",
         }
     ),
-    # The evaluator judges a draft. It reads nothing and proposes nothing.
-    "evaluator": frozenset({"read_offer", "record_finding"}),
+    # The evaluator judges the bytes it was handed and deliberately holds no
+    # read tool at all. A gate that can go looking is a gate that can be sent
+    # looking, and the deterministic checks need nothing but the draft.
+    "evaluator": frozenset({"record_finding"}),
     # The writer publishes an approved record and does nothing else.
     "writer": frozenset({"publish_record"}),
 }

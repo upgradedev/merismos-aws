@@ -122,25 +122,35 @@ class Ledger(Protocol):
 
 
 def subject_for(repository: str, paths: Sequence[str] = ()) -> str:
-    """Derive the memory key from the delivery.
+    """Derive the memory key from a delivery, given the **files** it changed.
 
-    ``network:organisation`` where it can be determined, falling back to the
+    ``network:area`` where an area can be determined, falling back to the
     network alone. Erring coarse errs toward recalling more, which is the safe
     direction for a memory whose purpose is to stop the fleet re-deciding
     something it already decided.
 
-    A key that spans unrelated organisations falls back to the network rather
-    than borrowing a narrower one, because borrowing would be the global-memory
-    bug wearing a different name.
+    A key that spans unrelated areas falls back to the network rather than
+    borrowing a narrower one, because borrowing would be the global-memory bug
+    wearing a different name.
+
+    **The basename is dropped, and that is the whole subtlety.** These are file
+    paths, so the shared prefix of a single one of them is the file itself, and
+    keying on the file gives every file its own private memory that nothing else
+    ever reads. That is the mirror image of the shared-constant bug and it is
+    harder to see: the shared version recalls too much and looks busy, this
+    version recalls nothing and looks quiet. Callers that already hold an area
+    rather than a file must build the key themselves rather than passing a
+    directory through here, because this function cannot tell the two apart.
     """
     network = repository.strip() or "unknown-network"
     if not paths:
         return network
-    segments = [p.strip("/").split("/") for p in paths if p.strip()]
-    if not segments:
+    directories = [p.strip("/").split("/")[:-1] for p in paths if p.strip()]
+    directories = [d for d in directories if d]
+    if not directories:
         return network
     shared: list[str] = []
-    for parts in zip(*segments, strict=False):
+    for parts in zip(*directories, strict=False):
         if len(set(parts)) != 1:
             break
         shared.append(parts[0])

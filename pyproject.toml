@@ -22,6 +22,9 @@ where = ["src"]
 [tool.pytest.ini_options]
 pythonpath = ["src"]
 testpaths = ["tests"]
+# The floor is enforced, not reported. A number in a badge that nothing checks
+# drifts down one commit at a time and nobody is the one who broke it.
+addopts = "--cov=merismos --cov-report=term-missing --cov-fail-under=85"
 
 [tool.ruff]
 line-length = 100

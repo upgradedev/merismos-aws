@@ -36,7 +36,7 @@ from .approval import Approval, grant
 from .corpus import Corpus, org_names
 from .deferral import Deferral, NullScheduler
 from .envelope import Envelope, Finding, Status, worst
-from .ledger import Thread, subject_for
+from .ledger import Thread
 from .tools import ReadLog, Toolbox, bounded_read
 
 #: Which specialist cares about which category of offer. The router reads this
@@ -835,5 +835,13 @@ def new_run_id() -> str:
 
 
 def subject_for_offer(network: str, offer: Mapping[str, Any]) -> str:
-    """Key the memory on the network and the offer's category, never a constant."""
-    return subject_for(network, [f"offers/{offer.get('category', 'unknown')}"])
+    """Key the memory on the network and the offer's category, never a constant.
+
+    Built here rather than passed through ``subject_for``. That function takes
+    the **files** a delivery changed and drops the basename, so handing it the
+    area ``offers/ambient`` would return ``offers`` and every category in the
+    network would share one memory. The two cases look identical as strings and
+    only the caller knows which it holds, so the caller decides.
+    """
+    category = str(offer.get("category") or "unknown").strip().lower()
+    return f"{network.strip() or 'unknown-network'}:offers/{category}"
