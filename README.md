@@ -41,7 +41,7 @@ trust. What follows is what runs today.
 | Bedrock reads the offers | **wired, not yet run against the live endpoint.** Two model families, two variables. The offline path is the default and announces itself |
 | a live URL a judge can open | **not yet** |
 
-**228 tests, `ruff` clean, coverage 91.70% against an 85% floor.** The floor is enforced rather than
+**233 tests, `ruff` clean, coverage 91.70% against an 85% floor.** The floor is enforced rather than
 reported: it is in `addopts`, so the suite fails below it on a developer machine and in CI alike. Run
 it yourself, and prefer the number this prints to the number written here:
 
@@ -289,7 +289,13 @@ and nobody is watching, so the wake path holds no credential that can publish.
 
 ## Run it
 
-No AWS account, no credentials, no network.
+No AWS account, no credentials, no network. **That last claim is itself a test.** Every socket the
+offline suite opens is intercepted, and a connection to anything but loopback fails the run and
+names the address. It is there because the claim was false for a while and nothing went red: a
+fixture left `MERISMOS_MODEL` unset, the handler tests reached for Bedrock, and botocore retried
+against absent credentials. Those tests **passed**, in 587 seconds, where the same 21 now take under
+one. A failing suite is obvious. A green suite that is 900 times slower gets blamed on the runner,
+and the false sentence in this README survives.
 
 ```bash
 python -m merismos.demo
@@ -308,7 +314,7 @@ pip install -e ".[dev]"
 python -m pytest -q
 ```
 
-Expected: `228 passed` and `Required test coverage of 85% reached`, in about five seconds.
+Expected: `233 passed` and `Required test coverage of 85% reached`, in about seven seconds.
 
 ```bash
 python -m pytest tests/integration/test_the_guard_is_a_control.py -q
