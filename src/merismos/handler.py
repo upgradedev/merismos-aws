@@ -164,7 +164,7 @@ def config() -> dict[str, Any]:
     return {
         "network": NETWORK,
         "read_scope": list(DEFAULT_SCOPE),
-        "read_budget_per_run": READ_BUDGET,
+        "read_budget_per_specialist": READ_BUDGET,
         "max_bytes_per_read": MAX_READ_BYTES,
         "max_files_per_search": MAX_SEARCH_SCAN,
         "ledger": os.environ.get("MERISMOS_LEDGER", "dynamodb"),

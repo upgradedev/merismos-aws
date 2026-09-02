@@ -224,7 +224,8 @@ resource "aws_dynamodb_table" "approvals" {
 
 # The network's own filing. Private. Read by the reader and by nobody else.
 resource "aws_s3_bucket" "corpus" {
-  bucket = "${var.project}-corpus-${random_id.suffix.hex}"
+  bucket        = "${var.project}-corpus-${random_id.suffix.hex}"
+  force_destroy = var.destroyable
 }
 
 resource "aws_s3_bucket_public_access_block" "corpus" {
@@ -246,6 +247,17 @@ resource "aws_s3_bucket_versioning" "corpus" {
 # that a funder or a member can read them with no account.
 resource "aws_s3_bucket" "records" {
   bucket = "${var.project}-records-${random_id.suffix.hex}"
+  # Both buckets are versioned, so a destroy fails with BucketNotEmpty unless
+  # every version is removed first. The first teardown of this fleet failed
+  # exactly there, which is the deploy-then-teardown pipeline earning its place:
+  # an apply that cannot be reversed is a bill, and nothing before the attempt
+  # said so.
+  #
+  # This defaults to true because this is a demonstrator that has to be able to
+  # disappear. A network running Merismos for real sets it false: a published
+  # record is permanent, and terraform destroy should not be able to erase the
+  # answer a funder is going to ask for in March.
+  force_destroy = var.destroyable
 }
 
 resource "aws_s3_bucket_public_access_block" "records" {

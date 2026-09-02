@@ -107,3 +107,53 @@ def test_an_unreachable_model_leaves_a_finding_rather_than_a_silent_pass():
     assert "model-unreachable" in checks, (
         "a half-run must not read as a clean run"
     )
+
+
+def test_each_specialist_gets_its_own_read_budget():
+    """The defect the first deployed multi-specialist run showed.
+
+    One shared pool is spent in arrival order and the arrival order is
+    alphabetical, so the first specialist took ten of twelve and the rest ran
+    with nothing. They reported the starvation correctly rather than inventing,
+    which is the safety property holding, but three model calls to produce three
+    findings that say "I could not read" is a design fault and not a result.
+    """
+    from merismos.tools import READ_BUDGET
+
+    corpus = LocalCorpus()
+    offer = _offer(corpus, "offer-4471")
+    seen: list[int] = []
+
+    def greedy(specialist, _offer, box) -> Envelope:
+        # Spend everything this specialist is given, every time.
+        while box.log.remaining > 0:
+            box.log.spent += 1
+        seen.append(box.log.budget)
+        return Envelope(specialist=specialist, status=Status.OK)
+
+    result = run_chore(corpus, offer, _thread(offer), analyst=greedy)
+
+    assert len(seen) >= 3, "fewer specialists ran than expected"
+    assert set(seen) == {READ_BUDGET}, (
+        f"specialists did not each get a full budget: {seen}"
+    )
+    # The run total is still bounded and still reported, as the sum.
+    assert result.read_log["budget"] == READ_BUDGET * (len(seen) + 1)
+    assert result.read_log["budget_per_specialist"] == READ_BUDGET
+
+
+def test_the_last_specialist_reads_as_deeply_as_the_first():
+    """Sort order must not decide how much of the filing a specialist may open."""
+    from merismos.tools import READ_BUDGET
+
+    corpus = LocalCorpus()
+    offer = _offer(corpus, "offer-4471")
+    remaining_at_start: dict[str, int] = {}
+
+    def record(specialist, _offer, box) -> Envelope:
+        remaining_at_start[specialist] = box.log.remaining
+        return Envelope(specialist=specialist, status=Status.OK)
+
+    run_chore(corpus, offer, _thread(offer), analyst=record)
+
+    assert set(remaining_at_start.values()) == {READ_BUDGET}, remaining_at_start

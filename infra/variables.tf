@@ -47,3 +47,14 @@ variable "log_retention_days" {
   type        = number
   default     = 14
 }
+
+variable "destroyable" {
+  description = <<-EOT
+    Whether terraform destroy may empty the buckets. True for a demonstrator that
+    has to be able to disappear; a network running this for real sets it false,
+    because a published record is permanent and a destroy should not be able to
+    erase the answer somebody will ask for months later.
+  EOT
+  type        = bool
+  default     = true
+}

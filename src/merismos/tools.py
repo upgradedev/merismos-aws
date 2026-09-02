@@ -44,8 +44,21 @@ DEFAULT_SCOPE = ("offers/", "orgs/", "registers/")
 #: worth reading, and an agent told the text was cut can ask for a narrower path.
 MAX_READ_BYTES = 8_000
 
-#: Successful reads per run, across every tool.
-READ_BUDGET = 12
+#: Successful reads **per specialist**, across every tool.
+#:
+#: This was a per-run budget and the first deployed multi-specialist run showed
+#: why that was wrong. The specialists share one filing, so a single pool looks
+#: like the right shape: the question a reader asks is how much of my filing did
+#: this run open. But a single pool is spent in order. The first specialist took
+#: ten of twelve, the second got two, and the third and fourth got none and each
+#: burned a model call to report that it had been starved. Five minutes of
+#: inference to produce three findings that said "I could not read anything".
+#:
+#: Whichever specialist happens to run first is an alphabetical accident, so a
+#: shared pool makes the depth of every other specialist's read a function of
+#: sort order. Per specialist removes that. The run total is still bounded and
+#: still reported, as the sum.
+READ_BUDGET = 6
 
 #: Files one ``search`` call may open, inside the run budget rather than instead
 #: of it.

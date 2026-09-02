@@ -88,7 +88,7 @@ def test_a_served_read_spends_exactly_one(tools, box):
     assert box.log.paths_opened() == ["registers/food-safety.md"]
 
 
-def test_the_run_budget_stops_the_twelfth_read(tools, box):
+def test_the_budget_stops_the_read_after_the_last_one(tools, box):
     for _ in range(READ_BUDGET):
         tools["read_file"]("registers/retention.md")
 

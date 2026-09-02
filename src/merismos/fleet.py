@@ -37,7 +37,7 @@ from .corpus import Corpus, org_names
 from .deferral import Deferral, NullScheduler
 from .envelope import Envelope, Finding, Status, worst
 from .ledger import Thread
-from .tools import ReadLog, Toolbox, bounded_read
+from .tools import READ_BUDGET, ReadLog, Toolbox, bounded_read
 
 #: Which specialist cares about which category of offer. The router reads this
 #: rather than a chain of conditionals, so adding a specialist changes behaviour
@@ -514,13 +514,15 @@ def run_chore(
         )
         return result
 
-    log = ReadLog()
-    manifest_text = _read_manifest(corpus, offer, log)
+    # The manifest read is the run's own and is not charged to any specialist.
+    setup_log = ReadLog()
+    manifest_text = _read_manifest(corpus, offer, setup_log)
     recent = [e.body for e in thread.recall("record.published", limit=8)]
     if recent:
         thread.append("recall.performed", found=len(recent))
 
     envelopes: list[Envelope] = []
+    logs: list[ReadLog] = [setup_log]
     for name in woken:
         envelope = _run_specialist(name, offer, orgs, recent, manifest_text)
         # The deterministic verdict is the floor and it is never skipped. Where
@@ -530,13 +532,23 @@ def run_chore(
             thread.append("specialist.answered", **envelope.as_dict())
             continue
         if analyst is not None:
+            # A budget of its own. Sharing one pool across the woken set spends
+            # it in arrival order, and the arrival order is alphabetical. The
+            # first deployed run showed exactly that: one specialist took ten of
+            # twelve and the rest ran with nothing, each spending a model call
+            # to report that it had been starved. They reported it correctly,
+            # which is the safety property holding, but three model calls to
+            # produce three findings that say "I could not read" is a design
+            # fault rather than a result.
+            log = ReadLog()
+            logs.append(log)
             envelope = _union_model(envelope, analyst, offer, corpus, log, thread)
         envelopes.append(envelope)
         thread.append("specialist.answered", **envelope.as_dict())
 
     result.envelopes = envelopes
-    result.read_log = log.as_dict()
-    thread.append("read.performed", **log.as_dict())
+    result.read_log = _combined(logs)
+    thread.append("read.performed", **result.read_log)
 
     overall = worst(envelopes)
     if overall is Status.BLOCKED:
@@ -654,6 +666,24 @@ def _union_model(
     )
     return deterministic.union(model_envelope)
 
+
+
+def _combined(logs: Sequence[ReadLog]) -> dict[str, Any]:
+    """One run's reads, summed across the per-specialist budgets.
+
+    The bound a reader cares about is still the run's: how much of my filing did
+    this open. That number is now a sum rather than a single counter, and every
+    read keeps the order it happened in, so the thread still shows one sequence.
+    """
+    entries = [e for log in logs for e in log.entries]
+    return {
+        "scope": list(logs[0].scope) if logs else [],
+        "budget_per_specialist": READ_BUDGET,
+        "budget": sum(log.budget for log in logs),
+        "spent": sum(log.spent for log in logs),
+        "remaining": sum(log.remaining for log in logs),
+        "reads": entries,
+    }
 
 def _read_manifest(corpus: Corpus, offer: Mapping[str, Any], log: ReadLog) -> str:
     """Open the offer's manifest, if it names one and it can be read."""

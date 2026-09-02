@@ -149,7 +149,7 @@ def test_config_publishes_the_bounds_this_fleet_claims(monkeypatch):
 
     published = _json(handler.handler(_event("GET", "/config")))
 
-    assert published["read_budget_per_run"] == 12
+    assert published["read_budget_per_specialist"] == 6
     assert published["read_scope"] == ["offers/", "orgs/", "registers/"]
     assert published["deferrals_wake_on_a_schedule"] is False
 
