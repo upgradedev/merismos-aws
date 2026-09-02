@@ -1,0 +1,13 @@
+{
+  "id": "school-second-chance",
+  "name": "Second Chance School",
+  "kind": "school",
+  "cold_storage_litres": 400,
+  "has_van": false,
+  "walk_in_limit_kg": 30,
+  "same_day_service": false,
+  "open_days": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
+  "students_served_daily": 120,
+  "premises_constraints": ["alcohol_free_premises", "no_pork"],
+  "notes": "Teaching kitchen with a walk-in fridge. Students are minors, so no alcohol on the premises under any circumstance. A large share of the intake is Muslim, so pork and pork gelatin are not accepted."
+}

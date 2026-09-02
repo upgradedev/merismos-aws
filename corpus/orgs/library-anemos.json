@@ -1,0 +1,13 @@
+{
+  "id": "library-anemos",
+  "name": "Anemos Community Library",
+  "kind": "library",
+  "cold_storage_litres": 0,
+  "has_van": false,
+  "walk_in_limit_kg": 15,
+  "same_day_service": false,
+  "open_days": ["Saturday", "Sunday"],
+  "children_served_weekly": 60,
+  "premises_constraints": ["alcohol_free_premises", "nut_free"],
+  "notes": "Weekend breakfast club for children. One child has a severe nut allergy, so the building is nut free. No cold storage at all: a domestic kettle and a cupboard."
+}

@@ -1,0 +1,14 @@
+{
+  "id": "shelter-elpida",
+  "name": "Elpida Night Shelter",
+  "kind": "shelter",
+  "cold_storage_litres": 0,
+  "has_van": false,
+  "walk_in_limit_kg": 20,
+  "same_day_service": true,
+  "open_days": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
+  "households_served_weekly": 0,
+  "beds": 28,
+  "premises_constraints": ["alcohol_free_premises"],
+  "notes": "Runs a residential recovery programme. Alcohol may not enter the building in any form, including unopened gifts and cooking wine. This has been raised twice and is not negotiable."
+}

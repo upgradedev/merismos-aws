@@ -1,0 +1,14 @@
+{
+  "id": "kitchen-omonoia",
+  "name": "Omonoia Soup Kitchen",
+  "kind": "soup kitchen",
+  "cold_storage_litres": 1800,
+  "has_van": true,
+  "vans": 2,
+  "walk_in_limit_kg": 40,
+  "same_day_service": true,
+  "open_days": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
+  "meals_served_daily": 300,
+  "premises_constraints": [],
+  "notes": "The largest member and the only one that can take a whole pallet. That is exactly why the 40 percent ceiling exists."
+}
