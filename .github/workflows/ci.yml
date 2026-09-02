@@ -142,15 +142,22 @@ jobs:
       - name: The publish credential is granted to exactly one role
         run: |
           set -euo pipefail
-          grants=$(grep -c 'secretsmanager:GetSecretValue' infra/iam.tf)
-          echo "GetSecretValue appears ${grants} times in iam.tf"
+          # Comments are stripped before counting. The first version of this
+          # check did not, and the comment at the top of iam.tf explaining the
+          # control named the action it describes, so the file's own
+          # documentation failed the gate written to protect it. A check over
+          # source text cannot tell a policy from a sentence about one, so it
+          # has to be given only the policy.
+          grep -v '^[[:space:]]*#' infra/iam.tf > /tmp/policy.tf
+          grants=$(grep -c 'secretsmanager:GetSecretValue' /tmp/policy.tf || true)
+          echo "GetSecretValue appears ${grants} times outside comments"
           # Once as the writer's grant, once in the shared Deny document.
           test "${grants}" -eq 2 || {
             echo "::error::GetSecretValue appears ${grants} times, expected 2."
             echo "::error::One grant (writer) and one deny (reader and evaluator)."
             exit 1
           }
-          grep -q 'effect    = "Deny"' infra/iam.tf || {
+          grep -q 'effect    = "Deny"' /tmp/policy.tf || {
             echo "::error::the explicit deny on the publish credential is gone"
             exit 1
           }
