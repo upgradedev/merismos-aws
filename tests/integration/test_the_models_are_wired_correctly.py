@@ -1,8 +1,10 @@
 """The two models, tested without an AWS account.
 
 What is checked here is the wiring, not the intelligence. Whether a real model
-notices the wine in the manifest is checked by ``test_bedrock_live.py``, which
-needs credentials and is a separate CI job. What these assert is the part that
+notices the wine in the manifest was checked by running it once against live
+Claude Opus 5 and recording the result in ``docs/live-run-2026-09-02.md``; there
+is no automated live suite, and this docstring cited one that does not exist
+until an audit caught it. What these assert is the part that
 can be wrong regardless of how good the model is: that the critic is called with
 no tools, that the sanitised envelope is what actually leaves the process, that
 an unreachable model becomes a finding rather than a silent pass, and that the

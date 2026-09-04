@@ -37,6 +37,7 @@ from .corpus import Corpus, org_names
 from .deferral import Deferral, NullScheduler
 from .envelope import Envelope, Finding, Status, worst
 from .ledger import Thread
+from .solver import AllocationSolution, solve_allocation
 from .tools import READ_BUDGET, ReadLog, Toolbox, bounded_read
 
 #: Which specialist cares about which category of offer. The router reads this
@@ -761,24 +762,29 @@ def _draft(
     excluded = barred | deprioritised
 
     receiving = [str(o.get("name", "")) for o in orgs if o.get("name") not in excluded]
-    allocations: list[dict[str, Any]] = []
-    if receiving:
-        share = min(ceiling, quantity / len(receiving))
-        remaining = quantity
-        for name in receiving:
-            amount = round(min(share, remaining), 2)
-            if amount <= 0:
-                break
-            allocations.append(
-                {
-                    "org": name,
-                    "quantity": amount,
-                    "reason": "eligible under the policy, within the ceiling",
-                }
-            )
-            remaining -= amount
 
-    body = _render(offer, allocations, sorted(excluded), unit, envelopes)
+    # The split is solved rather than divided. An even split bounded by the
+    # ceiling is what this used to do, and it ignores the thing that decides
+    # whether a share is any use: whether the member can store it. The solver
+    # takes the ceiling and the per-member capacity together and returns a
+    # feasibility proof with the shares, which is what the gate then re-checks.
+    solution = solve_allocation(
+        total_quantity=quantity,
+        eligible_orgs=receiving,
+        max_quota_ratio=(ceiling / quantity) if quantity else 0.40,
+        capacities=_capacities(offer, orgs, receiving),
+    )
+    allocations: list[dict[str, Any]] = [
+        {
+            "org": share.org,
+            "quantity": share.quantity,
+            "reason": share.reason,
+            "share_of_offer": f"{share.percentage:.1f}%",
+        }
+        for share in solution.shares
+    ]
+
+    body = _render(offer, allocations, sorted(excluded), unit, envelopes, solution)
     return gate.Draft(
         body=body,
         allocations=allocations,
@@ -788,12 +794,40 @@ def _draft(
     )
 
 
+def _capacities(
+    offer: Mapping[str, Any],
+    orgs: Sequence[Mapping[str, Any]],
+    receiving: Sequence[str],
+) -> dict[str, float]:
+    """What each member can physically take, where that is knowable.
+
+    Cold storage is in litres and a chilled offer is in kilograms, so the two
+    are not the same unit and are not converted here: one litre of fridge space
+    does not hold one kilogram of yoghurt, and inventing a conversion would be
+    a number nobody could check. A member with no van is capped at what a
+    volunteer carries, which is the one limit the register states in the
+    offer's own unit. Everything else is left unbounded and the ceiling governs.
+    """
+    weighable = str(offer.get("unit", "")).strip().lower() in ("kg", "kilogram", "kilograms")
+    caps: dict[str, float] = {}
+    for org in orgs:
+        name = str(org.get("name", ""))
+        if name not in receiving:
+            continue
+        if weighable and not org.get("has_van"):
+            limit = float(org.get("walk_in_limit_kg") or 0)
+            if limit > 0:
+                caps[name] = limit
+    return caps
+
+
 def _render(
     offer: Mapping[str, Any],
     allocations: Sequence[Mapping[str, Any]],
     excluded: Sequence[str],
     unit: str,
     envelopes: Sequence[Envelope],
+    solution: AllocationSolution | None = None,
 ) -> str:
     """The published record, in the words a member of the network would use."""
     lines = [
@@ -811,9 +845,10 @@ def _render(
         "|---|---:|---|",
     ]
     for allocation in allocations:
+        share = allocation.get("share_of_offer", "")
         lines.append(
-            f"| {allocation['org']} | {allocation['quantity']} {unit} | "
-            f"{allocation['reason']} |"
+            f"| {allocation['org']} | {allocation['quantity']} {unit}"
+            f"{f' ({share})' if share else ''} | {allocation['reason']} |"
         )
     if excluded:
         lines += ["", "## Not receiving a share, and the rule that decided it", ""]
@@ -825,6 +860,22 @@ def _render(
                 if name in f.detail
             ]
             lines.append(f"- **{name}**: {reasons[0] if reasons else 'excluded by policy'}")
+    if solution is not None:
+        lines += [
+            "",
+            "## The arithmetic, so it can be checked rather than trusted",
+            "",
+            f"- offered: **{_pretty(solution.total_offered)} {unit}**",
+            f"- allocated: **{_pretty(solution.total_allocated)} {unit}**",
+            f"- unallocated: **{_pretty(solution.unallocated_remainder)} {unit}**",
+            (
+                f"- ceiling: no member may take more than "
+                f"**{solution.max_quota_ratio * 100:.0f}%**. The largest share here is "
+                f"**{solution.max_observed_ratio * 100:.1f}%**"
+            ),
+            f"- every constraint satisfied: **{'yes' if solution.is_feasible else 'no'}**",
+        ]
+
     lines += [
         "",
         "## How this was decided",
@@ -842,6 +893,12 @@ def _render(
         ),
     ]
     return "\n".join(lines)
+
+
+
+def _pretty(value: float) -> str:
+    """Render a quantity without a trailing .0 on a whole number."""
+    return str(int(value)) if float(value).is_integer() else f"{value:g}"
 
 
 def _days_between(start: str, end: str) -> int | None:

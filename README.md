@@ -41,7 +41,7 @@ trust. What follows is what runs today.
 | Bedrock reads the offers | **run against the live endpoint once**, Claude Opus 5 in `eu-west-1`, 2026-09-02. It opened 10 files, found two things the rules miss, and reported one it could not determine. [The whole run](docs/live-run-2026-09-02.md) |
 | a live URL a judge can open | **no, and not for want of trying.** Public Lambda Function URLs are refused in the deploying account, proven with a two-line throwaway function. Not a code problem and no change to `infra/` fixes it. The published record in S3 **is** readable with no account |
 
-**270 tests, `ruff` clean, coverage above a 92% measured against an 85% floor.** The floor is enforced rather than
+**275 tests, `ruff` clean, 92.44% coverage against an 85% floor.** The floor is enforced rather than
 reported: it is in `addopts`, so the suite fails below it on a developer machine and in CI alike. Run
 it yourself, and prefer the number this prints to the number written here:
 
@@ -347,7 +347,7 @@ pip install -e ".[dev]"
 python -m pytest -q
 ```
 
-Expected `270 passed` and `Required test coverage of 85% reached`, in about eight seconds. Prefer the number it prints to the number written here.
+Expected `275 passed` and `Required test coverage of 85% reached`, in about nine seconds. Prefer the number it prints to the number written here.
 
 ```bash
 python -m pytest tests/integration/test_the_guard_is_a_control.py -q
