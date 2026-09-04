@@ -7,10 +7,10 @@ two different locks and both are needed: the role check stops the reader serving
 ``/publish`` at all, and IAM stops it succeeding if the check were ever wrong.
 
 ``/identity`` is the endpoint worth reading. It does not report configuration.
-It **attempts** to read the publish credential and reports what came back, so
-the privilege boundary is demonstrated by AWS refusing rather than asserted by
-us. A flag saying "this role cannot publish" is a claim; an
-``AccessDeniedException`` in the response body is evidence.
+It **attempts** two things and reports what AWS said to each: the write that
+publishing actually needs, and a Secrets Manager canary that nothing reads. A
+flag saying "this role cannot publish" is a claim; an ``AccessDeniedException``
+in the response body is evidence.
 """
 
 from __future__ import annotations
@@ -112,24 +112,88 @@ def handler(event: Any, context: Any = None) -> dict[str, Any]:
 
 
 def identity() -> dict[str, Any]:
-    """Who this process is, and what it is refused. Attempted, not configured."""
+    """Who this process is, and what it is refused. Attempted, not configured.
+
+    **Two probes, and the second one is the one that matters.**
+
+    This endpoint used to report only the Secrets Manager read and the README
+    called that "the publish credential". It is not. ``publish()`` never reads
+    that secret; it calls ``s3:PutObject``. So the secret is a **canary**: a
+    thing all three identities ask for so that a refusal is observable in a
+    response body. Useful, and not the authority.
+
+    The authority is the S3 write, so it is now probed too, by attempting a real
+    ``PutObject`` under a private ``probes/`` prefix rather than by reading a
+    policy and believing it. A reader that were somehow granted the write would
+    show up here even if the canary still said denied.
+    """
     me = role()
-    reached, detail = _attempt_publish_credential()
+    canary_reached, canary_said = _attempt_publish_credential()
+    can_write, write_said = _attempt_publish_authority()
     return {
         "role": me,
         "may_call": sorted(ROLE_TOOLS.get(me, frozenset())),
-        "may_publish": me == "writer",
-        "reaches_publish_credential": reached,
-        "what_aws_said": detail,
+        "publish_authority": {
+            "what_it_is": (
+                "s3:PutObject on the records bucket. This is what publishing "
+                "a record actually needs"
+            ),
+            "can_write": can_write,
+            "what_aws_said": write_said,
+        },
+        "boundary_canary": {
+            "what_it_is": (
+                "a Secrets Manager value the publish path never reads. It exists "
+                "so that a refusal is observable, and it is not the authority"
+            ),
+            "can_read": canary_reached,
+            "what_aws_said": canary_said,
+        },
         "note": (
-            "reaches_publish_credential is the result of actually calling "
-            "GetSecretValue just now, not a flag. The reader and the evaluator "
-            "are refused by AWS IAM, not by any code in this repository"
+            "both lines are the result of actually calling AWS just now, not "
+            "flags. The reader and the evaluator are refused by AWS IAM, not by "
+            "any code in this repository. can_write is the one that decides "
+            "whether this identity could publish a record"
         ),
         "build": os.environ.get("MERISMOS_BUILD_SHA", "unknown"),
         "model": os.environ.get("MERISMOS_MODEL", "none, deterministic only"),
         "critic": os.environ.get("MERISMOS_CRITIC_MODEL", "none"),
     }
+
+
+def _attempt_publish_authority() -> tuple[bool, str]:
+    """Try the write that publishing actually needs, and report what came back.
+
+    Writes a zero byte object under ``probes/``, which the bucket policy does
+    **not** open to the public, so a successful probe leaves a private marker
+    rather than an empty file in the record space a funder reads.
+    """
+    bucket = os.environ.get("MERISMOS_RECORDS_BUCKET", "")
+    if not bucket:
+        return False, "no records bucket is configured in this deployment"
+    try:
+        import boto3
+
+        boto3.client("s3").put_object(
+            Bucket=bucket, Key=f"probes/identity-{role()}", Body=b""
+        )
+    except Exception as error:  # noqa: BLE001 - the refusal is the answer
+        return False, _aws_said(error)
+    return True, "granted"
+
+
+def _aws_said(error: Exception) -> str:
+    """AWS's own error code rather than the Python class name.
+
+    botocore raises a bare ClientError for an IAM refusal, and "ClientError" is
+    not evidence: a typo in a resource name produces one too.
+    """
+    response = getattr(error, "response", None)
+    if isinstance(response, dict):
+        code = response.get("Error", {}).get("Code")
+        if code:
+            return str(code)
+    return type(error).__name__
 
 
 def _attempt_publish_credential() -> tuple[bool, str]:
@@ -142,18 +206,7 @@ def _attempt_publish_credential() -> tuple[bool, str]:
 
         boto3.client("secretsmanager").get_secret_value(SecretId=secret)
     except Exception as error:  # noqa: BLE001 - the refusal is the answer
-        # AWS's own error code, not the Python class name. botocore raises a
-        # bare ClientError for an IAM refusal on this call, and "ClientError"
-        # is not evidence of anything: a typo in the secret name produces one
-        # too. The code inside it says AccessDeniedException, and that is the
-        # word that means IAM refused. Reported live as "ClientError" on the
-        # first deployment, which is how this was noticed.
-        response = getattr(error, "response", None)
-        if isinstance(response, dict):
-            code = response.get("Error", {}).get("Code")
-            if code:
-                return False, str(code)
-        return False, type(error).__name__
+        return False, _aws_said(error)
     return True, "granted"
 
 

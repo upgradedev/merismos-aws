@@ -69,21 +69,43 @@ jobs:
           cat body.json
           test "${code}" = "200" || { echo "::error::reader answered ${code}"; exit 1; }
 
-      - name: And it reports that AWS refuses it the publish credential
+      # The authority is s3:PutObject, not the Secrets Manager canary. This
+      # check asserted only the canary until 2026-09-04, which would have
+      # passed a reader that was denied a value nothing reads while being
+      # granted the write that publishes.
+      - name: And AWS refuses the reader the write that publishing needs
         run: |
           set -euo pipefail
-          reaches=$(jq -r '.reaches_publish_credential' body.json)
-          said=$(jq -r '.what_aws_said' body.json)
-          echo "reaches=${reaches} what_aws_said=${said}"
-          test "${reaches}" = "false" || {
-            echo "::error::the reader reached the publish credential. The boundary is gone."
+          can_write=$(jq -r '.publish_authority.can_write' body.json)
+          write_said=$(jq -r '.publish_authority.what_aws_said' body.json)
+          canary=$(jq -r '.boundary_canary.can_read' body.json)
+          echo "can_write=${can_write} (${write_said})  canary_read=${canary}"
+
+          test "${can_write}" = "false" || {
+            echo "::error::the reader can write to the records bucket. It could publish."
             exit 1
           }
-          # The refusal has to come from IAM, not from a missing configuration.
-          case "${said}" in
+          case "${write_said}" in
             *AccessDenied*|*Unauthorized*) : ;;
-            *) echo "::error::expected an IAM refusal, got '${said}'"; exit 1 ;;
+            *) echo "::error::expected an IAM refusal on the write, got '${write_said}'"; exit 1 ;;
           esac
+          test "${canary}" = "false" || {
+            echo "::error::the reader read the boundary canary"
+            exit 1
+          }
+
+      - name: And the writer can make that write
+        run: |
+          set -euo pipefail
+          # A boundary nobody can cross in either direction is a wall, not a
+          # boundary. The writer is invoked directly because its URL refuses
+          # anonymous callers by design.
+          aws lambda invoke --function-name merismos-writer             --payload '{"requestContext":{"http":{"method":"GET","path":"/identity"}}}'             --cli-binary-format raw-in-base64-out writer.json >/dev/null
+          jq -r '.body' writer.json | jq '.publish_authority'
+          test "$(jq -r '.body' writer.json | jq -r '.publish_authority.can_write')" = "true" || {
+            echo "::error::the writer cannot write. Nothing can publish."
+            exit 1
+          }
 
       - name: The other two refuse a stranger
         run: |
@@ -125,7 +147,7 @@ jobs:
           set -euo pipefail
           url="${{ steps.apply.outputs.url }}"
           curl -s "${url}config" | tee config.json | jq .
-          test "$(jq -r '.read_budget_per_run' config.json)" = "12"
+          test "$(jq -r '.read_budget_per_specialist' config.json)" = "6"
           test "$(jq -r '.deferrals_wake_on_a_schedule' config.json)" = "true"
 
       # Always, even when a check above failed. A failed proof that leaves a
@@ -134,13 +156,36 @@ jobs:
         if: always() && inputs.keep != 'yes'
         run: terraform -chdir=infra destroy -auto-approve
 
-      - name: What is still standing
+      # "Nothing is billing" is a claim about AWS, so it is checked against AWS
+      # rather than against the destroy's exit code. On 2026-09-02 a destroy
+      # that never ran at all was reported twice as a destroy that ran and left
+      # resources behind, because the reading came from a filtered log.
+      - name: What is still standing, enumerated
         if: always()
         run: |
+          set -uo pipefail
+          : > remaining.txt
+          add() { [ -n "$2" ] && echo "  $1: $2" >> remaining.txt; }
+          add lambda "$(aws lambda list-functions --query 'Functions[?starts_with(FunctionName,`merismos`)].FunctionName' --output text)"
+          add dynamodb "$(aws dynamodb list-tables --query 'TableNames[?starts_with(@,`merismos`)]' --output text)"
+          add s3 "$(aws s3api list-buckets --query 'Buckets[?starts_with(Name,`merismos`)].Name' --output text)"
+          add iam "$(aws iam list-roles --query 'Roles[?starts_with(RoleName,`merismos`)].RoleName' --output text)"
+          add sqs "$(aws sqs list-queues --queue-name-prefix merismos --query 'QueueUrls' --output text 2>/dev/null || true)"
+          add scheduler "$(aws scheduler list-schedule-groups --query 'ScheduleGroups[?starts_with(Name,`merismos`)].Name' --output text)"
+          cat remaining.txt
+
           if [ "${{ inputs.keep }}" = "yes" ]; then
-            echo "### Fleet left standing" >> "$GITHUB_STEP_SUMMARY"
+            echo "### Fleet left standing, deliberately" >> "$GITHUB_STEP_SUMMARY"
             echo "\`${{ steps.apply.outputs.url }}\`" >> "$GITHUB_STEP_SUMMARY"
-          else
-            echo "### Torn down" >> "$GITHUB_STEP_SUMMARY"
-            echo "Nothing is billing." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
           fi
+
+          if [ -s remaining.txt ]; then
+            echo "### Teardown incomplete" >> "$GITHUB_STEP_SUMMARY"
+            echo "Still standing:" >> "$GITHUB_STEP_SUMMARY"
+            cat remaining.txt >> "$GITHUB_STEP_SUMMARY"
+            echo "::error::teardown left resources behind. This is billing."
+            exit 1
+          fi
+          echo "### Torn down" >> "$GITHUB_STEP_SUMMARY"
+          echo "Enumerated across lambda, dynamodb, s3, iam, sqs and scheduler. Nothing remains." >> "$GITHUB_STEP_SUMMARY"

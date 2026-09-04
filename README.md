@@ -37,11 +37,11 @@ trust. What follows is what runs today.
 | the deterministic gate | **runs**, 7 checks, no credential needed |
 | a deferral wakes the fleet on the day | **built and validated against the AWS API shape**, not yet deployed |
 | an approval binds exact bytes, once | **runs**, 22 tests across the offline and the DynamoDB path |
-| three identities, three roles | **deployed and proven live.** The reader and evaluator got `AccessDeniedException` from IAM asking for the publish credential; the writer got it. [The deployment](docs/deploy-2026-09-02.md) |
+| three identities, three roles | **deployed and proven live**, though the claim was overstated until 2026-09-04 and is now two claims. The authority is `s3:PutObject`; the Secrets Manager value is a canary the publish path never reads. `/identity` attempts both. [The deployment](docs/deploy-2026-09-02.md) |
 | Bedrock reads the offers | **run against the live endpoint once**, Claude Opus 5 in `eu-west-1`, 2026-09-02. It opened 10 files, found two things the rules miss, and reported one it could not determine. [The whole run](docs/live-run-2026-09-02.md) |
 | a live URL a judge can open | **no, and not for want of trying.** Public Lambda Function URLs are refused in the deploying account, proven with a two-line throwaway function. Not a code problem and no change to `infra/` fixes it. The published record in S3 **is** readable with no account |
 
-**252 tests, `ruff` clean, coverage 91.70% against an 85% floor.** The floor is enforced rather than
+**270 tests, `ruff` clean, coverage above a 92% measured against an 85% floor.** The floor is enforced rather than
 reported: it is in `addopts`, so the suite fails below it on a developer machine and in CI alike. Run
 it yourself, and prefer the number this prints to the number written here:
 
@@ -136,9 +136,19 @@ flowchart TB
     EVAL -.->|AccessDenied| SM
 ```
 
-**The two dotted red arrows into Secrets Manager are the point of the whole design.** The reader and
-the evaluator **ask** for the publish credential and AWS IAM refuses them. No code of ours decides
-that, which is why it is worth more than a policy document saying the same thing.
+**The authority that publishes is `s3:PutObject` on the records bucket, held by the writer alone.**
+That is what `publish()` calls. `/identity` proves it by attempting the write and reporting what AWS
+said, from all three identities.
+
+**And a correction, because this README had it wrong until 2026-09-04.** It called the Secrets
+Manager value "the publish credential" and pointed at the reader being denied it as the proof. The
+publish path never reads that value. It is a **canary**: something all three identities ask for so
+that a refusal is observable in a response body. Denying a role a value nothing reads proves nothing
+on its own, and a role denied the canary while holding the S3 write could have published. Both are
+now probed and reported separately, and `can_write` is named as the one that decides.
+
+The refusal is still AWS's rather than ours in both cases. No code here decides it, which is why it
+is worth more than a policy document saying the same thing.
 
 **This has been deployed once and torn down**, on 2026-09-02: 61 resources, then `destroy`. What
 that found is in [`docs/deploy-2026-09-02.md`](docs/deploy-2026-09-02.md), including two defects that
@@ -337,7 +347,7 @@ pip install -e ".[dev]"
 python -m pytest -q
 ```
 
-Expected: `252 passed` and `Required test coverage of 85% reached`, in about seven seconds.
+Expected `270 passed` and `Required test coverage of 85% reached`, in about eight seconds. Prefer the number it prints to the number written here.
 
 ```bash
 python -m pytest tests/integration/test_the_guard_is_a_control.py -q
@@ -359,6 +369,31 @@ Python 3.10+.
 | `infra/` | the whole fleet as Terraform. `iam.tf` is the privilege boundary and is its own file |
 | `corpus/` | one network's own filing: five organisations, three offers with manifests, three policies |
 | `tests/` | `unit`, `integration`, `e2e` |
+
+## Everyone in this repository is invented
+
+**Every organisation, person, offer and donor in `corpus/` is synthetic.** The Kypseli Food Pantry,
+Elpida Night Shelter, Second Chance School, Anemos Community Library and Omonoia Soup Kitchen do not
+exist, and the names were chosen to be plausible for an Athens neighbourhood without matching any
+real charity. No real organisation's data, name or filing is in this repository, and no real person
+appears anywhere in it.
+
+That matters more here than in most fixtures, because the corpus contains exactly the kind of
+statement that would be damaging if it were about a real body: which member runs a recovery
+programme, which one serves a child with a severe nut allergy. Those are invented to make the
+premises constraints concrete and they describe nobody.
+
+## Dependencies and licences
+
+| What | Licence |
+|---|---|
+| [`strands-agents`](https://github.com/strands-agents/sdk-python) | Apache 2.0 |
+| `boto3` and `botocore` | Apache 2.0 |
+| `pytest`, `pytest-cov`, `ruff` (development only) | MIT |
+| Merismos itself | MIT, see [`LICENSE`](LICENSE) |
+
+Nothing here vendors or modifies a dependency. The Strands SDK is used through its published
+interfaces: `Agent`, `@tool`, `BedrockModel`, and the `BeforeToolCallEvent` hook.
 
 ## Pre-existing components
 

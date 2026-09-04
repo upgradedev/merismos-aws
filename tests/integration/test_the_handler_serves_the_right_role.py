@@ -83,50 +83,100 @@ def test_the_refusal_happens_before_any_aws_call(monkeypatch):
     assert reply["statusCode"] == 403
 
 
-def test_identity_attempts_the_credential_rather_than_reading_a_flag(monkeypatch):
-    """The whole argument of the endpoint. It calls, and reports what came back."""
+class _Fake:
+    """One stand-in for both AWS calls /identity makes, recording each."""
+
+    def __init__(self, *, secret_ok: bool, write_ok: bool, log: list) -> None:
+        self.secret_ok, self.write_ok, self.log = secret_ok, write_ok, log
+
+    def get_secret_value(self, SecretId: str):  # noqa: N803 - boto3's name
+        self.log.append(("secret", SecretId))
+        if self.secret_ok:
+            return {"SecretString": "a-marker"}
+        raise _Denied("secretsmanager:GetSecretValue")
+
+    def put_object(self, Bucket: str, Key: str, Body: bytes):  # noqa: N803
+        self.log.append(("write", f"{Bucket}/{Key}"))
+        if self.write_ok:
+            return {}
+        raise _Denied("s3:PutObject")
+
+
+def _wire(monkeypatch, *, secret_ok: bool, write_ok: bool) -> list:
+    log: list = []
+    monkeypatch.setenv("MERISMOS_PUBLISH_SECRET", "merismos/publish")
+    monkeypatch.setenv("MERISMOS_RECORDS_BUCKET", "merismos-records")
+    fake = _Fake(secret_ok=secret_ok, write_ok=write_ok, log=log)
+    monkeypatch.setattr("boto3.client", lambda *_a, **_k: fake)
+    return log
+
+
+def test_identity_attempts_both_probes_rather_than_reading_a_flag(monkeypatch):
+    """It calls AWS twice and reports both answers."""
     monkeypatch.setenv("MERISMOS_ROLE", "reader")
-    monkeypatch.setenv("MERISMOS_PUBLISH_SECRET", "merismos/publish")
-    attempted: list[str] = []
-
-    class _Refusing:
-        def get_secret_value(self, SecretId: str):  # noqa: N803 - boto3's name
-            attempted.append(SecretId)
-            raise _AccessDeniedException("not authorized to perform secretsmanager:GetSecretValue")
-
-    monkeypatch.setattr("boto3.client", lambda *_a, **_k: _Refusing())
+    log = _wire(monkeypatch, secret_ok=False, write_ok=False)
 
     reported = _json(handler.handler(_event("GET", "/identity")))
 
-    assert attempted == ["merismos/publish"], "identity did not actually try"
-    assert reported["reaches_publish_credential"] is False
-    assert reported["what_aws_said"] == "_AccessDeniedException"
-    assert "not a flag" in reported["note"]
+    assert [kind for kind, _ in log] == ["secret", "write"], "identity did not try both"
+    assert reported["publish_authority"]["can_write"] is False
+    assert reported["boundary_canary"]["can_read"] is False
+    assert "not flags" in reported["note"]
 
 
-def test_identity_reports_a_grant_when_the_credential_is_reachable(monkeypatch):
+def test_the_write_probe_is_the_one_that_decides(monkeypatch):
+    """The correction the codex review forced, pinned so it cannot regress.
+
+    publish() calls s3:PutObject and never reads the secret, so a role denied
+    the canary but granted the write could still publish. Reporting only the
+    canary would call that role safe. Both are reported and can_write is named
+    as the deciding one.
+    """
+    monkeypatch.setenv("MERISMOS_ROLE", "reader")
+    _wire(monkeypatch, secret_ok=False, write_ok=True)
+
+    reported = _json(handler.handler(_event("GET", "/identity")))
+
+    assert reported["boundary_canary"]["can_read"] is False
+    assert reported["publish_authority"]["can_write"] is True, (
+        "a role that can write must be reported as able to write, whatever the canary said"
+    )
+    assert "can_write is the one that decides" in reported["note"]
+
+
+def test_the_probe_never_writes_into_the_public_record_space(monkeypatch):
+    """A funder reads records/. The probe must not leave an empty file there."""
     monkeypatch.setenv("MERISMOS_ROLE", "writer")
-    monkeypatch.setenv("MERISMOS_PUBLISH_SECRET", "merismos/publish")
+    log = _wire(monkeypatch, secret_ok=True, write_ok=True)
 
-    class _Granting:
-        def get_secret_value(self, SecretId: str):  # noqa: N803
-            return {"SecretString": "a-token"}
+    handler.handler(_event("GET", "/identity"))
 
-    monkeypatch.setattr("boto3.client", lambda *_a, **_k: _Granting())
+    written = [target for kind, target in log if kind == "write"]
+    assert written and all("/probes/" in w for w in written), written
+    assert not any("/records/" in w for w in written)
+
+
+def test_identity_reports_a_grant_when_the_writer_asks(monkeypatch):
+    monkeypatch.setenv("MERISMOS_ROLE", "writer")
+    _wire(monkeypatch, secret_ok=True, write_ok=True)
 
     reported = _json(handler.handler(_event("GET", "/identity")))
 
-    assert reported["reaches_publish_credential"] is True
-    assert reported["may_publish"] is True
+    assert reported["publish_authority"]["can_write"] is True
+    assert reported["boundary_canary"]["can_read"] is True
 
 
 def test_identity_never_returns_the_credential_itself(monkeypatch):
     monkeypatch.setenv("MERISMOS_ROLE", "writer")
     monkeypatch.setenv("MERISMOS_PUBLISH_SECRET", "merismos/publish")
+    monkeypatch.setenv("MERISMOS_RECORDS_BUCKET", "merismos-records")
 
     class _Granting:
         def get_secret_value(self, SecretId: str):  # noqa: N803
             return {"SecretString": "super-secret-token-value"}
+
+        def put_object(self, **_kwargs):
+            return {}
 
     monkeypatch.setattr("boto3.client", lambda *_a, **_k: _Granting())
 
@@ -280,5 +330,9 @@ def test_the_role_comes_from_the_environment_and_not_from_the_request(monkeypatc
     assert reply["statusCode"] == 403
 
 
-class _AccessDeniedException(Exception):
-    """Stands in for botocore's generated error class, by name."""
+class _Denied(Exception):
+    """Stands in for a botocore ClientError carrying an IAM refusal."""
+
+    def __init__(self, action: str) -> None:
+        super().__init__(f"not authorized to perform {action}")
+        self.response = {"Error": {"Code": "AccessDeniedException"}}

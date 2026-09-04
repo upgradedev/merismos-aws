@@ -2,15 +2,20 @@
 # The privilege boundary. This file is the entry's central claim, so it is its
 # own file rather than a section of main.tf.
 #
-# Three roles. Only merismos-writer can read the publish credential, and the
-# other two are refused by AWS rather than by anything in our code. That is what
-# /identity demonstrates live: it calls GetSecretValue and reports what came
-# back.
+# Three roles. **The authority that matters is s3:PutObject on the records
+# bucket**, held by merismos-writer alone. That is what publishing a record
+# actually needs, and /identity proves it by attempting the write.
 #
-# The refusal is expressed twice, deliberately:
+# The Secrets Manager value is a **canary**. The publish path never reads it.
+# It exists so a refusal is observable from all three identities in one
+# response body. This file and the README both used to call it "the publish
+# credential", which overstated it: denying the reader a value nothing reads
+# proves nothing on its own. Both claims are now separate and both are probed.
+#
+# The canary refusal is expressed twice, deliberately:
 #
 #   1. No grant. The reader and evaluator policies simply do not include
-#      secretsmanager:GetSecretValue on the publish secret.
+#      that read.
 #   2. An explicit Deny on that one ARN.
 #
 # (1) alone is the cleaner statement and would be enough today. (2) exists
@@ -153,8 +158,12 @@ data "aws_iam_policy_document" "evaluator" {
 ###############################################################################
 
 data "aws_iam_policy_document" "writer" {
+  # The canary, not the authority. The publish path never reads this value; it
+  # exists so that a refusal is observable in a response body from all three
+  # identities. Keeping the grant on the writer is what makes the three way
+  # comparison at /identity meaningful.
   statement {
-    sid       = "ReadThePublishCredential"
+    sid       = "ReadTheBoundaryCanary"
     actions   = ["secretsmanager:GetSecretValue"]
     resources = [aws_secretsmanager_secret.publish.arn]
   }
@@ -173,13 +182,21 @@ data "aws_iam_policy_document" "writer" {
     resources = [aws_dynamodb_table.thread.arn]
   }
 
-  # Write the record, and only under records/. The writer cannot touch the
-  # filing the fleet judged against, so a compromised writer cannot rewrite the
-  # register to justify what it published.
+  # THE PUBLISH AUTHORITY. This one statement is what lets a record be
+  # published, and it is the boundary that matters. The Secrets Manager grant
+  # above is a canary the publish path never reads.
+  #
+  # Scoped to two prefixes. records/ is the public one. probes/ is private and
+  # exists so /identity can attempt the real write rather than read a policy and
+  # believe it, without leaving an empty file in the record space a funder
+  # reads.
   statement {
-    sid       = "PublishTheRecord"
-    actions   = ["s3:PutObject"]
-    resources = ["${aws_s3_bucket.records.arn}/records/*"]
+    sid     = "PublishTheRecord"
+    actions = ["s3:PutObject"]
+    resources = [
+      "${aws_s3_bucket.records.arn}/records/*",
+      "${aws_s3_bucket.records.arn}/probes/*",
+    ]
   }
 }
 
