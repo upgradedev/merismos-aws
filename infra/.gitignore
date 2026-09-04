@@ -1,0 +1,10 @@
+.build/
+.terraform/
+*.tfstate
+*.tfstate.*
+.terraform.lock.hcl
+# Plan files are build output and they carry the account id and the resource
+# graph. Scanned before removal: no credential of any shape, only the marker
+# string this stack writes into Secrets Manager. Never tracked again.
+tfplan
+*.tfplan

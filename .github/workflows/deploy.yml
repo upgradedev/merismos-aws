@@ -1,0 +1,191 @@
+name: Deploy, prove, tear down
+
+# Manual only, and never on a push. A workflow that can create billable
+# infrastructure on a push is a workflow that can do it on somebody else's push,
+# and this repository is public.
+on:
+  workflow_dispatch:
+    inputs:
+      keep:
+        description: "Leave the fleet standing after the checks (yes/no). 'no' tears it down in the same run."
+        required: true
+        default: "no"
+        type: choice
+        options: ["no", "yes"]
+      model:
+        description: "Bedrock inference profile, or 'none' for the deterministic path."
+        required: false
+        default: "none"
+
+permissions:
+  contents: read
+  id-token: write # OIDC. No long lived AWS keys are stored in this repository.
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: aws
+    env:
+      TF_VAR_model_id: ${{ inputs.model }}
+      TF_VAR_build_sha: ${{ github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version-file: .python-version
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION || 'eu-west-1' }}
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.8
+
+      - name: Build the dependency layer
+        run: infra/build.sh
+
+      - name: Apply
+        id: apply
+        run: |
+          terraform -chdir=infra init
+          terraform -chdir=infra apply -auto-approve
+          echo "url=$(terraform -chdir=infra output -raw reader_url)" >> "$GITHUB_OUTPUT"
+
+      # Everything below runs against the deployed system with no credentials,
+      # which is the point: it is the same thing a judge can run. Green CI
+      # proves the code that was pushed. It does not prove the thing running.
+      - name: The reader answers a stranger
+        run: |
+          set -euo pipefail
+          url="${{ steps.apply.outputs.url }}"
+          code=$(curl -s -o body.json -w '%{http_code}' "${url}identity")
+          cat body.json
+          test "${code}" = "200" || { echo "::error::reader answered ${code}"; exit 1; }
+
+      # The authority is s3:PutObject, not the Secrets Manager canary. This
+      # check asserted only the canary until 2026-09-04, which would have
+      # passed a reader that was denied a value nothing reads while being
+      # granted the write that publishes.
+      - name: And AWS refuses the reader the write that publishing needs
+        run: |
+          set -euo pipefail
+          can_write=$(jq -r '.publish_authority.can_write' body.json)
+          write_said=$(jq -r '.publish_authority.what_aws_said' body.json)
+          canary=$(jq -r '.boundary_canary.can_read' body.json)
+          echo "can_write=${can_write} (${write_said})  canary_read=${canary}"
+
+          test "${can_write}" = "false" || {
+            echo "::error::the reader can write to the records bucket. It could publish."
+            exit 1
+          }
+          case "${write_said}" in
+            *AccessDenied*|*Unauthorized*) : ;;
+            *) echo "::error::expected an IAM refusal on the write, got '${write_said}'"; exit 1 ;;
+          esac
+          test "${canary}" = "false" || {
+            echo "::error::the reader read the boundary canary"
+            exit 1
+          }
+
+      - name: And the writer can make that write
+        run: |
+          set -euo pipefail
+          # A boundary nobody can cross in either direction is a wall, not a
+          # boundary. The writer is invoked directly because its URL refuses
+          # anonymous callers by design.
+          aws lambda invoke --function-name merismos-writer             --payload '{"requestContext":{"http":{"method":"GET","path":"/identity"}}}'             --cli-binary-format raw-in-base64-out writer.json >/dev/null
+          jq -r '.body' writer.json | jq '.publish_authority'
+          test "$(jq -r '.body' writer.json | jq -r '.publish_authority.can_write')" = "true" || {
+            echo "::error::the writer cannot write. Nothing can publish."
+            exit 1
+          }
+
+      - name: The other two refuse a stranger
+        run: |
+          set -euo pipefail
+          for who in evaluator writer; do
+            u=$(terraform -chdir=infra output -json check_the_boundary | jq -r ".${who}")
+            code=$(eval "${u}")
+            echo "${who} answered ${code}"
+            test "${code}" = "403" || {
+              echo "::error::${who} answered ${code} to an anonymous caller, expected 403"
+              exit 1
+            }
+          done
+
+      - name: A run reaches a card and publishes nothing
+        run: |
+          set -euo pipefail
+          url="${{ steps.apply.outputs.url }}"
+          curl -s -X POST "${url}run" -H 'content-type: application/json' \
+            -d '{"offer":"offer-4471"}' > run.json
+          jq '{outcome, note}' run.json
+          test "$(jq -r '.outcome' run.json)" = "awaiting_approval"
+          test "$(jq -r '.approval_card' run.json)" = "null" || {
+            echo "::error::an anonymous run minted an approval"
+            exit 1
+          }
+
+      - name: The refused offer is still refused when deployed
+        run: |
+          set -euo pipefail
+          url="${{ steps.apply.outputs.url }}"
+          curl -s -X POST "${url}run" -H 'content-type: application/json' \
+            -d '{"offer":"offer-4477"}' > blocked.json
+          test "$(jq -r '.outcome' blocked.json)" = "blocked"
+          jq -r '.note' blocked.json | grep -qi 'cold chain'
+
+      - name: The bounds it publishes match the bounds it enforces
+        run: |
+          set -euo pipefail
+          url="${{ steps.apply.outputs.url }}"
+          curl -s "${url}config" | tee config.json | jq .
+          test "$(jq -r '.read_budget_per_specialist' config.json)" = "6"
+          test "$(jq -r '.deferrals_wake_on_a_schedule' config.json)" = "true"
+
+      # Always, even when a check above failed. A failed proof that leaves a
+      # fleet standing is a bill, and this is the row STANDARDS D2 asks for.
+      - name: Tear down
+        if: always() && inputs.keep != 'yes'
+        run: terraform -chdir=infra destroy -auto-approve
+
+      # "Nothing is billing" is a claim about AWS, so it is checked against AWS
+      # rather than against the destroy's exit code. On 2026-09-02 a destroy
+      # that never ran at all was reported twice as a destroy that ran and left
+      # resources behind, because the reading came from a filtered log.
+      - name: What is still standing, enumerated
+        if: always()
+        run: |
+          set -uo pipefail
+          : > remaining.txt
+          add() { [ -n "$2" ] && echo "  $1: $2" >> remaining.txt; }
+          add lambda "$(aws lambda list-functions --query 'Functions[?starts_with(FunctionName,`merismos`)].FunctionName' --output text)"
+          add dynamodb "$(aws dynamodb list-tables --query 'TableNames[?starts_with(@,`merismos`)]' --output text)"
+          add s3 "$(aws s3api list-buckets --query 'Buckets[?starts_with(Name,`merismos`)].Name' --output text)"
+          add iam "$(aws iam list-roles --query 'Roles[?starts_with(RoleName,`merismos`)].RoleName' --output text)"
+          add sqs "$(aws sqs list-queues --queue-name-prefix merismos --query 'QueueUrls' --output text 2>/dev/null || true)"
+          add scheduler "$(aws scheduler list-schedule-groups --query 'ScheduleGroups[?starts_with(Name,`merismos`)].Name' --output text)"
+          cat remaining.txt
+
+          if [ "${{ inputs.keep }}" = "yes" ]; then
+            echo "### Fleet left standing, deliberately" >> "$GITHUB_STEP_SUMMARY"
+            echo "\`${{ steps.apply.outputs.url }}\`" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          if [ -s remaining.txt ]; then
+            echo "### Teardown incomplete" >> "$GITHUB_STEP_SUMMARY"
+            echo "Still standing:" >> "$GITHUB_STEP_SUMMARY"
+            cat remaining.txt >> "$GITHUB_STEP_SUMMARY"
+            echo "::error::teardown left resources behind. This is billing."
+            exit 1
+          fi
+          echo "### Torn down" >> "$GITHUB_STEP_SUMMARY"
+          echo "Enumerated across lambda, dynamodb, s3, iam, sqs and scheduler. Nothing remains." >> "$GITHUB_STEP_SUMMARY"

@@ -1,0 +1,13 @@
+{
+  "id": "pantry-kypseli",
+  "name": "Kypseli Food Pantry",
+  "kind": "food bank",
+  "cold_storage_litres": 200,
+  "has_van": true,
+  "walk_in_limit_kg": 25,
+  "same_day_service": false,
+  "open_days": ["Tuesday", "Thursday"],
+  "households_served_weekly": 41,
+  "premises_constraints": [],
+  "notes": "Two chest freezers, one broken since June. Volunteers are mostly retired and cannot lift above 15 kg."
+}

@@ -1,0 +1,14 @@
+{
+  "id": "offer-4471",
+  "title": "End of day bread and vegetables",
+  "donor": "Neighbourhood bakery and greengrocer, Fokionos Negri",
+  "category": "ambient",
+  "quantity": 240,
+  "unit": "kg",
+  "collection_date": "2026-09-08",
+  "use_by": "2026-09-09",
+  "hours_unrefrigerated": 0,
+  "allergens": ["gluten", "sesame"],
+  "manifest": "manifests/4471.md",
+  "note": "Mixed sourdough and day-old loaves, plus crates of tomatoes and courgettes. Needs collecting before 19:00."
+}

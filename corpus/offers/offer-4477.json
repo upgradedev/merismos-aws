@@ -1,0 +1,14 @@
+{
+  "id": "offer-4477",
+  "title": "Chilled dairy, supermarket depot",
+  "donor": "Regional depot",
+  "category": "chilled",
+  "quantity": 310,
+  "unit": "kg",
+  "collection_date": "2026-09-09",
+  "use_by": "2026-09-12",
+  "hours_unrefrigerated": 6,
+  "allergens": ["milk"],
+  "manifest": "manifests/4477.md",
+  "note": "Refrigeration failed on the inbound lorry. Depot says it is probably fine and wants it gone today."
+}
