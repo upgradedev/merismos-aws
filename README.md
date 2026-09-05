@@ -5,8 +5,11 @@
 [![Python 3.13](https://img.shields.io/badge/python-3.13-blue.svg)](https://www.python.org/)
 [![MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-**A wholesaler offers a pallet on Tuesday. Five charities share it, one gets skipped, and in March
-a funder asks why. Merismos decides the split and publishes the record that answers.**
+**Merismos apportions donated food between five charities and publishes the record that says who
+was skipped and why.**
+
+**▶ Open it: <https://efnt6e0kv7.execute-api.eu-west-1.amazonaws.com>** &nbsp; no account, nothing to install.
+A published record, readable by anyone: [`offer-4471.md`](https://merismos-records-e6ac6047.s3.eu-west-1.amazonaws.com/records/offer-4471.md)
 
 *Merismos*, μερισμός, is Greek for apportionment: the sharing out of one thing among several.
 
@@ -22,7 +25,8 @@ Built for **Agents for Humans (AWS)**, track **Good Neighbor Agents**.
 - [Is this agentic, or a rules engine with a model attached](#is-this-agentic-or-a-rules-engine-with-a-model-attached)
 - [The controls](#the-controls)
 - [The deferral, and why it is an AWS build](#the-deferral-and-why-it-is-an-aws-build)
-- [Run it](#run-it). No account, no credentials, no network
+- [Open it](#open-it). The live site, no account
+- [Run it locally](#run-it-locally). No credentials, no network
 - [Repository](#repository) · [Pre-existing components](#pre-existing-components) · [Licence](#licence)
 
 ## Status, stated honestly
@@ -39,7 +43,8 @@ trust. What follows is what runs today.
 | an approval binds exact bytes, once | **runs**, 22 tests across the offline and the DynamoDB path |
 | three identities, three roles | **deployed and proven live**, though the claim was overstated until 2026-09-04 and is now two claims. The authority is `s3:PutObject`; the Secrets Manager value is a canary the publish path never reads. `/identity` attempts both. [The deployment](docs/deploy-2026-09-02.md) |
 | Bedrock reads the offers | **run against the live endpoint once**, Claude Opus 5 in `eu-west-1`, 2026-09-02. It opened 10 files, found two things the rules miss, and reported one it could not determine. [The whole run](docs/live-run-2026-09-02.md) |
-| a live URL a judge can open | **no, and not for want of trying.** Public Lambda Function URLs are refused in the deploying account, proven with a two-line throwaway function. Not a code problem and no change to `infra/` fixes it. The published record in S3 **is** readable with no account |
+| a live URL a judge can open | **yes**, behind API Gateway, because Function URLs are refused account-wide. Rate limited, deterministic path, cannot publish without a person. [`efnt6e0kv7.execute-api.eu-west-1.amazonaws.com`](https://efnt6e0kv7.execute-api.eu-west-1.amazonaws.com) |
+| the governed write, end to end | **done live 2026-09-05.** A person approved on the site, the reader minted an approval it has no authority to act on, the writer recomputed the digest and published, and the record reads `200` to an anonymous request. The digest on the card and the digest in the provenance row are the same |
 
 **275 tests, `ruff` clean, 92.44% coverage against an 85% floor.** The floor is enforced rather than
 reported: it is in `addopts`, so the suite fails below it on a developer machine and in CI alike. Run
@@ -320,7 +325,22 @@ which is the model a real call validates against; a hand-rolled mock would prove
 An unattended wake may append an escalation to the thread and may do nothing else. Waking is cheap
 and nobody is watching, so the wake path holds no credential that can publish.
 
-## Run it
+## Open it
+
+**<https://efnt6e0kv7.execute-api.eu-west-1.amazonaws.com>**
+
+Four screens, no account, nothing to install. The offers list is the group chat replaced; the
+decision screen names everyone who was skipped and the rule that skipped them; the approval card
+shows the exact bytes and the digest a different identity recomputes; the published record is
+readable by anyone.
+
+**One limit, said here rather than discovered.** An API Gateway integration times out at 30 seconds
+and that cannot be raised. A specialist reading with Claude Opus 5 takes about 100 seconds, so the
+deployed site runs the deterministic path and says so on its own pages. The model path is evidenced
+by [a recorded run](docs/live-run-2026-09-02.md) instead, because a viewer cannot tell a real model
+response from a recorded one anyway.
+
+## Run it locally
 
 No AWS account, no credentials, no network. **That last claim is itself a test.** Every socket the
 offline suite opens is intercepted, and a connection to anything but loopback fails the run and

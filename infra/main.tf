@@ -82,6 +82,16 @@ resource "aws_lambda_function" "fleet" {
       MERISMOS_PUBLISH_SECRET  = aws_secretsmanager_secret.publish.arn
       MERISMOS_BUILD_SHA       = var.build_sha
 
+      # The reader cannot publish, so it asks the writer. It needs the writer's
+      # name to do that, and this line did not exist until the first live
+      # approval returned a 500: the code read it with no default, so the
+      # publish path raised KeyError on the one action the whole product is for.
+      MERISMOS_WRITER_FUNCTION = "${var.project}-writer"
+
+      # Explicit rather than defaulted. Which store is running is exactly the
+      # kind of thing this project refuses to leave implicit elsewhere.
+      MERISMOS_LEDGER = "dynamodb"
+
       # The model is set on the reader alone. The evaluator is deterministic by
       # design and the writer publishes bytes it was handed, so neither has any
       # use for one, and a variable they do not need is a variable that could be
@@ -320,7 +330,12 @@ resource "aws_s3_object" "corpus" {
 ###############################################################################
 
 resource "aws_secretsmanager_secret" "publish" {
-  name        = "${var.project}/publish"
+  # The suffix is not decoration. A Secrets Manager name that is scheduled for
+  # deletion cannot be reused, and force deleting one does not free the name
+  # immediately: two applies today failed on a name whose deletion was still
+  # propagating. Sharing the bucket suffix means a redeploy never collides with
+  # its own predecessor, which is what a deploy-then-destroy pipeline needs.
+  name        = "${var.project}/publish-${random_id.suffix.hex}"
   description = "The boundary canary. Readable by ${var.project}-writer alone; the other two are denied."
 
   # Zero, and this is a considered choice rather than laziness. A recovery

@@ -177,6 +177,34 @@ def test_the_wake_has_a_dead_letter_queue_and_a_scoped_role(main, iam):
     assert "evaluator" not in scheduler and "writer" not in scheduler
 
 
+def test_no_variable_the_code_requires_is_left_unset():
+    """The direction that actually breaks things, and the one this test missed.
+
+    The sibling below checks that terraform sets nothing the code ignores, which
+    is tidiness. This checks that the code requires nothing terraform forgets,
+    which is an outage: `os.environ["X"]` with no default raises KeyError, and
+    the first live approval returned a 500 because MERISMOS_WRITER_FUNCTION was
+    read that way and set nowhere. The publish path failed on the one action the
+    whole product exists to perform.
+
+    Only reads without a default are checked. A `.get` with a fallback is a
+    choice; a bare subscript is a requirement.
+    """
+    tf = "\n".join(p.read_text(encoding="utf-8") for p in INFRA.glob("*.tf"))
+    source_dir = INFRA.parent / "src" / "merismos"
+    code = "\n".join(p.read_text(encoding="utf-8") for p in source_dir.glob("*.py"))
+
+    required = set(re.findall(r'os\.environ\[\s*["\'](MERISMOS_[A-Z_]+)', code))
+    provided = set(re.findall(r"\b(MERISMOS_[A-Z_]+)\s*=", tf))
+
+    assert required, "no required variables found. This test has stopped checking anything"
+    missing = required - provided
+    assert not missing, (
+        f"the code requires {sorted(missing)} with no default and terraform sets "
+        f"none of them. Every one is a KeyError in a deployed Lambda"
+    )
+
+
 def test_the_handlers_environment_variables_all_exist_in_the_code():
     """Terraform setting a variable nothing reads is YAGNI; the reverse is a bug."""
     main_tf = (INFRA / "main.tf").read_text(encoding="utf-8")
