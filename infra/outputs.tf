@@ -36,6 +36,6 @@ output "teardown" {
 }
 
 output "judge_url" {
-  description = "The one URL a judge opens. Rate limited, deterministic path, cannot publish."
+  description = "The one URL a judge opens. Rate limited, and it cannot publish without a person."
   value       = aws_apigatewayv2_api.judge.api_endpoint
 }

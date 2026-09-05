@@ -42,11 +42,11 @@ trust. What follows is what runs today.
 | a deferral wakes the fleet on the day | **built and validated against the AWS API shape**, not yet deployed |
 | an approval binds exact bytes, once | **runs**, 22 tests across the offline and the DynamoDB path |
 | three identities, three roles | **deployed and proven live**, though the claim was overstated until 2026-09-04 and is now two claims. The authority is `s3:PutObject`; the Secrets Manager value is a canary the publish path never reads. `/identity` attempts both. [The deployment](docs/deploy-2026-09-02.md) |
-| Bedrock reads the offers | **run against the live endpoint once**, Claude Opus 5 in `eu-west-1`, 2026-09-02. It opened 10 files, found two things the rules miss, and reported one it could not determine. [The whole run](docs/live-run-2026-09-02.md) |
-| a live URL a judge can open | **yes**, behind API Gateway, because Function URLs are refused account-wide. Rate limited, deterministic path, cannot publish without a person. [`efnt6e0kv7.execute-api.eu-west-1.amazonaws.com`](https://efnt6e0kv7.execute-api.eu-west-1.amazonaws.com) |
+| Bedrock reads the offers | **live on the deployed site.** Press Ask the fleet and four specialists read on `claude-opus-5`; run `run-3a8cb5d62974` opened 25 files. Also [recorded in detail](docs/live-run-2026-09-02.md) from an earlier single-specialist run |
+| a live URL a judge can open | **yes**, behind API Gateway, because Function URLs are refused account-wide. Rate limited, runs Claude Opus 5, and cannot publish without a person. [`efnt6e0kv7.execute-api.eu-west-1.amazonaws.com`](https://efnt6e0kv7.execute-api.eu-west-1.amazonaws.com) |
 | the governed write, end to end | **done live 2026-09-05.** A person approved on the site, the reader minted an approval it has no authority to act on, the writer recomputed the digest and published, and the record reads `200` to an anonymous request. The digest on the card and the digest in the provenance row are the same |
 
-**275 tests, `ruff` clean, 92.44% coverage against an 85% floor.** The floor is enforced rather than
+**332 tests, `ruff` clean, coverage above the 85% floor, enforced in `addopts`.** The floor is enforced rather than
 reported: it is in `addopts`, so the suite fails below it on a developer machine and in CI alike. Run
 it yourself, and prefer the number this prints to the number written here:
 
@@ -334,11 +334,21 @@ decision screen names everyone who was skipped and the rule that skipped them; t
 shows the exact bytes and the digest a different identity recomputes; the published record is
 readable by anyone.
 
-**One limit, said here rather than discovered.** An API Gateway integration times out at 30 seconds
-and that cannot be raised. A specialist reading with Claude Opus 5 takes about 100 seconds, so the
-deployed site runs the deterministic path and says so on its own pages. The model path is evidenced
-by [a recorded run](docs/live-run-2026-09-02.md) instead, because a viewer cannot tell a real model
-response from a recorded one anyway.
+**The live site runs Claude Opus 5, and getting there is the interesting part.** An API Gateway
+integration times out at 30 seconds and cannot be raised, while a specialist reading takes about
+100. The first deployment therefore ran the deterministic rules, and a persona review caught exactly
+that: take the SDK away and the deployed path still worked, which is the definition of it not being
+load-bearing where it counted.
+
+The fix was to stop making the run synchronous. Pressing **Ask the fleet** starts a chore on a
+background invocation of the reader, which has its own 900 second budget, and the page polls the
+provenance thread. Proven on the deployed system: `run-3a8cb5d62974` on `offer-4483` woke four
+specialists on `eu.anthropic.claude-opus-5`, **opened 25 files** it chose itself, took an
+independent review from `eu.amazon.nova-pro-v1:0`, and finished. The thread is the progress bar and
+the audit trail, and there is no second store.
+
+Polling is a meta refresh, not a script. Every screen here loads no JavaScript and that is asserted
+per screen.
 
 ## Run it locally
 
@@ -367,7 +377,7 @@ pip install -e ".[dev]"
 python -m pytest -q
 ```
 
-Expected `275 passed` and `Required test coverage of 85% reached`, in about nine seconds. Prefer the number it prints to the number written here.
+Expected `332 passed` and `Required test coverage of 85% reached`, in about eleven seconds. Prefer the number it prints to the number written here.
 
 ```bash
 python -m pytest tests/integration/test_the_guard_is_a_control.py -q

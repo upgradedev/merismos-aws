@@ -13,12 +13,16 @@
 # integration exists to make an open endpoint survivable: this URL has to stay
 # up until 2026-10-08 and it costs money every time somebody hits it.
 #
-# ONE LIMIT WORTH KNOWING BEFORE READING FURTHER. An HTTP API integration times
-# out at 30 seconds and that ceiling cannot be raised. A specialist reading with
-# Claude Opus 5 took 104.6 seconds on its own, so the model path does not fit
-# behind this gateway and the judge-facing deployment runs the deterministic
-# path. That is stated on the site itself rather than left for somebody to
-# discover, and the model path is evidenced by a recorded live run instead.
+# ONE LIMIT, AND HOW IT IS LIVED WITH. An HTTP API integration times out at 30
+# seconds and that ceiling cannot be raised. A specialist reading with Claude
+# Opus 5 takes about 100 seconds, so a chore cannot be awaited inside a request.
+#
+# It is not awaited. Pressing the button starts the chore on a background
+# invocation of the reader, which has its own 900 second budget, and the page
+# polls the provenance thread. The first deployment did run the deterministic
+# rules synchronously, and a review caught what that cost: with the SDK removed
+# the deployed path still worked, so the strongest claim in the entry was true
+# of the repository and false of the demonstration.
 ###############################################################################
 
 resource "aws_apigatewayv2_api" "judge" {
@@ -40,8 +44,8 @@ resource "aws_apigatewayv2_integration" "reader" {
   integration_uri        = aws_lambda_function.fleet["reader"].invoke_arn
   payload_format_version = "2.0"
 
-  # The hard ceiling. Raising this is not possible on an HTTP API, which is why
-  # the deployed judge path is deterministic.
+  # The hard ceiling, and it cannot be raised on an HTTP API. It is why a chore
+  # is started rather than awaited: no page here waits on a model.
   timeout_milliseconds = 30000
 }
 

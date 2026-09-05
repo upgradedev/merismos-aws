@@ -10,12 +10,11 @@ clearly demonstrate the project working end-to-end?"*
 screens. Where something is not deployed, the narration says so rather than the
 picture implying otherwise.
 
-**Recorded against the deterministic path.** Anything the recording waits on at
-network latency breaks the length cap; a single specialist reading with Claude
-Opus 5 takes about 100 seconds, so a four-specialist run would eat most of the
-video. The model is evidenced in beat 6 by the recorded run instead, which is
-the honest way round: a viewer cannot tell a real model response from a recorded
-one anyway, so the video was never the evidence for that claim.
+**The live run is shown, and cut.** A four-specialist run takes about seven
+minutes and the cap is five, so beat 3 shows the run starting and the page
+reporting progress, then cuts to the finished decision. The cut is announced on
+screen rather than hidden, because a recording that implies a seven minute job
+took twenty seconds is the kind of small dishonesty this entry cannot afford.
 
 Target 4:20. The cap is 5:00 and a recording that lands at 4:59 is a recording
 that fails to build on the day.
@@ -59,13 +58,19 @@ that fails to build on the day.
 ## Beat 3. The product, live. 1:05 to 2:05
 
 **Picture.** Screen recording of the deployed site. Open the offers list. Click
-**Work out the split** on offer 4471. The decision screen loads: the shares
-table, then scroll to *"Not receiving a share, and the rule that decided it"*
-with three organisations and three reasons.
+**Work out the split** on offer 4471, then **Ask the fleet**. The waiting screen
+appears, counting specialists as they answer. Cut, with a caption saying how
+long was removed. The decision screen: the shares table, then scroll to *"Not
+receiving a share, and the rule that decided it"* with three organisations and
+three reasons.
 
 **Narration.**
 > This is Merismos. It does the apportionment unattended and brings back one
 > thing to approve.
+>
+> Four specialists wake. Each one is handed the network's filing and a question,
+> not an answer, and each decides what to open. That takes minutes, so this is
+> cut.
 >
 > Here is the split. And here is the part that matters: three members are not
 > receiving a share, and each one is named with the rule that decided it. The
@@ -129,11 +134,11 @@ result: the hook removed, the same model reaching the tool.
 **Picture.** Plain card, four lines of text.
 
 **Narration.**
-> Three honest limits. The live site runs the deterministic path, because an API
-> Gateway integration times out at thirty seconds and a model read takes a
-> hundred; the model run is recorded in the repository instead. Private
-> repositories are not supported. And the provenance ledger is append-only by
-> interface rather than by storage policy.
+> Three honest limits. A run takes minutes, because a gateway request gets
+> thirty seconds and a model read takes a hundred, so the chore runs in the
+> background and the page waits. Private repositories are not supported. And the
+> provenance ledger is append-only by interface rather than by storage policy,
+> which the custody chain makes detectable rather than impossible.
 >
 > Merismos. Apportionment, and the record of how it was decided.
 

@@ -5,6 +5,12 @@ Paste the sections below into the matching fields.
 
 ---
 
+## The live demo
+
+**https://efnt6e0kv7.execute-api.eu-west-1.amazonaws.com**
+
+No account, nothing to install. Press **Ask the fleet** on any offer.
+
 ## The one sentence
 
 **Merismos apportions donated food between five charities and publishes the record that says who
@@ -61,10 +67,12 @@ wine, and that some biscuit lines contain hazelnut.
 Both halves are pinned by tests that need no credentials, including one asserting the offer's own
 fields mention none of those words, so the comparison cannot quietly become trivial later.
 
-Run once against live Claude Opus 5 on Bedrock, it opened ten files in an order nobody gave it and
-found **two things the deterministic rules do not**: undeclared milk and gluten, and a contradiction
-between the donor's whole-lot condition and the network's own 40% ceiling that no rule here
-compares. The full run is recorded in the repository.
+**You can run this yourself on the live site.** Press Ask the fleet. Four specialists wake on Claude
+Opus 5. Each chooses what to open.
+
+One recorded run found **two things the deterministic rules do not**. Undeclared milk and gluten.
+And a contradiction between the donor's whole-lot condition and the network's own 40% ceiling, which
+no rule here compares. Neither was planted for it to find.
 
 ## How we built it
 
@@ -96,9 +104,14 @@ policies and the management-account question, then settled it by deploying a two
 Lambda with a public URL, which was also refused. The judge path runs behind API Gateway instead.
 
 **An HTTP API integration times out at 30 seconds and that cannot be raised.** A specialist reading
-with Claude Opus 5 takes about 100 seconds, so the model path does not fit behind the gateway. The
-live site runs the deterministic path and says so on its own pages; the model path is evidenced by
-the recorded run instead of by a claim.
+with Claude Opus 5 takes about 100. So the first deployment ran the deterministic rules, and a
+review caught the consequence: take the SDK away and the deployed path still worked. Our strongest
+claim was true of the repository and false of the demonstration.
+
+The fix was to stop making the run synchronous. Pressing the button starts a chore on a background
+invocation, which has its own 900 second budget, and the page polls the provenance thread. The
+thread was already the memory and the audit trail; it is now also the progress bar, and there is no
+second store.
 
 **The first deployment found three defects that every green plan had missed**, including a Function
 URL that was public in configuration and refused in practice, and a teardown that left six resources
@@ -118,10 +131,12 @@ before the repository was public. A gate you only point outward is not a gate.
 
 ## What's next
 
-Private repositories are not supported: reads use the public API with no credential, deliberately,
-because a read path that needs a token is a read path that can be used to write. The provenance
-ledger is append-only by interface rather than by storage policy, and the README says which of those
-two it is.
+Private repositories are not supported. Reads use the public API with no credential, deliberately:
+a read path that needs a token is a read path that can be used to write.
+
+The provenance ledger is append-only by interface rather than by storage policy. A custody chain
+over it makes an edit from outside our code detectable. It does not make a row immutable, and the
+site says so on the page that shows the chain.
 
 ---
 
@@ -132,7 +147,10 @@ DynamoDB · Amazon S3 · EventBridge Scheduler · AWS Secrets Manager · IAM · 
 
 ## Pre-existing components, disclosed
 
-Every line of code in this repository was written during the submission period. The author has built
-agent fleets before and the shape of this one is informed by that experience, but no code was
-carried across and nothing here is derived from a deployable product. Every organisation, person,
-offer and donor in the corpus is invented; no real charity's data or name appears anywhere.
+Every line of code in this repository was written during the submission period.
+
+The author has built agent fleets before, and the shape of this one is informed by that. No code was
+carried across. Nothing here is derived from a deployable product.
+
+Every organisation, person, offer and donor in the corpus is invented. No real charity's data or
+name appears anywhere.

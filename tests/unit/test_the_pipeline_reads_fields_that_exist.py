@@ -116,3 +116,42 @@ def test_the_teardown_enumerates_before_it_claims_nothing_is_billing():
     assert "teardown left resources behind" in tail, (
         "the teardown reports success without failing on leftovers"
     )
+
+
+#: Phrases that assert the deployed path does not use a model. Each one was true
+#: for part of 2026-09-05 and false by the end of it, in four separate files.
+DETERMINISTIC_CLAIMS = (
+    "runs the deterministic path",
+    "judge path is deterministic",
+    "deployed judge path runs the deterministic",
+    "deterministic path, cannot publish",
+)
+
+
+def test_no_document_claims_the_deployed_path_avoids_the_model():
+    """The discrepancy that recurred three times in one day.
+
+    The deployed model comes from one terraform default. When that default is a
+    real model, any sentence saying the live site runs the rules instead is
+    false, and it is false on the surface a judge reads. Every occurrence so far
+    was written truthfully and then left behind by a change somewhere else.
+    """
+    root = WORKFLOWS.parent.parent
+    tf = (root / "infra" / "variables.tf").read_text(encoding="utf-8")
+
+    block = tf[tf.index('variable "model_id"') :]
+    default = re.search(r'default\s*=\s*"([^"]*)"', block).group(1)
+    if default.lower() in ("", "none", "off", "stub"):
+        pytest.skip("the deployed default is genuinely no model, so the claim would be true")
+
+    surfaces = [root / "README.md", *(root / "docs").glob("*.md"), *(root / "infra").glob("*.tf")]
+    offenders = []
+    for surface in surfaces:
+        text = surface.read_text(encoding="utf-8").lower()
+        for claim in DETERMINISTIC_CLAIMS:
+            if claim in text:
+                offenders.append(f"{surface.name}: {claim!r}")
+
+    assert not offenders, (
+        f"the deployed default is {default!r}, so these are false: {offenders}"
+    )
