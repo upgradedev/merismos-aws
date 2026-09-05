@@ -111,10 +111,30 @@ def test_a_run_that_never_started_says_so_rather_than_spinning_for_ever():
     assert "The fleet is reading" not in reply["body"]
 
 
-def test_the_finished_run_renders_from_the_provenance_thread():
-    """No second store. The thread was always the memory and the audit trail."""
+def test_the_finished_run_renders_from_the_provenance_thread(monkeypatch):
+    """No second store. The thread was always the memory and the audit trail.
+
+    ``background.start`` is replaced by the work it would have asked for. It was
+    not, and that mattered: the real one calls ``lambda:Invoke`` on
+    ``merismos-reader``, so on a machine holding AWS credentials every run of
+    this suite started a genuine nine minute chore on the **deployed** fleet.
+    Three in flight took three of the reader's five reserved executions and the
+    live site answered 503 to strangers. It passed on that machine throughout,
+    because the invoke it should never have made succeeded, and failed only on
+    CI where there are no credentials. ``tests/conftest.py`` now refuses every
+    socket in the suite so this cannot happen again by any route.
+    """
+    ran: list[str] = []
+
+    def _straight_through(offer_id: str, run_id: str, network: str) -> None:
+        ran.append(run_id)
+
+    monkeypatch.setattr(background, "start", _straight_through)
+
     started = handler.handler(_event("POST", "/offer/offer-4471"))
     run_id = started["headers"]["location"].split("run=", 1)[1]
+    assert ran == [run_id], "the page did not ask for the run it handed back"
+
     handler._run_in_background(
         {"offer_id": "offer-4471", "run_id": run_id, "network": "kypseli-network"}
     )

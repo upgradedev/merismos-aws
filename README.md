@@ -47,7 +47,7 @@ trust. What follows is what runs today.
 | a live URL a judge can open | **yes**, behind API Gateway, because Function URLs are refused account-wide. Rate limited, runs Claude Opus 5, and cannot publish without a person. [`efnt6e0kv7.execute-api.eu-west-1.amazonaws.com`](https://efnt6e0kv7.execute-api.eu-west-1.amazonaws.com) |
 | the governed write, end to end | **done live 2026-09-05.** A person approved on the site, the reader minted an approval it has no authority to act on, the writer recomputed the digest and published, and the record reads `200` to an anonymous request. The digest on the card and the digest in the provenance row are the same |
 
-**428 tests, `ruff` clean, coverage above the 85% floor, enforced in `addopts`.** The floor is enforced rather than
+**428 tests, `ruff` clean, coverage above the 85% floor, enforced in `addopts`.** Every socket the suite opens to anything but loopback fails the run, autouse and session wide. That was an opt-in fixture until 2026-09-05, when one test that never asked for it turned out to be invoking the deployed fleet on every local run. The floor is enforced rather than
 reported: it is in `addopts`, so the suite fails below it on a developer machine and in CI alike. Run
 it yourself, and prefer the number this prints to the number written here:
 
