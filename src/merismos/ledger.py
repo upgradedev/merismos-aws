@@ -37,6 +37,10 @@ KINDS = (
     "run.completed",
     "run.nothing_to_allocate",
     "offer.received",
+    # An offer a coordinator typed into the intake form, rather than one that
+    # arrived as a fixture somebody committed. Recorded so that an offer from a
+    # stranger is as traceable as every other kind of thing that happens here.
+    "offer.filed",
     "fleet.dispatch",
     "specialist.answered",
     "guard.refused",

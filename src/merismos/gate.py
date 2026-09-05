@@ -38,8 +38,12 @@ from .envelope import Finding
 _PHONE = re.compile(r"(?:(?:\+|00)\d{1,3}[\s.-]?)?(?:\d[\s.-]?){9,14}\d")
 _EMAIL = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
 # A street line: a number attached to a word that looks like a thoroughfare.
+# Up to three words between the two, because real Athens addresses have them
+# ("14 Fokionos Negri Street") and the one word version quietly passed every
+# such address. Widened when the intake form made this reachable by a stranger
+# rather than only by a fixture somebody had committed.
 _STREET = re.compile(
-    r"\b\d{1,4}[A-Za-z]?\s+[A-Z][A-Za-z'-]+\s+"
+    r"\b\d{1,4}[A-Za-z]?\s+(?:[A-Z][A-Za-z'-]+\s+){1,3}"
     r"(?:Street|St|Road|Rd|Avenue|Ave|Lane|Ln|Odos|Leoforos)\b",
     re.IGNORECASE,
 )
@@ -63,7 +67,8 @@ _INJECTION = re.compile(
     r"(?:"
     r"ignore\s+(?:all\s+|any\s+|the\s+)?(?:previous\s+|prior\s+|above\s+)?"
     r"(?:instruction|rule|polic|direction)"
-    r"|disregard\s+(?:the\s+)?(?:rule|polic|instruction|guidance)"
+    r"|disregard\s+(?:\S+\s+){0,3}?"
+    r"(?:rule|polic|instruction|guidance|limit|ceiling|cap\b|threshold|maximum)"
     r"|you\s+are\s+now\s+(?:a|an|the)\b"
     r"|system\s*(?:prompt|message)\s*[:=]"
     r"|new\s+instructions?\s*[:=]"

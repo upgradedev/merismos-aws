@@ -161,7 +161,8 @@ def inbox(offers: Sequence[Mapping[str, Any]], network: str) -> str:
     """What is waiting on somebody. This screen replaces the group chat."""
     if not offers:
         body = '<div class="card"><h3>Nothing waiting</h3><p class="why">No offers in the '
-        body += "network's filing right now.</p></div>"
+        body += "network's filing right now.</p>"
+        body += '<p style="margin:.9rem 0 0"><a class="btn" href="/offers/new">Add one</a></p></div>'
         return page("Offers", body)
 
     cards = []
@@ -186,6 +187,7 @@ def inbox(offers: Sequence[Mapping[str, Any]], network: str) -> str:
 <h1>Offers waiting on somebody</h1>
 <p class="lede">{_e(_readable(network))}. Five organisations share whatever gets donated. Merismos
 does the apportionment and brings back one thing to approve.</p>
+<p style="margin:0 0 1.2rem"><a class="btn secondary" href="/offers/new">Add an offer</a></p>
 {''.join(cards)}
 <div class="note">Nothing here publishes on its own. Every offer stops at a card a person reads,
 and the publish is the last step.</div>"""
@@ -591,3 +593,103 @@ rather than of the storage, and a chain makes an edit made from outside that cod
 than impossible.</div>
 <p><a class="btn secondary" href="/records">Published records</a></p>"""
     return page("Custody chain", body, "The verifiable custody chain for one offer")
+
+
+def new_offer_form(error: str = "", values: Mapping[str, Any] | None = None) -> str:
+    """A coordinator's own offer, in the fields they already have on the phone.
+
+    The persona review's customer finding was that the corpus is a fixture: a
+    network can watch Merismos decide about somebody else's offers and cannot
+    put in its own. That is the gap between a demonstration and a thing a
+    network could use on Monday, and it is one form wide.
+
+    Deliberately short. A coordinator standing in a doorway with a phone will not
+    fill in twenty fields, and every field here is one the donor's own message
+    already contains.
+
+    Two of them exist because of what the fleet does downstream rather than
+    because a form wanted them. ``collection_date`` is compared against a use-by
+    date by the food safety specialist, and ``hours_unrefrigerated`` is what that
+    same specialist refuses a chilled offer for lacking. Asking here costs a
+    coordinator five seconds; not asking costs them a run that takes minutes and
+    ends in a refusal they had no way to avoid.
+    """
+    v = values or {}
+    warn = f'<div class="note stop">{_e(error)}</div>' if error else ""
+    return page(
+        "Add an offer",
+        f"""
+<h1>Add an offer</h1>
+<p class="lede">What the donor told you, and nothing the donor's own message does not already
+contain. A coordinator standing in a doorway will not fill in twenty fields.</p>
+{warn}
+<form method="post" action="/offers/new">
+  <div class="card">
+    <p><label>What is it<br>
+      <input name="title" required maxlength="120" value="{_e(v.get('title', ''))}"
+        placeholder="End of day bread and vegetables" style="{_FIELD}"></label></p>
+    <p><label>Who is giving it<br>
+      <input name="donor" required maxlength="120" value="{_e(v.get('donor', ''))}"
+        placeholder="Neighbourhood bakery" style="{_FIELD}"></label></p>
+    <div class="row">
+      <p><label>How much<br>
+        <input name="quantity" required type="number" step="any" min="0.01"
+          value="{_e(v.get('quantity', ''))}" placeholder="240" style="{_FIELD}"></label></p>
+      <p><label>In what<br>
+        <select name="unit" style="{_FIELD}">
+          {_options(("kg", "kilograms"), ("units", "units"), chosen=v.get("unit", "kg"))}
+        </select></label></p>
+      <p><label>Kept how<br>
+        <select name="category" style="{_FIELD}">
+          {_options(*(((c, c)) for c in _CATEGORIES), chosen=v.get("category", "ambient"))}
+        </select></label></p>
+    </div>
+    <div class="row">
+      <p><label>Collected when<br>
+        <input name="collection_date" required type="date" style="{_FIELD}"
+          value="{_e(v.get('collection_date', ''))}"></label></p>
+      <p><label>Hours out of the fridge<br>
+        <input name="hours_unrefrigerated" type="number" step="any" min="0" max="168"
+          value="{_e(v.get('hours_unrefrigerated', ''))}" placeholder="0" style="{_FIELD}">
+        <span class="why">Chilled and frozen only. The fleet refuses one that does not
+        say, because absent evidence about a cold chain is a finding and not a
+        pass.</span></label></p>
+    </div>
+    <p><label>Anything the donor said<br>
+      <textarea name="note" rows="3" maxlength="600" style="{_FIELD}"
+        placeholder="Needs collecting before 19:00. Includes seasonal gift hampers."
+        >{_e(v.get('note', ''))}</textarea></label></p>
+  </div>
+
+  <div class="note"><strong>What happens to what you type.</strong> It becomes an offer in this
+  network's filing and the fleet reads it like any other. It is never sent anywhere else. Do not put
+  a person's name or address in the note: the gate refuses a record carrying one, and it is easier
+  not to type it.</div>
+
+  <p><button class="btn" type="submit">Add it</button>
+     <a class="btn secondary" href="/">Back to offers</a></p>
+</form>""",
+        "Add an offer to this network's filing",
+    )
+
+
+_FIELD = (
+    "font:inherit;padding:.6rem;border:1px solid var(--line);border-radius:8px;"
+    "background:var(--card);color:var(--ink);width:min(100%,22rem);margin-top:.3rem"
+)
+
+
+_CATEGORIES = ("ambient", "chilled", "frozen", "produce", "non-food")
+
+
+def _options(*pairs: tuple[str, str], chosen: Any = "") -> str:
+    """Options with the person's own choice still selected.
+
+    A refusal that silently reset the dropdowns would be a refusal that made a
+    coordinator retype what was never wrong with it.
+    """
+    out = []
+    for value, label in pairs:
+        mark = " selected" if str(chosen) == value else ""
+        out.append(f'<option value="{_e(value)}"{mark}>{_e(label)}</option>')
+    return "".join(out)

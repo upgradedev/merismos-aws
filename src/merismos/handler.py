@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import time
 from typing import Any
 
@@ -149,6 +150,8 @@ def handler(event: Any, context: Any = None) -> dict[str, Any]:
             return _reply(200, run(body))
         if path == "/publish" and method == "POST":
             return publish(body)
+        if path == "/intake" and method == "POST":
+            return take_offer(body)
     except ApprovalRefused as refusal:
         return _reply(refusal.status, {"detail": str(refusal)})
     except Exception as error:  # noqa: BLE001 - never leak a stack trace outward
@@ -357,6 +360,90 @@ def publish(body: dict) -> dict[str, Any]:
     return _reply(200, receipt.as_dict())
 
 
+def take_offer(body: dict) -> dict[str, Any]:
+    """File one offer a person typed. The writer's, and nobody else's.
+
+    Everything a coordinator submits is untrusted, and this is the one place
+    untrusted text enters the corpus by design. So the writer does not accept an
+    offer: it accepts **the form**, and builds the offer itself with the same
+    intake rules the reader showed the person. A reader that had been talked
+    into assembling something the rules refuse cannot get it filed here.
+
+    Two bounds that are worth stating plainly, because they are what make an
+    open intake safe to hold behind the identity that can also publish records:
+
+    * the key is **constructed**, never taken from the caller, so this route
+      cannot be used to write over a published record or a member's entry;
+    * the id must be this network's own sequence, so ``../`` and every other
+      shape of traversal fails before anything is built.
+    """
+    if role() != "writer":
+        return _reply(
+            403,
+            {
+                "detail": (
+                    f"the {role()} identity cannot file an offer. Writing is the "
+                    f"writer's, and an offer is written where the fleet reads"
+                )
+            },
+        )
+
+    from . import intake
+
+    offer_id = str(body.get("offer_id", "")).strip()
+    if not re.fullmatch(r"offer-\d{1,9}", offer_id):
+        return _reply(400, {"detail": f"{offer_id!r} is not an offer id in this network"})
+
+    form = body.get("form")
+    if not isinstance(form, dict):
+        return _reply(400, {"detail": "an intake needs the form that was filled in"})
+
+    try:
+        offer = intake.offer_from_form(form, offer_id)
+    except intake.Rejected as refusal:
+        return _reply(400, {"detail": str(refusal)})
+
+    import boto3
+
+    bucket = os.environ.get("MERISMOS_CORPUS_BUCKET", "")
+    if not bucket:
+        return _reply(500, {"detail": "no corpus is configured, so an offer cannot be filed"})
+    prefix = os.environ.get("MERISMOS_CORPUS_PREFIX", "").strip("/")
+    key = f"offers/{offer_id}.json"
+    try:
+        # IfNoneMatch is what makes this an **add** rather than a write. S3
+        # refuses the request outright if that key already exists, so an intake
+        # cannot replace an offer the fleet has already read or decided about,
+        # and that is a property of the storage rather than of this function.
+        # Same reason the approval is spent with a condition expression.
+        boto3.client("s3").put_object(
+            Bucket=bucket,
+            Key=f"{prefix}/{key}" if prefix else key,
+            Body=intake.as_document(offer).encode("utf-8"),
+            ContentType="application/json; charset=utf-8",
+            IfNoneMatch="*",
+        )
+    except Exception as error:  # noqa: BLE001 - one of these is not a failure
+        if _already_there(error):
+            return _reply(
+                409,
+                {
+                    "detail": (
+                        f"{offer_id} was taken while you were typing, which happens when "
+                        f"two people file at once. Nothing was overwritten. Send it again "
+                        f"and it will get the next id."
+                    )
+                },
+            )
+        raise
+
+    # Recorded on the network's own thread, so an offer that arrives from a
+    # person is as traceable as one that arrived in the fixture.
+    thread = Thread(ledger=ledger_from_env(), subject=NETWORK, run_id=new_run_id())
+    thread.append("offer.filed", offer_id=offer_id, title=offer["title"], donor=offer["donor"])
+    return _reply(200, {"offer_id": offer_id, "key": key, "filed": True})
+
+
 def approve(body: dict) -> dict[str, Any]:
     """Mint an approval over exact bytes. Named person required.
 
@@ -499,6 +586,26 @@ def _screens(method: str, path: str, body: dict) -> dict[str, Any] | None:
         if not approver or result.draft is None:
             return _html(400, web.page("Name required", "<h1>An approval names a person</h1>"))
         return _publish_approved(result, offer_id, key, approver)
+
+    if path == "/offers/new":
+        from . import intake
+
+        if method == "GET":
+            return _html(200, web.new_offer_form())
+
+        # Validated here so a coordinator is told immediately, while the message
+        # they typed is still on the screen. Validated again by the writer,
+        # because this identity cannot write and is not trusted to have checked.
+        try:
+            offer_id = intake.next_offer_id(read_offers(corpus_from_env()))
+            intake.offer_from_form(body, offer_id)
+        except intake.Rejected as refusal:
+            return _html(400, web.new_offer_form(str(refusal), body))
+
+        status, detail = _ask_the_writer_to_file(offer_id, body)
+        if status != 200:
+            return _html(status, web.new_offer_form(detail, body))
+        return _redirect(f"/offer/{offer_id}")
 
     if path == "/records":
         return _html(200, web.page("Published", _published_index()))
@@ -667,3 +774,55 @@ def _run_in_background(event: dict) -> dict[str, Any]:
         thread.subject = thread.subject or network
         thread.append("run.failed", detail=type(error).__name__)
         return {"ok": False, "detail": type(error).__name__}
+
+
+def _ask_the_writer_to_file(offer_id: str, form: dict) -> tuple[int, str]:
+    """Hand the coordinator's form to the one identity that may write.
+
+    The reader gains **no** authority from this feature. It already holds
+    ``lambda:InvokeFunction`` on the writer, because that is how an approved
+    record gets published, and filing an offer travels the same road. What the
+    writer receives is the form as typed, not an offer this side assembled, so
+    the writer validates it itself rather than trusting a caller's parse. That
+    is the same reason the writer recomputes the digest at publish time.
+    """
+    import boto3
+
+    function = os.environ.get("MERISMOS_WRITER_FUNCTION", "")
+    if not function:
+        return 502, "No writer is configured, so an offer cannot be filed."
+
+    payload = json.dumps(
+        {
+            "requestContext": {"http": {"method": "POST", "path": "/intake"}},
+            "body": json.dumps({"offer_id": offer_id, "form": dict(form)}),
+        }
+    )
+    try:
+        answer = boto3.client("lambda").invoke(FunctionName=function, Payload=payload)
+        written = json.loads(answer["Payload"].read())
+    except Exception as error:  # noqa: BLE001 - the coordinator must be told
+        return 502, f"That could not be filed: {_aws_said(error)}"
+
+    status = int(written.get("statusCode", 502))
+    if status != 200:
+        detail = json.loads(written.get("body", "{}")).get("detail", "the writer refused")
+        # The writer's own status is passed through rather than flattened to a
+        # bad gateway. A clash of ids is the person's to resolve and a refused
+        # field is theirs to correct; neither is an outage and neither should
+        # read like one.
+        return (status if status in (400, 409) else 502), detail
+    return 200, ""
+
+
+def _already_there(error: Exception) -> bool:
+    """Did S3 refuse this write because the object already existed?
+
+    ``PreconditionFailed`` is what a conditional create returns when the key is
+    taken. It is the control working, so it is reported as a full inbox rather
+    than as a fault.
+    """
+    response = getattr(error, "response", None) or {}
+    code = str(response.get("Error", {}).get("Code", ""))
+    status = response.get("ResponseMetadata", {}).get("HTTPStatusCode")
+    return code in ("PreconditionFailed", "ConditionalRequestConflict") or status == 412

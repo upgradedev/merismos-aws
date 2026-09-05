@@ -93,11 +93,50 @@ def test_the_evaluator_cannot_read_the_filing_at_all(iam):
 
 
 def test_the_writer_cannot_rewrite_the_filing_it_was_judged_against(iam):
-    """Otherwise a compromised writer could edit the register to justify itself."""
+    """Otherwise a compromised writer could edit the register to justify itself.
+
+    The writer gained one corpus prefix when the intake form was added, because
+    a coordinator filing their own offer is a write and every write in this
+    system happens under this one identity. What it must never gain is the two
+    prefixes it is measured against: ``orgs/`` is who the members are and
+    ``registers/`` is the policy the gate applies. A fleet that can edit the
+    rules it is judged by is a fleet whose refusals mean nothing.
+    """
     policy = _statement_blocks(iam, "writer")
 
-    assert "aws_s3_bucket.corpus" not in policy
     assert "records/*" in policy, "the writer's S3 grant is not scoped to the record prefix"
+
+    corpus_grants = re.findall(r"\$\{aws_s3_bucket\.corpus\.arn\}/([^\"]*)", policy)
+    assert corpus_grants == ["offers/*"], (
+        f"the writer reaches {corpus_grants} of the filing. Only offers/ may be written"
+    )
+
+
+def test_no_identity_may_write_the_register_or_the_policy(iam):
+    """Said once for all three, so a new role cannot quietly acquire it."""
+    for who in ("reader", "evaluator", "writer"):
+        policy = _statement_blocks(iam, who)
+        reachable = re.findall(r"\$\{aws_s3_bucket\.corpus\.arn\}/([^\"]*)", policy)
+        for prefix in reachable:
+            if prefix in ("*", ""):
+                # A whole bucket grant is only ever a read here, checked below.
+                continue
+            assert prefix.startswith("offers/"), f"{who} reaches {prefix} of the filing"
+
+
+def test_the_identity_a_stranger_talks_to_can_write_nothing_in_s3(iam):
+    """The intake form is open to the internet and added the reader no authority.
+
+    This is the claim the feature has to survive. A coordinator adds an offer by
+    asking the writer, over the invoke grant the reader already held for
+    publishing, so the identity actually serving the form still cannot put a
+    single object anywhere. If that stops being true, the whole three-identity
+    argument is decoration.
+    """
+    policy = _statement_blocks(iam, "reader")
+
+    assert "s3:PutObject" not in policy
+    assert "s3:DeleteObject" not in policy
 
 
 def test_the_reader_can_mint_an_approval_and_cannot_spend_one(iam):

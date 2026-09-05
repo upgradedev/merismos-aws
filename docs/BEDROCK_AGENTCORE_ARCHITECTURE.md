@@ -106,10 +106,30 @@ IAM, as deployed. Role names are lower case and hyphenated.
   merismos-evaluator   dynamodb:PutItem on the thread, and nothing else.
                        NO S3, NO Bedrock, NO read tool of any kind.
 
-  merismos-writer      s3:PutObject scoped to records/* and probes/*,
+  merismos-writer      s3:PutObject scoped to records/* and probes/* on the
+                       records bucket, and to offers/* on the corpus bucket,
                        dynamodb GetItem/UpdateItem on approvals,
                        secretsmanager:GetSecretValue on the boundary canary.
+                       NO reach into orgs/ or registers/, which are the register
+                       of members and the policy it is judged against.
 ```
+
+**Why the writer holds the corpus prefix and the reader does not.** A coordinator
+can file their own offer through a form on the public site, so an offer is now
+something a stranger can create rather than something a fixture supplies. That is
+a write, and every write in this system happens under the one identity that is
+allowed to write. The reader takes the form, validates it so the person is told
+immediately, and then asks the writer over the `lambda:InvokeFunction` grant it
+already held for publishing. It gains no new AWS authority at all, which is the
+property that keeps the three-identity argument standing.
+
+The writer does not trust what it is handed. It receives **the form**, not an
+offer the reader assembled, and rebuilds the offer with the same intake rules,
+in the same way it recomputes the digest rather than trusting a publish payload.
+The S3 key is constructed from an id matched against `offer-` plus digits, so
+this route cannot be aimed at a published record. And the put carries
+`IfNoneMatch: *`, so S3 itself refuses to turn an intake into an overwrite of an
+offer that has already been read or decided about.
 
 **`s3:PutObject` is the publish authority.** The Secrets Manager value is a canary the publish path
 never reads; it exists so a refusal is observable from all three identities. `/identity` attempts

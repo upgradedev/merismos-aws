@@ -208,6 +208,17 @@ data "aws_iam_policy_document" "writer" {
       "${aws_s3_bucket.records.arn}/probes/*",
     ]
   }
+
+  # A coordinator filing their own offer. Every write in this system happens
+  # under this one identity, and it is scoped to offers/ alone: not orgs/, which
+  # is the register of who the members are, and not policies/, which is what the
+  # fleet is measured against. A fleet that could edit the rules it is judged by
+  # is a fleet whose refusals mean nothing, so no identity here can.
+  statement {
+    sid       = "FileAnOfferAPersonTyped"
+    actions   = ["s3:PutObject"]
+    resources = ["${aws_s3_bucket.corpus.arn}/offers/*"]
+  }
 }
 
 resource "aws_iam_role_policy" "reader" {

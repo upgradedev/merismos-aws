@@ -19,6 +19,7 @@ Built for **Agents for Humans (AWS)**, track **Good Neighbor Agents**.
 
 - [Status, stated honestly](#status-stated-honestly). What does not work yet, first
 - [Who this is for](#who-this-is-for)
+- [Why this is worth building, in somebody else's numbers](#why-this-is-worth-building-in-somebody-elses-numbers)
 - [Architecture](#architecture), and [the write, in the order it happens](#the-write-in-the-order-it-happens)
 - [The one thing it does](#the-one-thing-it-does)
 - [Why the Strands Agents SDK is load-bearing](#why-the-strands-agents-sdk-is-load-bearing). Proven by removing it
@@ -46,7 +47,7 @@ trust. What follows is what runs today.
 | a live URL a judge can open | **yes**, behind API Gateway, because Function URLs are refused account-wide. Rate limited, runs Claude Opus 5, and cannot publish without a person. [`efnt6e0kv7.execute-api.eu-west-1.amazonaws.com`](https://efnt6e0kv7.execute-api.eu-west-1.amazonaws.com) |
 | the governed write, end to end | **done live 2026-09-05.** A person approved on the site, the reader minted an approval it has no authority to act on, the writer recomputed the digest and published, and the record reads `200` to an anonymous request. The digest on the card and the digest in the provenance row are the same |
 
-**332 tests, `ruff` clean, coverage above the 85% floor, enforced in `addopts`.** The floor is enforced rather than
+**411 tests, `ruff` clean, coverage above the 85% floor, enforced in `addopts`.** The floor is enforced rather than
 reported: it is in `addopts`, so the suite fails below it on a developer machine and in CI alike. Run
 it yourself, and prefer the number this prints to the number written here:
 
@@ -74,6 +75,34 @@ bottle of wine in each. And when the funder asks in March what happened in Septe
 answer, because the record was a phone.
 
 Merismos does the apportionment unattended and returns **one record to approve**.
+
+## Why this is worth building, in somebody else's numbers
+
+Every organisation in this repository is invented. The problem they stand for is not, and the
+figures are the European Food Banks Federation's own, read from
+[their impact page](https://www.eurofoodbank.org/impact/) on 2026-09-05.
+
+| FEBA, 2025 | |
+|---:|---|
+| **42,796** | charitable organisations receiving redistributed food |
+| **480** | food banks supplying them, across 28 countries |
+| **109,421** | co-workers doing the work |
+| **92%** | of those co-workers are volunteers |
+
+Two of those rows are the whole argument.
+
+**Ninety two per cent volunteers.** The claim that nobody in this network employs anybody to
+apportion donations is not a premise invented to make a demo work. It is what the sector reports
+about itself.
+
+**Nearly forty three thousand receiving organisations against four hundred and eighty food banks**,
+which is about ninety small organisations per bank. Apportionment between independent organisations
+is not an edge case in this sector. It is the shape of it.
+
+What those numbers do **not** establish, and this matters more than the numbers: that these
+particular five would adopt this particular tool, that a coordinator would trust it, or that the
+approval step is where a real network would want a person. Nobody outside this build has used it.
+That is the honest state of the evidence and no figure closes it.
 
 ## Architecture
 
@@ -144,6 +173,15 @@ flowchart TB
 **The authority that publishes is `s3:PutObject` on the records bucket, held by the writer alone.**
 That is what `publish()` calls. `/identity` proves it by attempting the write and reporting what AWS
 said, from all three identities.
+
+**The writer holds one prefix of the filing too, and the reader still holds none.** A coordinator can
+add their own offer through a form on the public site, which is a write, and every write here happens
+under the one identity allowed to write. The reader validates the form so the person is told at once,
+then asks the writer over the invoke grant it already had for publishing: no new AWS authority reaches
+the identity a stranger is talking to. The grant is `offers/*` and nothing else, so neither `orgs/`,
+the register of who the members are, nor `registers/`, the policy the gate applies, can be edited by
+anything in this system. A fleet that could rewrite the rules it is measured against would be a fleet
+whose refusals mean nothing.
 
 **And a correction, because this README had it wrong until 2026-09-04.** It called the Secrets
 Manager value "the publish credential" and pointed at the reader being denied it as the proof. The
@@ -377,7 +415,7 @@ pip install -e ".[dev]"
 python -m pytest -q
 ```
 
-Expected `332 passed` and `Required test coverage of 85% reached`, in about eleven seconds. Prefer the number it prints to the number written here.
+Expected `411 passed` and `Required test coverage of 85% reached`, in about eleven seconds. Prefer the number it prints to the number written here.
 
 ```bash
 python -m pytest tests/integration/test_the_guard_is_a_control.py -q

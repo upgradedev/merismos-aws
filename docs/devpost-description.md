@@ -39,11 +39,33 @@ was a phone.
 The third one is the expensive one. Small organisations lose funding over evidence they cannot
 produce about work they genuinely did.
 
+## The problem, in somebody else's numbers
+
+Every organisation in this project is invented. The problem is not. From the European Food Banks
+Federation's own impact page, read 2026-09-05: across 28 European countries, **42,796 charitable
+organisations** receive redistributed food from **480 food banks**, and of the **109,421** people
+doing that work, **92% are volunteers**.
+
+Ninety two per cent volunteers is why "nobody here employs anybody to do this" is a fact rather than
+a premise. Ninety receiving organisations per food bank is why apportionment between independent
+organisations is the shape of the sector rather than an edge case.
+
+What those numbers do not establish is that these five would adopt this tool. Nobody outside this
+build has used it, and no figure closes that.
+
 ## What it does
 
-An offer arrives. A fleet of specialists wakes, reads the network's own filing, and works out the
-split. A deterministic gate checks the draft. Then it stops, and one person reads the exact bytes
-and approves them.
+A coordinator types what the donor told them into a form on their phone: what it is, who is giving
+it, how much, when it is collected. A fleet of specialists wakes, reads the network's own filing, and
+works out the split. A deterministic gate checks the draft. Then it stops, and one person reads the
+exact bytes and approves them.
+
+The offers are the network's own, not ours. That mattered enough to change the architecture: filing
+an offer is a write, and the identity serving the public form cannot write. It validates what was
+typed, tells the coordinator immediately if a phone number or an instruction to the fleet is in
+there, and then asks the one identity that holds the write. That identity rebuilds the offer from the
+form rather than trusting what it was handed, and S3 itself refuses to let an intake overwrite an
+offer that has already been decided about.
 
 Everything before the approval is autonomous. The approval is the end, not a stall in the middle.
 
