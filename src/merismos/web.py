@@ -539,3 +539,55 @@ class _RecordedDraft:
         self.body = record.get("draft_body", "")
         self.allocations = record.get("draft_allocations", []) or []
         self.must_not_receive = set(record.get("draft_must_not_receive", []) or [])
+
+
+def custody_chain(offer: Mapping[str, Any], chain: Mapping[str, Any]) -> str:
+    """The custody chain for one offer, and whether it still verifies.
+
+    This is what "follow the thread back" means when somebody wants more than a
+    list. Each stage carries the hash of the stage before it, so altering an
+    earlier one changes every hash after it and the chain stops verifying.
+
+    Stated plainly on the page, because the distinction is the honest part: the
+    ledger is append only **by interface**, a property of the code rather than
+    of the storage. The chain is what makes an edit made from outside that code
+    detectable. It does not make the row immutable.
+    """
+    if not chain.get("nodes"):
+        body = f"""
+<h1>No custody chain yet</h1>
+<div class="note">Nothing has been decided for {_e(offer.get('id'))}, so there is no chain to
+verify. A chain appears once the fleet has run.</div>
+<p><a class="btn secondary" href="/offer/{_e(offer.get('id'))}">Ask the fleet</a></p>"""
+        return page("Custody chain", body)
+
+    verified = chain.get("verified")
+    rows = "".join(
+        f"<tr><td>{i + 1}</td><td>{_e(n.get('stage'))}</td><td>{_e(n.get('actor'))}</td>"
+        f"<td class='digest'>{_e(str(n.get('node_hash', ''))[:16])}</td>"
+        f"<td class='digest'>{_e(str(n.get('parent_hash', ''))[:16])}</td></tr>"
+        for i, n in enumerate(chain["nodes"])
+    )
+    verdict = (
+        f'<div class="note"><strong>Verified.</strong> {_e(chain.get("detail"))}</div>'
+        if verified
+        else f'<div class="note stop"><strong>This chain does not verify.</strong> '
+        f'{_e(chain.get("detail"))}</div>'
+    )
+
+    body = f"""
+<h1>Custody chain</h1>
+<p class="lede">{_e(offer.get('title'))} &middot; {_e(chain.get('stages'))} stages</p>
+{verdict}
+<div class="scroll"><table>
+ <thead><tr><th>#</th><th>Stage</th><th>Who</th><th>Hash</th><th>Follows</th></tr></thead>
+ <tbody>{rows}</tbody>
+</table></div>
+<p class="why">Head: <span class="digest">{_e(chain.get('head_hash'))}</span></p>
+<div class="note"><strong>What this does and does not prove.</strong> Each stage carries the hash of
+the one before it, so changing an earlier stage changes every hash after it and this page stops
+saying verified. The ledger underneath is append only by interface, which is a property of the code
+rather than of the storage, and a chain makes an edit made from outside that code detectable rather
+than impossible.</div>
+<p><a class="btn secondary" href="/records">Published records</a></p>"""
+    return page("Custody chain", body, "The verifiable custody chain for one offer")

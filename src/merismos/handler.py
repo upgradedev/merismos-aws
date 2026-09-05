@@ -503,6 +503,20 @@ def _screens(method: str, path: str, body: dict) -> dict[str, Any] | None:
     if path == "/records":
         return _html(200, web.page("Published", _published_index()))
 
+    if path.startswith("/chain/"):
+        offer_id = path.rsplit("/", 1)[-1]
+        offer = _offer(offer_id)
+        if offer is None:
+            return _html(404, web.page("Not found", "<h1>No such offer</h1>"))
+        from . import custody
+
+        entries = ledger_from_env().recall(
+            subject_for_offer(NETWORK, offer), "record.published", limit=1
+        )
+        run = entries[0].run_id if entries else str(body.get("run", ""))
+        thread = ledger_from_env().thread(run) if run else []
+        return _html(200, web.custody_chain(offer, custody.summary(offer_id, thread)))
+
     return None
 
 
