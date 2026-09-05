@@ -34,6 +34,7 @@ from typing import Any, Protocol
 #: failure at write time instead of a row that no query will ever return.
 KINDS = (
     "run.started",
+    "run.completed",
     "run.nothing_to_allocate",
     "offer.received",
     "fleet.dispatch",
@@ -385,8 +386,33 @@ def ledger_from_env(env: Mapping[str, str] | None = None) -> Any:
     env = os.environ if env is None else env
     choice = env.get("MERISMOS_LEDGER", "dynamodb").strip().lower()
     if choice == "memory":
-        return InMemoryLedger()
+        return _shared_memory_ledger()
     return DynamoDbLedger(table_name=env.get("MERISMOS_LEDGER_TABLE", ""))
+
+
+#: One in-memory ledger per process, not one per call.
+#:
+#: This returned a fresh empty store every time, and nothing noticed for as long
+#: as every caller passed a ledger around explicitly. It broke the moment two
+#: parts of one process looked the store up independently: a background run
+#: wrote a completed chore into one store and the page polling for it read an
+#: empty one, so a finished run showed as still running for ever. DynamoDB was
+#: always shared, so the offline path was the only one that could be wrong, and
+#: it was the one nobody was watching.
+_MEMORY: InMemoryLedger | None = None
+
+
+def _shared_memory_ledger() -> InMemoryLedger:
+    global _MEMORY
+    if _MEMORY is None:
+        _MEMORY = InMemoryLedger()
+    return _MEMORY
+
+
+def reset_memory_ledger() -> None:
+    """Forget the offline store. For tests that need a clean thread."""
+    global _MEMORY
+    _MEMORY = None
 
 
 def entries_as_json(entries: Iterable[Entry]) -> str:

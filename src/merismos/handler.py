@@ -109,6 +109,9 @@ def _route(event: Any) -> tuple[str, str, dict]:
             body = json.loads(raw) if raw.strip() else {}
         except ValueError:
             body = {}
+    query = event.get("queryStringParameters") or {}
+    if isinstance(body, dict) and isinstance(query, dict):
+        body = {**query, **body}
     return method, path.rstrip("/") or "/", body if isinstance(body, dict) else {}
 
 
@@ -117,6 +120,13 @@ def handler(event: Any, context: Any = None) -> dict[str, Any]:
     # A scheduled wake arrives as a plain payload rather than an HTTP event.
     if isinstance(event, dict) and event.get("source") == "merismos.deferral":
         return _reply(200, _wake(event))
+
+    # So does a background chore, which the reader asked itself to run because
+    # it takes longer than a request is allowed to.
+    from . import background
+
+    if background.is_background(event):
+        return _reply(200, _run_in_background(event))
 
     method, path, body = _route(event)
     me = role()
@@ -414,7 +424,7 @@ def _screens(method: str, path: str, body: dict) -> dict[str, Any] | None:
     if role() != "reader":
         return None
 
-    from . import web
+    from . import background, web
 
     if path == "/":
         return _html(200, web.inbox(read_offers(corpus_from_env()), NETWORK))
@@ -424,10 +434,53 @@ def _screens(method: str, path: str, body: dict) -> dict[str, Any] | None:
 
     if path.startswith("/offer/"):
         offer_id = path.rsplit("/", 1)[-1]
-        offer, result = _decide(offer_id)
+        offer = _offer(offer_id)
         if offer is None:
             return _html(404, web.page("Not found", "<h1>No such offer</h1>"))
-        return _html(200, web.decision(result, offer, NETWORK))
+
+        # POST starts a chore in the background and hands back a run id. It is
+        # not awaited: a specialist reading with a model takes about 100 seconds
+        # and the gateway gives this request 30.
+        if method == "POST":
+            run_id = new_run_id()
+            thread = Thread(
+                ledger=ledger_from_env(),
+                subject=subject_for_offer(NETWORK, offer),
+                run_id=run_id,
+            )
+            thread.append("run.started", offer_id=offer_id)
+            try:
+                background.start(offer_id, run_id, NETWORK)
+            except Exception as error:  # noqa: BLE001 - a run that never started must say so
+                thread.append("run.failed", detail=_aws_said(error))
+            return _redirect(f"/offer/{offer_id}?run={run_id}")
+
+        run_id = str(body.get("run", "")).strip()
+        if not run_id:
+            return _html(200, web.ready(offer, NETWORK, os.environ.get("MERISMOS_MODEL", "")))
+
+        entries = ledger_from_env().thread(run_id)
+        state = background.progress(entries)
+        if state["failed"]:
+            return _html(
+                200,
+                web.page(
+                    "The run failed",
+                    f"<h1>The run failed</h1><div class='note stop'>"
+                    f"{background.failure(entries)}</div>"
+                    f"<p><a class='btn secondary' href='/offer/{offer_id}'>Try again</a></p>",
+                ),
+            )
+        if not state["done"]:
+            return _html(
+                200,
+                web.waiting(
+                    offer, run_id, state, os.environ.get("MERISMOS_MODEL", "the model")
+                ),
+            )
+        return _html(200, web.decision_from_record(
+            background.completed_result(entries) or {}, offer, NETWORK
+        ))
 
     if path.startswith("/approve/"):
         offer_id = path.rsplit("/", 1)[-1]
@@ -553,3 +606,50 @@ def _published_index() -> str:
         f"<div class='scroll'><table><thead><tr><th>Record</th><th>Approved by</th></tr></thead>"
         f"<tbody>{rows}</tbody></table></div>"
     )
+
+
+def _offer(offer_id: str):
+    """One offer from the network's filing, or None."""
+    offers = read_offers(corpus_from_env())
+    return next((o for o in offers if str(o.get("id")) == offer_id), None)
+
+
+def _run_in_background(event: dict) -> dict[str, Any]:
+    """Run one chore to completion and record the result in the thread.
+
+    This is the reader invoking itself with InvocationType Event, so it has the
+    function's own 900 second budget rather than the gateway's 30. The chore is
+    unchanged: same specialists, same guard, same gate. What is different is
+    that a model can actually be used, which is the whole point of doing it this
+    way.
+    """
+    offer_id = str(event.get("offer_id", ""))
+    run_id = str(event.get("run_id", ""))
+    network = str(event.get("network", NETWORK))
+
+    thread = Thread(ledger=ledger_from_env(), subject="", run_id=run_id)
+    try:
+        corpus = corpus_from_env()
+        offer = _offer(offer_id)
+        if offer is None:
+            thread.subject = network
+            thread.append("run.failed", detail=f"no offer {offer_id!r} in the filing")
+            return {"ok": False}
+
+        thread.subject = subject_for_offer(network, offer)
+        result = run_chore(
+            corpus,
+            offer,
+            thread,
+            analyst=bedrock.analyst_from_env(),
+            critic=bedrock.critic_from_env(),
+            scheduler=scheduler_from_env(),
+            network=network,
+            approver="",
+        )
+        thread.append("run.completed", **result.as_dict())
+        return {"ok": True, "outcome": result.outcome}
+    except Exception as error:  # noqa: BLE001 - a failed run must say so on the page
+        thread.subject = thread.subject or network
+        thread.append("run.failed", detail=type(error).__name__)
+        return {"ok": False, "detail": type(error).__name__}

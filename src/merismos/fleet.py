@@ -462,6 +462,12 @@ class ChoreResult:
             "envelopes": [e.as_dict() for e in self.envelopes],
             "verdict": self.verdict.as_dict() if self.verdict else None,
             "approval_card": self.approval.as_dict() if self.approval else None,
+            # The draft travels too, because the provenance thread is what the
+            # screens render a finished run from. A run whose result cannot be
+            # rebuilt is a run nobody can look at afterwards.
+            "draft_body": self.draft.body if self.draft else "",
+            "draft_allocations": [dict(a) for a in self.draft.allocations] if self.draft else [],
+            "draft_must_not_receive": sorted(self.draft.must_not_receive) if self.draft else [],
             "deferrals": [d.as_dict() for d in self.deferrals],
             "reads": self.read_log,
         }

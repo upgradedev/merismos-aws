@@ -31,11 +31,17 @@ def offline(monkeypatch):
     monkeypatch.delenv("MERISMOS_RECORDS_BUCKET", raising=False)
 
 
-def get(path: str, method: str = "GET", form: dict | None = None) -> dict:
+def get(
+    path: str,
+    method: str = "GET",
+    form: dict | None = None,
+    query: dict | None = None,
+) -> dict:
     event: dict = {
         "requestContext": {"http": {"method": method, "path": path}},
         "headers": {"content-type": "application/json"},
         "body": "{}",
+        "queryStringParameters": query or {},
     }
     if form is not None:
         from urllib.parse import urlencode
@@ -50,6 +56,37 @@ def html(path: str, **kw) -> str:
     assert reply["statusCode"] == 200, reply["body"][:200]
     assert "text/html" in reply["headers"]["content-type"]
     return reply["body"]
+
+
+@pytest.fixture
+def run_now(monkeypatch):
+    """Replace the async hop with a direct call, and walk the real flow.
+
+    A chore takes longer than a request is allowed to, so the site starts it on
+    a background invocation and the page polls the thread. There is no Lambda in
+    a test, so `background.start` runs the same function the invocation would,
+    synchronously. Everything else is unchanged: the POST, the redirect, the
+    run id, and the page reading the finished run back out of the thread.
+    """
+    from merismos import background, handler
+
+    def _straight_through(offer_id: str, run_id: str, network: str) -> None:
+        handler._run_in_background(
+            {"offer_id": offer_id, "run_id": run_id, "network": network}
+        )
+
+    monkeypatch.setattr(background, "start", _straight_through)
+    return _straight_through
+
+
+def walk(offer_id: str) -> str:
+    """Press the button, follow the redirect, read the finished decision."""
+    started = get(f"/offer/{offer_id}", method="POST", form={})
+    assert started["statusCode"] == 303, started
+    where = started["headers"]["location"]
+    assert where.startswith(f"/offer/{offer_id}?run=")
+    run_id = where.split("run=", 1)[1]
+    return html(f"/offer/{offer_id}", query={"run": run_id})
 
 
 # --------------------------------------------------------------------------
@@ -130,8 +167,8 @@ def test_the_inbox_lists_what_is_waiting_and_offers_one_action_each():
 # --------------------------------------------------------------------------
 
 
-def test_the_decision_names_who_was_skipped_and_the_rule_that_skipped_them():
-    page = html("/offer/offer-4471")
+def test_the_decision_names_who_was_skipped_and_the_rule_that_skipped_them(run_now):
+    page = walk("offer-4471")
 
     assert "Not receiving a share, and the rule that decided it" in page
     for skipped in ("Anemos Community Library", "Elpida Night Shelter", "Second Chance School"):
@@ -140,30 +177,30 @@ def test_the_decision_names_who_was_skipped_and_the_rule_that_skipped_them():
     assert "re-litigated by phone" in page
 
 
-def test_the_decision_shows_the_share_of_the_offer_not_only_the_amount():
+def test_the_decision_shows_the_share_of_the_offer_not_only_the_amount(run_now):
     """96 kg means nothing without the ceiling it sits under."""
-    page = html("/offer/offer-4471")
+    page = walk("offer-4471")
 
     assert "40.0%" in page
     assert "Of offer" in page
 
 
-def test_a_refused_offer_leads_with_why_and_offers_no_approval():
-    page = html("/offer/offer-4477")
+def test_a_refused_offer_leads_with_why_and_offers_no_approval(run_now):
+    page = walk("offer-4477")
 
     assert "cold chain was broken for 6 hours" in page
     assert "Refused, and here is why" in page
     assert "/approve/offer-4477" not in page, "a refused offer must not offer an approve button"
 
 
-def test_the_decision_says_nothing_is_published_yet():
-    page = html("/offer/offer-4471")
+def test_the_decision_says_nothing_is_published_yet(run_now):
+    page = walk("offer-4471")
 
     assert "Nothing is published yet" in page
 
 
-def test_the_reads_the_specialists_made_are_shown_with_correct_grammar():
-    page = html("/offer/offer-4471")
+def test_the_reads_the_specialists_made_are_shown_with_correct_grammar(run_now):
+    page = walk("offer-4471")
 
     assert "The specialists opened 1 file from" in page, "pluralisation is wrong"
     assert "files from" not in page.split("The specialists opened 1 file")[0][-80:]
@@ -259,3 +296,16 @@ def test_the_json_api_still_answers_alongside_the_screens():
 
     assert reply["statusCode"] == 200
     assert json.loads(reply["body"])["read_budget_per_specialist"] == 6
+
+
+def test_the_network_is_named_the_way_a_person_would_say_it():
+    """A UX review found the storage key printed in the first sentence.
+
+    `kypseli-network` is an identifier. Nobody calls their network that, and a
+    slug in a sentence is the tell that a screen was built from the data model
+    outwards rather than from the reader inwards.
+    """
+    page = html("/")
+
+    assert "Kypseli mutual aid network" in page
+    assert "kypseli-network" not in page

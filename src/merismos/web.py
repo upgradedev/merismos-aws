@@ -96,12 +96,34 @@ def _e(value: Any) -> str:
     return html.escape(str(value), quote=True)
 
 
-def page(title: str, body: str, subtitle: str = "") -> str:
-    """One shell for every screen."""
+def _readable(slug: str) -> str:
+    """A network name a coordinator would recognise, not the key it is stored under.
+
+    A UX review caught the raw `kypseli-network` printed on the first line of
+    the site. Nobody calls their network that; it is an identifier that leaked
+    into a sentence.
+    """
+    words = str(slug).replace("_", "-").split("-")
+    if words and words[-1].lower() == "network":
+        words = words[:-1]
+    return " ".join(w.capitalize() for w in words if w) + " mutual aid network"
+
+
+def page(title: str, body: str, subtitle: str = "", refresh_seconds: int = 0) -> str:
+    """One shell for every screen.
+
+    ``refresh_seconds`` is how a long run is polled. A meta refresh rather than
+    a script, because every screen here loads no JavaScript and that is asserted
+    per screen.
+    """
+    refresh = (
+        f'<meta http-equiv="refresh" content="{refresh_seconds}">' if refresh_seconds else ""
+    )
     return f"""<!doctype html>
 <html lang="en"><head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+{refresh}
 <title>{_e(title)} · Merismos</title>
 <meta name="description" content="{_e(subtitle or 'Apportionment of donated food, and the record of how it was decided.')}">
 <style>{STYLE}</style>
@@ -162,8 +184,8 @@ def inbox(offers: Sequence[Mapping[str, Any]], network: str) -> str:
 
     body = f"""
 <h1>Offers waiting on somebody</h1>
-<p class="lede">{_e(network)}. Five organisations share whatever gets donated. Merismos does the
-apportionment and brings back one thing to approve.</p>
+<p class="lede">{_e(_readable(network))}. Five organisations share whatever gets donated. Merismos
+does the apportionment and brings back one thing to approve.</p>
 {''.join(cards)}
 <div class="note">Nothing here publishes on its own. Every offer stops at a card a person reads,
 and the publish is the last step.</div>"""
@@ -380,3 +402,140 @@ an approver cannot override that.</div>
 """,
         "What the fleet may and may not do",
     )
+
+
+def waiting(offer: Mapping[str, Any], run_id: str, state: Mapping[str, Any], model: str) -> str:
+    """The fleet is reading. Say what it is doing, not that something is.
+
+    Refreshed by a meta tag rather than a script. Every screen here loads no
+    JavaScript, which is asserted per screen, and that guarantee is worth more
+    than a smoother spinner.
+    """
+    answered = state.get("specialists_answered", 0)
+    dots = "".join(
+        f'<span class="tag {"t-ok" if i < answered else "t-info"}">{name}</span> '
+        for i, name in enumerate(["food-safety", "capacity", "equity", "premises"])
+    )
+    body = f"""
+<h1>The fleet is reading</h1>
+<p class="lede">{_e(offer.get('title'))} &middot; {_e(offer.get('quantity'))} {_e(offer.get('unit'))}</p>
+
+<div class="card">
+  <div class="row"><h3>{_e(state.get('stage', 'starting'))}</h3>
+    <span class="tag t-warn">{_e(answered)} of 4 answered</span></div>
+  <p style="margin:.8rem 0 .3rem">{dots}</p>
+  <p class="why">Each specialist opens the network's own filing and decides what to read.
+  {_e(model)} takes about a minute and a half per specialist, so this page waits.</p>
+</div>
+
+<div class="note"><strong>Why this takes minutes rather than seconds.</strong> The specialists are
+not matching patterns. Each one is handed the filing and a question and chooses which files to
+open, and the files it chose are recorded. That is the difference this product is arguing for, and
+it is not free.</div>
+
+<p class="why">This page refreshes itself. Nothing here runs a script.</p>
+<p><a class="btn secondary" href="/">Back to offers</a></p>"""
+    return page(
+        "Reading",
+        body,
+        "The fleet is reading the network's filing",
+        refresh_seconds=4,
+    )
+
+
+def ready(offer: Mapping[str, Any], network: str, model: str) -> str:
+    """The offer, before anybody has asked the fleet to look at it."""
+    using = (
+        f"<strong>{_e(model)}</strong> reads the filing"
+        if model and model.lower() not in ("none", "off", "stub")
+        else "the deterministic rules run, with no model configured"
+    )
+    body = f"""
+<h1>{_e(offer.get('title'))}</h1>
+<p class="lede">{_e(offer.get('donor'))} &middot; {_e(offer.get('quantity'))}
+  {_e(offer.get('unit'))} &middot; {_e(offer.get('category'))} &middot;
+  collect by {_e(offer.get('collection_date'))}</p>
+
+<div class="card">
+  <h3>What the donor said</h3>
+  <p class="why">{_e(offer.get('note', ''))}</p>
+</div>
+
+<div class="note"><strong>What happens when you press this.</strong> Four specialists wake. Each is
+handed the network's filing and a question, not an answer, and each decides which files to open.
+Here {using}. Nothing is published: the run stops at a card you read.</div>
+
+<form method="post" action="/offer/{_e(offer.get('id'))}">
+  <p><button class="btn" type="submit">Ask the fleet</button>
+     <a class="btn secondary" href="/">Back to offers</a></p>
+</form>"""
+    return page(offer.get("title", "Offer"), body, "An offer waiting on a decision")
+
+
+def decision_from_record(record: Mapping[str, Any], offer: Mapping[str, Any], network: str) -> str:
+    """Render a finished chore that was recorded in the thread.
+
+    The live screens read the provenance thread rather than a second store,
+    because the thread was always the memory and the audit trail. A run that
+    finished four minutes ago renders from exactly what a judge can also read.
+    """
+    return decision(_Recorded(record), offer, network)
+
+
+class _Recorded:
+    """A finished chore, rebuilt from what the thread recorded.
+
+    Only the fields the decision screen reads. Deliberately not the real
+    dataclasses: rebuilding an Envelope would mean re-validating a refusal that
+    was already validated when it was written, and a validation error while
+    rendering history would hide the history.
+    """
+
+    def __init__(self, record: Mapping[str, Any]) -> None:
+        self.outcome = record.get("outcome", "")
+        self.note = record.get("note", "")
+        self.run_id = record.get("run_id", "")
+        self.read_log = record.get("reads", {}) or {}
+        self.envelopes = [_RecordedEnvelope(e) for e in record.get("envelopes", [])]
+        draft = record.get("draft_allocations")
+        self.draft = (
+            _RecordedDraft(record) if record.get("outcome") in ("awaiting_approval", "approved")
+            or draft else None
+        )
+        self.verdict = _RecordedVerdict(record.get("verdict") or {})
+
+
+class _RecordedEnvelope:
+    def __init__(self, e: Mapping[str, Any]) -> None:
+        self.specialist = e.get("specialist", "")
+        self.reason = e.get("reason", "")
+        self.meta = e.get("meta", {}) or {}
+        self.status = _Status(e.get("status", ""))
+        self.findings = [_RecordedFinding(f) for f in e.get("findings", [])]
+
+
+class _RecordedFinding:
+    def __init__(self, f: Mapping[str, Any]) -> None:
+        self.check = f.get("check", "")
+        self.severity = f.get("severity", "")
+        self.detail = f.get("detail", "")
+        self.evidence = f.get("evidence", "")
+
+
+class _Status:
+    def __init__(self, value: str) -> None:
+        self.value = value
+
+
+class _RecordedVerdict:
+    def __init__(self, v: Mapping[str, Any]) -> None:
+        self.passed = v.get("passed", False)
+        self.advisories = v.get("advisories", []) or []
+        self.critic_model = v.get("critic_model", "")
+
+
+class _RecordedDraft:
+    def __init__(self, record: Mapping[str, Any]) -> None:
+        self.body = record.get("draft_body", "")
+        self.allocations = record.get("draft_allocations", []) or []
+        self.must_not_receive = set(record.get("draft_must_not_receive", []) or [])

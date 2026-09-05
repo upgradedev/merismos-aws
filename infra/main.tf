@@ -87,6 +87,7 @@ resource "aws_lambda_function" "fleet" {
       # approval returned a 500: the code read it with no default, so the
       # publish path raised KeyError on the one action the whole product is for.
       MERISMOS_WRITER_FUNCTION = "${var.project}-writer"
+      MERISMOS_READER_FUNCTION = "${var.project}-reader"
 
       # Explicit rather than defaulted. Which store is running is exactly the
       # kind of thing this project refuses to leave implicit elsewhere.

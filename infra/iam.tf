@@ -108,13 +108,23 @@ data "aws_iam_policy_document" "reader" {
     resources = ["*"] # Inference profiles resolve across regions; a narrower ARN breaks them.
   }
 
-  # Ask the evaluator to judge, and the writer to publish. Naming the two
-  # functions rather than "*" is what stops a compromised reader invoking
-  # anything else in the account.
+  # Ask the evaluator to judge, the writer to publish, and itself to run a chore
+  # in the background. Naming three functions rather than "*" is what stops a
+  # compromised reader invoking anything else in the account.
+  #
+  # The self invoke is what makes the deployed path agentic. A specialist
+  # reading with a model takes about 100 seconds and an API Gateway integration
+  # times out at 30, so a synchronous run cannot use a model at all. Started
+  # asynchronously, the same work fits inside the reader's own 900 second
+  # timeout and the page polls the provenance thread for it.
   statement {
-    sid       = "AskTheOtherTwo"
-    actions   = ["lambda:InvokeFunction"]
-    resources = [aws_lambda_function.fleet["evaluator"].arn, aws_lambda_function.fleet["writer"].arn]
+    sid     = "AskTheOtherTwoAndItself"
+    actions = ["lambda:InvokeFunction"]
+    resources = [
+      aws_lambda_function.fleet["evaluator"].arn,
+      aws_lambda_function.fleet["writer"].arn,
+      aws_lambda_function.fleet["reader"].arn,
+    ]
   }
 
   # Park a decision until a date. Delete is included so a superseded deferral
