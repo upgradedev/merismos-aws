@@ -6,6 +6,12 @@ name: Deploy, prove, tear down
 on:
   workflow_dispatch:
     inputs:
+      dry_run:
+        description: "Plan and stop, changing nothing. Run this first after any change to the state or the backend."
+        required: true
+        default: "yes"
+        type: choice
+        options: ["yes", "no"]
       keep:
         description: "Leave the fleet standing after the checks (yes/no). 'no' tears it down in the same run."
         required: true
@@ -46,22 +52,68 @@ jobs:
 
       - uses: hashicorp/setup-terraform@v3
         with:
+          # Pinned to the version that wrote the state this backend adopted. A
+          # format upgrade during an apply against a live fleet is a variable
+          # nobody needs; move it deliberately, on its own, and take
+          # use_lockfile with it.
           terraform_version: 1.9.8
 
       - name: Build the dependency layer
         run: infra/build.sh
 
+      # The gate. A first apply against migrated state is the one place a
+      # mistake cannot be undone: if the state did not land at the key the
+      # backend names, terraform sees nothing and proposes building the whole
+      # fleet again. The fixed names collide and fail partway, and the suffixed
+      # buckets get created fresh, which silently changes the record addresses
+      # this project publishes. So the plan is read by a person first.
+      - name: Plan
+        id: plan
+        run: |
+          set -euo pipefail
+          terraform -chdir=infra init -input=false
+          terraform -chdir=infra plan -no-color -input=false -out=tfplan | tee plan.txt
+          summary=$(grep -E '^Plan:|^No changes' plan.txt || true)
+          echo "${summary}"
+          echo "### Plan" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          echo "${summary:-plan produced no summary line}" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+
+          # The discriminating check, stated rather than eyeballed. This stack
+          # is 51 resources; a plan proposing to add most of them means the
+          # state is not the state of the running fleet.
+          adds=$(sed -n 's/^Plan: \([0-9]*\) to add.*/\1/p' plan.txt)
+          if [ "${adds:-0}" -gt 12 ]; then
+            echo "::error::the plan wants to add ${adds} resources. That is a fleet being built, not updated. The state did not land."
+            exit 1
+          fi
+
+      - name: Stop here, this was a dry run
+        if: inputs.dry_run == 'yes'
+        run: |
+          echo "### Dry run" >> "$GITHUB_STEP_SUMMARY"
+          echo "Nothing was applied. Read the plan above, then run again with dry_run=no." >> "$GITHUB_STEP_SUMMARY"
+
       - name: Apply
         id: apply
+        if: inputs.dry_run != 'yes'
         run: |
-          terraform -chdir=infra init
-          terraform -chdir=infra apply -auto-approve
-          echo "url=$(terraform -chdir=infra output -raw reader_url)" >> "$GITHUB_OUTPUT"
+          set -euo pipefail
+          terraform -chdir=infra apply -auto-approve -input=false tfplan
+          echo "url=$(terraform -chdir=infra output -raw judge_url)/" >> "$GITHUB_OUTPUT"
 
       # Everything below runs against the deployed system with no credentials,
       # which is the point: it is the same thing a judge can run. Green CI
       # proves the code that was pushed. It does not prove the thing running.
+      #
+      # The URL is the API Gateway one rather than the reader's Function URL.
+      # Public Function URLs are refused account wide here, which was settled by
+      # deploying a two line throwaway Lambda with a public URL and watching it
+      # be refused too. Checking a door that cannot open in this account proves
+      # nothing about the door a judge actually uses.
       - name: The reader answers a stranger
+        if: inputs.dry_run != 'yes'
         run: |
           set -euo pipefail
           url="${{ steps.apply.outputs.url }}"
@@ -74,6 +126,7 @@ jobs:
       # passed a reader that was denied a value nothing reads while being
       # granted the write that publishes.
       - name: And AWS refuses the reader the write that publishing needs
+        if: inputs.dry_run != 'yes'
         run: |
           set -euo pipefail
           can_write=$(jq -r '.publish_authority.can_write' body.json)
@@ -95,12 +148,15 @@ jobs:
           }
 
       - name: And the writer can make that write
+        if: inputs.dry_run != 'yes'
         run: |
           set -euo pipefail
           # A boundary nobody can cross in either direction is a wall, not a
-          # boundary. The writer is invoked directly because its URL refuses
-          # anonymous callers by design.
-          aws lambda invoke --function-name merismos-writer             --payload '{"requestContext":{"http":{"method":"GET","path":"/identity"}}}'             --cli-binary-format raw-in-base64-out writer.json >/dev/null
+          # boundary. The writer is invoked directly because it has no public
+          # door at all.
+          aws lambda invoke --function-name merismos-writer \
+            --payload '{"requestContext":{"http":{"method":"GET","path":"/identity"}}}' \
+            --cli-binary-format raw-in-base64-out writer.json >/dev/null
           jq -r '.body' writer.json | jq '.publish_authority'
           test "$(jq -r '.body' writer.json | jq -r '.publish_authority.can_write')" = "true" || {
             echo "::error::the writer cannot write. Nothing can publish."
@@ -108,6 +164,7 @@ jobs:
           }
 
       - name: The other two refuse a stranger
+        if: inputs.dry_run != 'yes'
         run: |
           set -euo pipefail
           for who in evaluator writer; do
@@ -120,29 +177,122 @@ jobs:
             }
           done
 
+      # The proof that changed. It used to POST /run and read the answer out of
+      # one response, which cannot work with a model: four specialists reading
+      # take minutes and a gateway integration gets thirty seconds. So it walks
+      # the flow a coordinator walks, which is also the flow a persona review
+      # marked FAIL when the deployed path was not touching the SDK at all.
       - name: A run reaches a card and publishes nothing
+        if: inputs.dry_run != 'yes'
         run: |
           set -euo pipefail
           url="${{ steps.apply.outputs.url }}"
-          curl -s -X POST "${url}run" -H 'content-type: application/json' \
-            -d '{"offer":"offer-4471"}' > run.json
-          jq '{outcome, note}' run.json
-          test "$(jq -r '.outcome' run.json)" = "awaiting_approval"
-          test "$(jq -r '.approval_card' run.json)" = "null" || {
-            echo "::error::an anonymous run minted an approval"
-            exit 1
-          }
+
+          # Press the button. The reply is a redirect naming the run.
+          location=$(curl -s -o /dev/null -w '%{redirect_url}' -X POST "${url}offer/offer-4471")
+          echo "started: ${location}"
+          run_id="${location##*run=}"
+          test -n "${run_id}" || { echo "::error::no run id came back"; exit 1; }
+
+          # Poll the provenance thread, which is the page's own progress bar.
+          deadline=$(( $(date +%s) + 900 ))
+          while :; do
+            curl -s "${url}offer/offer-4471?run=${run_id}" > page.html
+            if grep -q "Not receiving a share" page.html; then
+              echo "the run finished"
+              break
+            fi
+            if grep -q "The run failed" page.html; then
+              echo "::error::the run failed"
+              sed -n 's/.*note stop.>\([^<]*\).*/\1/p' page.html
+              exit 1
+            fi
+            if [ "$(date +%s)" -gt "${deadline}" ]; then
+              echo "::error::the run did not finish inside fifteen minutes"
+              exit 1
+            fi
+            sleep 20
+          done
+
+          # It stopped at a card, and nothing left the screen.
+          grep -q "Nothing is published yet" page.html || {
+            echo "::error::the decision screen does not say it published nothing"; exit 1; }
+          grep -q "/approve/offer-4471?run=${run_id}" page.html || {
+            echo "::error::the approve link does not carry the run it was decided by"; exit 1; }
+
+          # And the card is that run, byte bound, with nothing minted by asking.
+          curl -s "${url}approve/offer-4471?run=${run_id}" > card.html
+          grep -q "What will be published" card.html || {
+            echo "::error::no card"; exit 1; }
+          grep -qE 'class="digest">[0-9a-f]{64}<' card.html || {
+            echo "::error::no sha256 on the card"; exit 1; }
+          echo "### A run finished and stopped at a card" >> "$GITHUB_STEP_SUMMARY"
+          echo "\`${run_id}\`" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: An approval link with no run refuses rather than deciding again
+        if: inputs.dry_run != 'yes'
+        run: |
+          set -euo pipefail
+          url="${{ steps.apply.outputs.url }}"
+          code=$(curl -s -o noRun.html -w '%{http_code}' "${url}approve/offer-4471")
+          test "${code}" = "404" || {
+            echo "::error::a run-less approve answered ${code}. It may be deciding again."; exit 1; }
+          grep -q "will not decide again on your behalf" noRun.html
+
+      - name: A coordinator can add an offer, and cannot add a person
+        if: inputs.dry_run != 'yes'
+        run: |
+          set -euo pipefail
+          url="${{ steps.apply.outputs.url }}"
+          curl -s "${url}offers/new" | grep -q "Add an offer" || {
+            echo "::error::there is no way for a network to add its own offer"; exit 1; }
+
+          # The refusal, live. A note carrying a phone number must not become an
+          # offer, and the person has to be told rather than filtered.
+          code=$(curl -s -o refused.html -w '%{http_code}' -X POST "${url}offers/new" \
+            --data-urlencode 'title=Test crate of ambient grocery' \
+            --data-urlencode 'donor=A wholesaler' \
+            --data-urlencode 'quantity=10' \
+            --data-urlencode 'unit=kg' \
+            --data-urlencode 'category=ambient' \
+            --data-urlencode 'collection_date=2026-09-30' \
+            --data-urlencode 'note=Ring 6944 123 456 on arrival')
+          test "${code}" = "400" || {
+            echo "::error::an offer carrying a phone number was accepted (${code})"; exit 1; }
+          grep -q "published record" refused.html
 
       - name: The refused offer is still refused when deployed
+        if: inputs.dry_run != 'yes'
         run: |
           set -euo pipefail
           url="${{ steps.apply.outputs.url }}"
-          curl -s -X POST "${url}run" -H 'content-type: application/json' \
-            -d '{"offer":"offer-4477"}' > blocked.json
-          test "$(jq -r '.outcome' blocked.json)" = "blocked"
-          jq -r '.note' blocked.json | grep -qi 'cold chain'
+          location=$(curl -s -o /dev/null -w '%{redirect_url}' -X POST "${url}offer/offer-4477")
+          run_id="${location##*run=}"
+          deadline=$(( $(date +%s) + 900 ))
+          while :; do
+            curl -s "${url}offer/offer-4477?run=${run_id}" > blocked.html
+            if grep -q "Refused, and here is why" blocked.html; then
+              break
+            fi
+            if grep -q "The run failed" blocked.html; then
+              echo "::error::the run failed"
+              exit 1
+            fi
+            if [ "$(date +%s)" -gt "${deadline}" ]; then
+              echo "::error::the refusal did not arrive inside fifteen minutes"
+              exit 1
+            fi
+            sleep 20
+          done
+          grep -qi 'cold chain' blocked.html
+          if grep -q "/approve/offer-4477" blocked.html; then
+            echo "::error::a refused offer offered an approve button"
+            exit 1
+          fi
+          echo "the broken cold chain is still refused, and offers no way to approve it"
 
       - name: The bounds it publishes match the bounds it enforces
+        if: inputs.dry_run != 'yes'
         run: |
           set -euo pipefail
           url="${{ steps.apply.outputs.url }}"
@@ -153,7 +303,7 @@ jobs:
       # Always, even when a check above failed. A failed proof that leaves a
       # fleet standing is a bill, and this is the row STANDARDS D2 asks for.
       - name: Tear down
-        if: always() && inputs.keep != 'yes'
+        if: always() && inputs.dry_run != 'yes' && inputs.keep != 'yes'
         run: terraform -chdir=infra destroy -auto-approve
 
       # "Nothing is billing" is a claim about AWS, so it is checked against AWS
@@ -161,11 +311,22 @@ jobs:
       # that never ran at all was reported twice as a destroy that ran and left
       # resources behind, because the reading came from a filtered log.
       - name: What is still standing, enumerated
-        if: always()
+        if: always() && inputs.dry_run != 'yes'
         run: |
           set -uo pipefail
           : > remaining.txt
-          add() { [ -n "$2" ] && echo "  $1: $2" >> remaining.txt; }
+
+          # The state bucket and the deploy role are bootstrap rather than
+          # fleet. infra/bootstrap.sh makes them and a destroy does not touch
+          # them, so they are filtered out of the value here. Filtering the
+          # whole line instead would have deleted a real leftover standing
+          # beside them, which is the opposite of what this step is for.
+          add() {
+            kept=$(printf '%s\n' $2 | grep -v -e 'merismos-tfstate' -e 'merismos-github-deploy' | tr '\n' ' ')
+            kept=$(echo ${kept})
+            [ -n "${kept}" ] && echo "  $1: ${kept}" >> remaining.txt
+            return 0
+          }
           add lambda "$(aws lambda list-functions --query 'Functions[?starts_with(FunctionName,`merismos`)].FunctionName' --output text)"
           add dynamodb "$(aws dynamodb list-tables --query 'TableNames[?starts_with(@,`merismos`)]' --output text)"
           add s3 "$(aws s3api list-buckets --query 'Buckets[?starts_with(Name,`merismos`)].Name' --output text)"

@@ -5,6 +5,30 @@ terraform {
     archive = { source = "hashicorp/archive", version = "~> 2.4" }
     random  = { source = "hashicorp/random", version = "~> 3.6" }
   }
+
+  # The state lives in S3 so that the pipeline owns the fleet and no laptop
+  # does. It was local until 2026-09-05, which meant the only thing that could
+  # change the deployed system was one machine, and a workflow pointed at the
+  # same code would have built a second fleet beside the first rather than
+  # updating it.
+  #
+  # The bucket is made by infra/bootstrap.sh, not by this file. A backend cannot
+  # create the thing it stores itself in.
+  #
+  # **There is no lock, and that is a gap rather than a decision that is free.**
+  # S3 native locking needs Terraform 1.10 and this is pinned to 1.9.8 to match
+  # the state file it is about to adopt, because a format upgrade during the one
+  # apply that must not go wrong is a variable nobody needs. What stands in for a
+  # lock is narrower than a lock: the workflow is the only thing that runs
+  # terraform, and it declares concurrency group "deploy" with
+  # cancel-in-progress false, so two applies cannot overlap. Add use_lockfile
+  # when the version moves.
+  backend "s3" {
+    bucket  = "merismos-tfstate-e6ac6047"
+    key     = "merismos/terraform.tfstate"
+    region  = "eu-west-1"
+    encrypt = true
+  }
 }
 
 provider "aws" {
