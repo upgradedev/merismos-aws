@@ -32,3 +32,9 @@ target-version = "py310"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "SIM", "ISC"]
+
+[tool.ruff.lint.per-file-ignores]
+# web.py is markup and a stylesheet held in Python strings. Wrapping an HTML
+# attribute or a CSS rule at 100 columns makes it harder to read, not easier,
+# and the rule is there for code. Everything else in the project keeps it.
+"src/merismos/web.py" = ["E501"]

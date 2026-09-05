@@ -47,6 +47,30 @@ def role() -> str:
     return os.environ.get("MERISMOS_ROLE", "reader").strip().lower()
 
 
+def _html(status: int, markup: str) -> dict[str, Any]:
+    """An HTML reply. Same Lambda, different content type."""
+    return {
+        "statusCode": status,
+        "headers": {
+            "content-type": "text/html; charset=utf-8",
+            "cache-control": "no-store",
+            # The page loads no script and no external asset, so the policy that
+            # says so is cheap and it is the honest description of the page.
+            "content-security-policy": (
+                "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; "
+                "base-uri 'none'; frame-ancestors 'none'"
+            ),
+            "referrer-policy": "no-referrer",
+            "x-content-type-options": "nosniff",
+        },
+        "body": markup,
+    }
+
+
+def _redirect(where: str) -> dict[str, Any]:
+    return {"statusCode": 303, "headers": {"location": where}, "body": ""}
+
+
 def _reply(status: int, body: Any) -> dict[str, Any]:
     return {
         "statusCode": status,
@@ -72,10 +96,19 @@ def _route(event: Any) -> tuple[str, str, dict]:
         import base64
 
         raw = base64.b64decode(raw).decode("utf-8")
-    try:
-        body = json.loads(raw) if raw.strip() else {}
-    except ValueError:
-        body = {}
+    content_type = ""
+    for k, v in (event.get("headers") or {}).items():
+        if k.lower() == "content-type":
+            content_type = str(v).lower()
+    if "application/x-www-form-urlencoded" in content_type:
+        from urllib.parse import parse_qs
+
+        body = {k: v[0] for k, v in parse_qs(raw).items()}
+    else:
+        try:
+            body = json.loads(raw) if raw.strip() else {}
+        except ValueError:
+            body = {}
     return method, path.rstrip("/") or "/", body if isinstance(body, dict) else {}
 
 
@@ -89,6 +122,9 @@ def handler(event: Any, context: Any = None) -> dict[str, Any]:
     me = role()
 
     try:
+        html_reply = _screens(method, path, body)
+        if html_reply is not None:
+            return html_reply
         if path == "/identity":
             return _reply(200, identity())
         if path == "/catalog":
@@ -361,3 +397,159 @@ def _wake(event: dict) -> dict[str, Any]:
 def guard_for_this_process() -> Guard:
     """The guard every agent in this process is constructed with."""
     return Guard(role=role())
+
+
+# --------------------------------------------------------------------------
+# The screens. Same fleet, same gate, rendered rather than serialised.
+# --------------------------------------------------------------------------
+
+
+def _screens(method: str, path: str, body: dict) -> dict[str, Any] | None:
+    """Serve an HTML screen, or return None so the JSON routes get their turn.
+
+    Only the reader serves these. The evaluator and the writer carry the code
+    because there is one package, and a person opening the writer's URL should
+    get the same 403 they get from every other route on it.
+    """
+    if role() != "reader":
+        return None
+
+    from . import web
+
+    if path == "/":
+        return _html(200, web.inbox(read_offers(corpus_from_env()), NETWORK))
+
+    if path == "/how":
+        return _html(200, web.how_it_decides(catalogue(), config()))
+
+    if path.startswith("/offer/"):
+        offer_id = path.rsplit("/", 1)[-1]
+        offer, result = _decide(offer_id)
+        if offer is None:
+            return _html(404, web.page("Not found", "<h1>No such offer</h1>"))
+        return _html(200, web.decision(result, offer, NETWORK))
+
+    if path.startswith("/approve/"):
+        offer_id = path.rsplit("/", 1)[-1]
+        offer, result = _decide(offer_id)
+        if offer is None:
+            return _html(404, web.page("Not found", "<h1>No such offer</h1>"))
+        key = f"records/{offer_id}.md"
+
+        if method == "GET":
+            if result.draft is None:
+                return _html(200, web.decision(result, offer, NETWORK))
+            return _html(200, web.approval_card(result, offer, NETWORK, key))
+
+        # POST. A person named themselves, so an approval may now be minted.
+        approver = str(body.get("approved_by", "")).strip()
+        if not approver or result.draft is None:
+            return _html(400, web.page("Name required", "<h1>An approval names a person</h1>"))
+        return _publish_approved(result, offer_id, key, approver)
+
+    if path == "/records":
+        return _html(200, web.page("Published", _published_index()))
+
+    return None
+
+
+def _decide(offer_id: str):
+    """Run the chore for one offer and hand back the offer and the result."""
+    corpus = corpus_from_env()
+    offers = read_offers(corpus)
+    offer = next((o for o in offers if str(o.get("id")) == offer_id), None)
+    if offer is None:
+        return None, None
+    thread = Thread(
+        ledger=ledger_from_env(),
+        subject=subject_for_offer(NETWORK, offer),
+        run_id=new_run_id(),
+    )
+    result = run_chore(
+        corpus,
+        offer,
+        thread,
+        analyst=bedrock.analyst_from_env(),
+        critic=bedrock.critic_from_env(),
+        scheduler=scheduler_from_env(),
+        network=NETWORK,
+        approver="",
+    )
+    return offer, result
+
+
+def _publish_approved(result, offer_id: str, key: str, approver: str) -> dict[str, Any]:
+    """Mint the approval, then ask the writer. The reader cannot publish.
+
+    This is the whole architecture in one function: the identity a person is
+    talking to holds no authority to write, so it mints an approval bound to the
+    exact bytes and asks a different identity, which re-checks the digest.
+    """
+    from . import web
+
+    content = result.draft.body
+    approval = grant(
+        network=NETWORK,
+        key=key,
+        body=content,
+        approved_by=approver,
+        run_id=result.run_id,
+    )
+    ApprovalStore().put(approval)
+
+    import boto3
+
+    payload = json.dumps(
+        {
+            "requestContext": {"http": {"method": "POST", "path": "/publish"}},
+            "body": json.dumps(
+                {"nonce": approval.nonce, "key": key, "body": content}
+            ),
+        }
+    )
+    answer = boto3.client("lambda").invoke(
+        FunctionName=os.environ["MERISMOS_WRITER_FUNCTION"], Payload=payload
+    )
+    written = json.loads(answer["Payload"].read())
+    if written.get("statusCode") != 200:
+        detail = json.loads(written.get("body", "{}")).get("detail", "the writer refused")
+        return _html(
+            502,
+            web.page(
+                "Not published",
+                f"<h1>The writer refused</h1><div class='note stop'>{detail}</div>"
+                f"<p><a class='btn secondary' href='/offer/{offer_id}'>Back</a></p>",
+            ),
+        )
+    receipt = json.loads(written["body"])
+    return _html(200, web.published(receipt, content))
+
+
+def _published_index() -> str:
+    """Every record published so far, from the thread rather than from S3."""
+    bucket = os.environ.get("MERISMOS_RECORDS_BUCKET", "")
+    base = f"https://{bucket}.s3.amazonaws.com/" if bucket else ""
+    rows = ""
+    try:
+        entries = ledger_from_env().recall(NETWORK, "record.published", limit=50)
+        for e in entries:
+            url = e.body.get("published_url") or (base + str(e.body.get("key", "")))
+            rows += (
+                f"<tr><td><a href='{url}'>{e.body.get('key','')}</a></td>"
+                f"<td>{e.body.get('approved_by','')}</td></tr>"
+            )
+    except Exception:  # noqa: BLE001 - an empty list is the honest empty state
+        rows = ""
+    if not rows:
+        return (
+            "<h1>Published records</h1>"
+            "<div class='note'>Nothing published yet. A record appears here once somebody has "
+            "read a card and approved it.</div>"
+            "<p><a class='btn secondary' href='/'>Back to offers</a></p>"
+        )
+    return (
+        "<h1>Published records</h1>"
+        "<p class='lede'>Readable by anyone with no account.</p>"
+        f"<div class='scroll'><table><thead><tr><th>Record</th><th>Approved by</th></tr></thead>"
+        f"<tbody>{rows}</tbody></table></div>"
+    )
