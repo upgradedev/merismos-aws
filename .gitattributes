@@ -1,0 +1,4 @@
+# Shell scripts run on Lambda build hosts and CI runners, which are Linux.
+# A CRLF here is a script whose shebang line ends in a carriage return, and the
+# error that produces names an interpreter that does exist.
+*.sh text eol=lf
