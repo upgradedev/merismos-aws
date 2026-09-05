@@ -38,7 +38,25 @@ data "aws_iam_policy_document" "lambda_assume" {
 }
 
 locals {
+  # The three identities. This is the boundary, and it has three members.
   roles = toset(["reader", "evaluator", "writer"])
+
+  # The four deployments, mapped to the identity each one runs as. There are
+  # more functions than roles because "runner" is the reader doing the reader's
+  # own work in its own concurrency pool, not a fourth identity: same package,
+  # same IAM role, same MERISMOS_ROLE.
+  #
+  # It exists because one pool was doing two jobs. A page has to answer in under
+  # a second and a chore takes about nine minutes, and while three chores held
+  # three of the reader's five reserved slots the deployed site answered 503 to
+  # everyone. Splitting them means a saturated chore pool delays a run, because
+  # an asynchronous invoke queues, instead of taking the site down.
+  deployments = {
+    reader    = "reader"
+    evaluator = "evaluator"
+    writer    = "writer"
+    runner    = "reader"
+  }
 }
 
 resource "aws_iam_role" "fleet" {
@@ -112,18 +130,22 @@ data "aws_iam_policy_document" "reader" {
   # in the background. Naming three functions rather than "*" is what stops a
   # compromised reader invoking anything else in the account.
   #
-  # The self invoke is what makes the deployed path agentic. A specialist
+  # The asynchronous invoke is what makes the deployed path agentic. A specialist
   # reading with a model takes about 100 seconds and an API Gateway integration
   # times out at 30, so a synchronous run cannot use a model at all. Started
-  # asynchronously, the same work fits inside the reader's own 900 second
-  # timeout and the page polls the provenance thread for it.
+  # asynchronously, the same work fits inside the runner's 900 second timeout and
+  # the page polls the provenance thread for it.
+  #
+  # The runner is the reader's own role, so this grants the reader no reach it
+  # did not already have over itself. What it buys is a separate concurrency
+  # pool, which is why the site stays answerable while chores are running.
   statement {
-    sid     = "AskTheOtherTwoAndItself"
+    sid     = "AskTheOtherTwoAndTheRunner"
     actions = ["lambda:InvokeFunction"]
     resources = [
       aws_lambda_function.fleet["evaluator"].arn,
       aws_lambda_function.fleet["writer"].arn,
-      aws_lambda_function.fleet["reader"].arn,
+      aws_lambda_function.fleet["runner"].arn,
     ]
   }
 
@@ -289,9 +311,12 @@ resource "aws_iam_role" "scheduler" {
 }
 
 data "aws_iam_policy_document" "scheduler" {
+  # The runner, because that is what MERISMOS_WAKE_TARGET_ARN names. A wake is a
+  # chore, so it belongs in the chore pool: a deferral firing must not be able to
+  # take a slot away from the page a coordinator is looking at.
   statement {
     actions   = ["lambda:InvokeFunction"]
-    resources = [aws_lambda_function.fleet["reader"].arn]
+    resources = [aws_lambda_function.fleet["runner"].arn]
   }
   statement {
     actions   = ["sqs:SendMessage"]

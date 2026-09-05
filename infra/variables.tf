@@ -94,3 +94,18 @@ variable "reader_reserved_concurrency" {
   type        = number
   default     = 5
 }
+
+variable "runner_reserved_concurrency" {
+  description = <<-EOT
+    How many background chores may run at once. Its own pool, separate from the
+    reader's, because a chore takes about nine minutes and a page has to answer
+    in under a second. While they shared one reservation, three chores in flight
+    exhausted it and the deployed site answered 503 to everyone.
+
+    Saturating this one queues an asynchronous invoke instead of throttling a
+    request, so the cost of a busy fleet is a slower run rather than a site that
+    is down. -1 disables the reservation.
+  EOT
+  type        = number
+  default     = 4
+}

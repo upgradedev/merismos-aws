@@ -155,18 +155,26 @@ def test_a_background_run_on_a_missing_offer_fails_loudly():
     assert json.loads(reply["body"])["ok"] is False
 
 
-def test_the_reader_may_invoke_itself_in_the_iam_policy():
-    """The self invoke is what makes the deployed path agentic.
+def test_the_reader_may_invoke_the_runner_in_the_iam_policy():
+    """The asynchronous invoke is what makes the deployed path agentic.
 
     Without this grant the page starts a run that never happens, and the site
     quietly falls back to showing nothing rather than to showing rules.
+
+    The target is the runner rather than the reader itself. That is the reader's
+    own IAM role under another function name, so nothing about who may do what
+    changed; what changed is which concurrency pool the nine minutes are spent
+    in, after three chores in flight took the site down.
     """
     from pathlib import Path
 
     iam = (Path(__file__).resolve().parents[2] / "infra" / "iam.tf").read_text(encoding="utf-8")
 
-    invoke = iam[iam.index("AskTheOtherTwoAndItself") :]
+    invoke = iam[iam.index("AskTheOtherTwoAndTheRunner") :]
     invoke = invoke[: invoke.index("}")]
-    for who in ("evaluator", "writer", "reader"):
+    for who in ("evaluator", "writer", "runner"):
         assert f'fleet["{who}"]' in invoke, f"the reader cannot invoke the {who}"
     assert '"*"' not in invoke, "the invoke grant is a wildcard"
+
+    # And the runner runs as the reader, so this grant hands nobody anything new.
+    assert 'runner    = "reader"' in iam

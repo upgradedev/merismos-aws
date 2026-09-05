@@ -1,10 +1,16 @@
-"""One package, three deployments, three IAM roles.
+"""One package, four deployments, three IAM roles.
 
-What fixes a deployment's authority is its **role**, not its code. All three
-Lambdas run this same handler; ``MERISMOS_ROLE`` decides which routes it will
-serve, and IAM decides what it can reach whatever it decides to try. Those are
-two different locks and both are needed: the role check stops the reader serving
-``/publish`` at all, and IAM stops it succeeding if the check were ever wrong.
+What fixes a deployment's authority is its **role**, not its code. Every Lambda
+runs this same handler; ``MERISMOS_ROLE`` decides which routes it will serve, and
+IAM decides what it can reach whatever it decides to try. Those are two different
+locks and both are needed: the role check stops the reader serving ``/publish`` at
+all, and IAM stops it succeeding if the check were ever wrong.
+
+There are four deployments and three identities, because ``runner`` is the reader
+under a second function name and the reader's own IAM role. It exists for one
+reason and it is not a permissions reason: a chore takes about nine minutes and a
+page has to answer in under a second, and while they shared one reserved
+concurrency they competed. Three chores in flight took the deployed site down.
 
 ``/identity`` is the endpoint worth reading. It does not report configuration.
 It **attempts** two things and reports what AWS said to each: the write that
@@ -117,7 +123,7 @@ def _route(event: Any) -> tuple[str, str, dict]:
 
 
 def handler(event: Any, context: Any = None) -> dict[str, Any]:
-    """The Lambda entry point for all three deployments."""
+    """The Lambda entry point for every deployment."""
     # A scheduled wake arrives as a plain payload rather than an HTTP event.
     if isinstance(event, dict) and event.get("source") == "merismos.deferral":
         return _reply(200, _wake(event))
@@ -312,7 +318,7 @@ def publish(body: dict) -> dict[str, Any]:
     """Publish an approved record. The writer's, and nobody else's.
 
     The role check is the first lock and IAM is the second. Both exist because
-    all three deployments carry every route, and only one identity may serve
+    every deployment carries every route, and only one identity may serve
     this one.
     """
     if role() != "writer":
@@ -571,9 +577,21 @@ def _screens(method: str, path: str, body: dict) -> dict[str, Any] | None:
 
     if path.startswith("/approve/"):
         offer_id = path.rsplit("/", 1)[-1]
-        offer, result = _decide(offer_id)
+        offer, result = _the_run_they_read(offer_id, str(body.get("run", "")).strip())
         if offer is None:
             return _html(404, web.page("Not found", "<h1>No such offer</h1>"))
+        if result is None:
+            return _html(
+                404,
+                web.page(
+                    "That run is gone",
+                    "<h1>That run is no longer in the thread</h1>"
+                    "<div class='note'>An approval covers the bytes one particular run produced. "
+                    "This one cannot be found, so there is nothing to approve. Ask the fleet "
+                    "again and read what it says.</div>"
+                    f"<p><a class='btn' href='/offer/{offer_id}'>Ask the fleet</a></p>",
+                ),
+            )
         key = f"records/{offer_id}.md"
 
         if method == "GET":
@@ -625,6 +643,34 @@ def _screens(method: str, path: str, body: dict) -> dict[str, Any] | None:
         return _html(200, web.custody_chain(offer, custody.summary(offer_id, thread)))
 
     return None
+
+
+def _the_run_they_read(offer_id: str, run_id: str):
+    """The finished run this approval is about, rebuilt from the thread.
+
+    A card that re-decides is a card that can disagree with the screen the person
+    read on the way to it. The digest binds the card to the publish, which covers
+    tampering; this is what binds the card to the decision, which covers honesty,
+    and with a model in the fleet the two runs genuinely can differ.
+
+    It also has to be this way for the deployed path to work at all. A chore
+    takes minutes and a gateway integration gets thirty seconds, so a route that
+    ran one inside the request was a route that timed out.
+
+    With no run id it decides, which is what the CLI and the offline tests do.
+    """
+    offer = _offer(offer_id)
+    if offer is None:
+        return None, None
+    if not run_id:
+        return _decide(offer_id)
+
+    from . import background, web
+
+    record = background.completed_result(ledger_from_env().thread(run_id))
+    if not record or str(record.get("offer_id", offer_id)) != offer_id:
+        return offer, None
+    return offer, web.recorded(record)
 
 
 def _decide(offer_id: str):

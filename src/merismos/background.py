@@ -7,14 +7,22 @@ the first deployed version of this site did not: it ran the deterministic rules
 and a persona review caught exactly that, because the entry's whole argument is
 that the SDK is load-bearing and the deployed path was not touching it.
 
-The work does not have to fit in the request. It has to fit in the **reader's
-own** timeout, which is 900 seconds.
+The work does not have to fit in the request. It has to fit in the **runner's**
+timeout, which is 900 seconds.
 
-So a run is started, not awaited. The page asks the reader to invoke itself with
+So a run is started, not awaited. The page asks the runner to take the chore with
 ``InvocationType="Event"``, gets a run id back immediately, and then polls the
 provenance thread, which is already the place every step of a chore records
 itself. Nothing new stores state: the thread was always the memory and the audit
 trail, and here it is also the progress bar.
+
+**The runner is a separate function on purpose, and the reason was found live.**
+It was the reader invoking itself, so both jobs drew on one reserved concurrency.
+On 2026-09-05 three chores in flight, plus the polling of the pages waiting on
+them, exhausted it and API Gateway answered every stranger 503 with a body this
+code never sees. Same package, same IAM role, same ``MERISMOS_ROLE``: only the
+pool is different, so a busy fleet now means a slower run rather than a site that
+is down. An asynchronous invoke queues; a throttled request does not.
 
 **Polling is a meta refresh, not a script.** Every screen in this product loads
 no JavaScript and no external asset, which is asserted per screen, and that
@@ -34,7 +42,7 @@ SOURCE = "merismos.background"
 
 
 def start(offer_id: str, run_id: str, network: str) -> None:
-    """Ask the reader to run this chore in the background.
+    """Ask the runner to take this chore.
 
     Raises rather than returning a flag if the invoke fails. A run that was
     never started, shown as a run in progress, is a page that spins for ever.

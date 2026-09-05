@@ -197,23 +197,91 @@ def test_the_model_is_set_on_the_reader_alone(main):
     assert 'MERISMOS_CRITIC_MODEL = each.key == "reader" ? var.critic_model_id : ""' in main
 
 
-def test_one_bundle_builds_all_three_functions(main):
-    """Three artifacts could drift. One means they provably run the same gate."""
+def test_one_bundle_builds_every_function(main):
+    """Several artifacts could drift. One means they provably run the same gate."""
     assert main.count('data "archive_file"') == 1
     assert "filename         = data.archive_file.bundle.output_path" in main
-    assert 'for_each = local.roles' in main
+    assert "for_each = local.deployments" in main
 
 
 def test_the_role_comes_from_terraform_and_not_from_a_request(main):
-    assert "MERISMOS_ROLE            = each.key" in main
+    assert "MERISMOS_ROLE            = each.value" in main
+
+
+def test_there_are_more_deployments_than_identities_and_that_is_deliberate(iam):
+    """The runner is the reader's own role in its own concurrency pool.
+
+    Not a fourth identity. If it ever acquires its own IAM role, the boundary has
+    four members and every count in the README and the docs is wrong, so this
+    asserts the mapping rather than the names.
+    """
+    deployments = iam[iam.index("deployments = {") :]
+    deployments = deployments[: deployments.index("}")]
+
+    assert "runner    = \"reader\"" in deployments, "the runner is not the reader's role"
+    assert "roles = toset([\"reader\", \"evaluator\", \"writer\"])" in iam, (
+        "the boundary no longer has exactly three identities"
+    )
+
+
+def test_the_page_and_the_chore_do_not_share_a_concurrency_pool(main):
+    """The defect this split exists for, and it was found on the deployed site.
+
+    Three background chores held three of the reader's five reserved slots, the
+    polling of the pages waiting on them took the rest, and API Gateway answered
+    every stranger 503 with a body this code never sees. A reservation is still
+    the cost guard; what was wrong is that one pool was serving requests that
+    must answer in under a second and chores that take about nine minutes.
+    """
+    reservation = main[main.index("reserved_concurrent_executions") :]
+    reservation = reservation[: reservation.index("\n\n")]
+
+    assert "var.reader_reserved_concurrency" in reservation
+    assert "var.runner_reserved_concurrency" in reservation, (
+        "the chore has no pool of its own, so a run in flight can still 503 the site"
+    )
+
+
+def test_a_request_cannot_hold_a_slot_for_a_quarter_of_an_hour(main):
+    """The reader answers requests, and the gateway abandons one at 30 seconds.
+
+    Leaving the reader on the 900 second budget meant an abandoned request went
+    on holding a concurrency slot for another fourteen minutes. The long budget
+    belongs to the runner, which is the only thing that needs it.
+    """
+    assert 'each.key == "runner" ? 900 : (each.key == "reader" ? 60 : 30)' in main
 
 
 def test_the_wake_has_a_dead_letter_queue_and_a_scoped_role(main, iam):
     """A wake that fails silently is a parked decision nobody ever hears about."""
     assert 'resource "aws_sqs_queue" "wake_dlq"' in main
     scheduler = _statement_blocks(iam, "scheduler")
-    assert "aws_lambda_function.fleet[\"reader\"].arn" in scheduler
+    assert "aws_lambda_function.fleet[\"runner\"].arn" in scheduler
     assert "evaluator" not in scheduler and "writer" not in scheduler
+
+
+def test_the_scheduler_grant_and_the_schedule_target_name_the_same_function(main, iam):
+    """A grant on one function and a schedule on another fails a fortnight later.
+
+    Nothing here notices until a parked decision reaches its date, by which time
+    the run that should have escalated it simply did not.
+    """
+    scheduler = _statement_blocks(iam, "scheduler")
+    granted = "runner" if "fleet[\"runner\"]" in scheduler else "reader"
+
+    assert f"function:${{var.project}}-{granted}" in main, (
+        "MERISMOS_WAKE_TARGET_ARN names a function the scheduler role cannot invoke"
+    )
+    permission = main[main.index('"scheduler_may_wake_the_reader"') :]
+    permission = permission[: permission.index("\n}")]
+    assert f'fleet["{granted}"]' in permission, (
+        "the resource policy allows the scheduler to invoke a different function"
+    )
+
+
+def test_the_chore_is_sent_to_the_pool_that_has_the_time_for_it(main):
+    assert 'MERISMOS_READER_FUNCTION = "${var.project}-runner"' in main
+    assert 'function:${var.project}-runner"' in main, "a wake still targets the reader"
 
 
 def test_no_variable_the_code_requires_is_left_unset():

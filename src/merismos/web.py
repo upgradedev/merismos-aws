@@ -235,7 +235,7 @@ def decision(result: Any, offer: Mapping[str, Any], network: str) -> str:
 <div class="note amber"><strong>Nothing is published yet.</strong> Merismos has done the work and
 stopped. A person reads the exact bytes and approves them, and only then does anything leave this
 screen.</div>
-<p><a class="btn" href="/approve/{oid}">Read it and decide</a>
+<p><a class="btn" href="/approve/{oid}{_run_query(result)}">Read it and decide</a>
    <a class="btn secondary" href="/">Back to offers</a></p>"""
     return page(offer.get("title", "Offer"), body, "What the fleet decided and why")
 
@@ -295,7 +295,13 @@ def _specialists(result: Any) -> str:
 def approval_card(
     result: Any, offer: Mapping[str, Any], network: str, key: str
 ) -> str:
-    """The one moment a person is in the loop. This is the hero screen."""
+    """The one moment a person is in the loop. This is the hero screen.
+
+    The run id travels with the form. It is what ties these bytes back to the
+    decision the person actually read: without it the approve route would decide
+    again, and a second run with a model in it can reach a different answer than
+    the one on the screen behind this page.
+    """
     body_bytes = result.draft.body
     from .approval import digest as _digest
 
@@ -339,6 +345,7 @@ address and these one set of bytes. It does not let the fleet publish anything e
 network's filing, or publish again without you.</div>
 
 <form method="post" action="/approve/{_e(offer.get('id'))}">
+  <input type="hidden" name="run" value="{_e(getattr(result, 'run_id', ''))}">
   <p><label>Your name, for the record<br>
     <input name="approved_by" required placeholder="the coordinator on duty"
       style="font:inherit;padding:.6rem;border:1px solid var(--line);border-radius:8px;
@@ -472,6 +479,27 @@ Here {using}. Nothing is published: the run stops at a card you read.</div>
      <a class="btn secondary" href="/">Back to offers</a></p>
 </form>"""
     return page(offer.get("title", "Offer"), body, "An offer waiting on a decision")
+
+
+def _run_query(result: Any) -> str:
+    """The run id as a query string, or nothing at all.
+
+    Nothing at all is the case where a chore ran inside the request, which the
+    CLI and the offline tests still do. The approve route falls back to deciding
+    when it is given no run, so an absent id degrades to the old behaviour rather
+    than to a broken link.
+    """
+    run_id = str(getattr(result, "run_id", "") or "")
+    return f"?run={run_id}" if run_id else ""
+
+
+def recorded(record: Mapping[str, Any]) -> Any:
+    """A finished chore rebuilt from the thread, for a caller outside this module.
+
+    The handler needs the same object the decision screen renders, so that the
+    card, the digest and the publish all come from the run the person read.
+    """
+    return _Recorded(record)
 
 
 def decision_from_record(record: Mapping[str, Any], offer: Mapping[str, Any], network: str) -> str:

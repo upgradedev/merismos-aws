@@ -27,11 +27,11 @@ resource "random_id" "suffix" {
 }
 
 ###############################################################################
-# The bundle. One package, three functions.
+# The bundle. One package, every function.
 #
 # What fixes each deployment's authority is its role and its MERISMOS_ROLE, not
-# its code. Building three artifacts would let them drift; building one means
-# the reader and the writer are provably running the same gate.
+# its code. Building an artifact per function would let them drift; building one
+# means the reader and the writer are provably running the same gate.
 ###############################################################################
 
 data "archive_file" "bundle" {
@@ -43,16 +43,16 @@ data "archive_file" "bundle" {
 }
 
 resource "aws_cloudwatch_log_group" "fleet" {
-  for_each          = local.roles
+  for_each          = local.deployments
   name              = "/aws/lambda/${var.project}-${each.key}"
   retention_in_days = var.log_retention_days
 }
 
 resource "aws_lambda_function" "fleet" {
-  for_each = local.roles
+  for_each = local.deployments
 
   function_name    = "${var.project}-${each.key}"
-  role             = aws_iam_role.fleet[each.key].arn
+  role             = aws_iam_role.fleet[each.value].arn
   handler          = "merismos.handler.handler"
   runtime          = "python3.13"
   filename         = data.archive_file.bundle.output_path
@@ -61,19 +61,34 @@ resource "aws_lambda_function" "fleet" {
   # Measured, not guessed. One specialist reading offer-4483 with Claude Opus 5
   # on Bedrock took 104.6s (docs/live-run-2026-09-02.md), and a run wakes four,
   # so 300 was not enough and the run would have been killed mid-flight. 900 is
-  # the Lambda maximum. The other two do arithmetic and one write.
-  timeout     = each.key == "reader" ? 900 : 30
-  memory_size = each.key == "reader" ? 1024 : 512
+  # the Lambda maximum.
+  #
+  # The reader is now bounded at 60 rather than 900, and that is deliberate. It
+  # answers requests, and a request the gateway abandoned at 30 seconds should
+  # not go on holding a concurrency slot for another fourteen minutes. The long
+  # budget belongs to the runner, which is the only thing that needs it.
+  timeout     = each.key == "runner" ? 900 : (each.key == "reader" ? 60 : 30)
+  memory_size = each.value == "reader" ? 1024 : 512
 
   layers = [aws_lambda_layer_version.deps.arn]
 
-  # Only the reader is reachable from the internet, so only the reader needs a
-  # ceiling on how many copies of itself can run.
-  reserved_concurrent_executions = each.key == "reader" ? var.reader_reserved_concurrency : -1
+  # Two pools, because they were one pool doing two jobs and the site went down.
+  # The reader answers requests in well under a second; the runner spends about
+  # nine minutes per chore. While they shared a reservation, three chores in
+  # flight plus the polling of the pages waiting on them exhausted it, and the
+  # gateway answered every stranger 503.
+  #
+  # Saturating the runner now queues an asynchronous invoke rather than throttling
+  # a request, so the cost of a busy fleet is a slower run instead of a site that
+  # is down.
+  reserved_concurrent_executions = (
+    each.key == "reader" ? var.reader_reserved_concurrency :
+    each.key == "runner" ? var.runner_reserved_concurrency : -1
+  )
 
   environment {
     variables = {
-      MERISMOS_ROLE            = each.key
+      MERISMOS_ROLE            = each.value
       MERISMOS_NETWORK         = var.network
       MERISMOS_LEDGER_TABLE    = aws_dynamodb_table.thread.name
       MERISMOS_APPROVALS_TABLE = aws_dynamodb_table.approvals.name
@@ -87,7 +102,9 @@ resource "aws_lambda_function" "fleet" {
       # approval returned a 500: the code read it with no default, so the
       # publish path raised KeyError on the one action the whole product is for.
       MERISMOS_WRITER_FUNCTION = "${var.project}-writer"
-      MERISMOS_READER_FUNCTION = "${var.project}-reader"
+      # Where a chore is sent. Named for what it does rather than for who it is:
+      # the runner is the reader's role in its own concurrency pool.
+      MERISMOS_READER_FUNCTION = "${var.project}-runner"
 
       # Explicit rather than defaulted. Which store is running is exactly the
       # kind of thing this project refuses to leave implicit elsewhere.
@@ -100,7 +117,7 @@ resource "aws_lambda_function" "fleet" {
       MERISMOS_MODEL        = each.key == "reader" ? var.model_id : "none"
       MERISMOS_CRITIC_MODEL = each.key == "reader" ? var.critic_model_id : ""
 
-      MERISMOS_WAKE_TARGET_ARN    = "arn:aws:lambda:${var.region}:${data.aws_caller_identity.me.account_id}:function:${var.project}-reader"
+      MERISMOS_WAKE_TARGET_ARN    = "arn:aws:lambda:${var.region}:${data.aws_caller_identity.me.account_id}:function:${var.project}-runner"
       MERISMOS_SCHEDULER_ROLE_ARN = aws_iam_role.scheduler.arn
       MERISMOS_SCHEDULE_GROUP     = aws_scheduler_schedule_group.wakes.name
       MERISMOS_WAKE_DLQ_ARN       = aws_sqs_queue.wake_dlq.arn
@@ -376,7 +393,7 @@ resource "aws_sqs_queue" "wake_dlq" {
 resource "aws_lambda_permission" "scheduler_may_wake_the_reader" {
   statement_id  = "AllowSchedulerInvoke"
   action        = "lambda:InvokeFunction"
-  function_name = aws_lambda_function.fleet["reader"].function_name
+  function_name = aws_lambda_function.fleet["runner"].function_name
   principal     = "scheduler.amazonaws.com"
   source_arn    = "arn:aws:scheduler:${var.region}:${data.aws_caller_identity.me.account_id}:schedule/${aws_scheduler_schedule_group.wakes.name}/*"
 }

@@ -108,9 +108,11 @@ Another **removes the hook and asserts the same model then reaches the tool**, s
 attributable to the guard and not to something else about the setup. A third job fails the build if
 either suite silently skips.
 
-Three AWS Lambda functions under three IAM roles, one package. The identity that reads the filing
+Four AWS Lambda functions under three IAM roles, one package. The identity that reads the filing
 holds no authority to publish, and AWS refuses it rather than our code doing so. `/identity` proves
-that live: it **attempts** the write and reports what AWS said.
+that live: it **attempts** the write and reports what AWS said. The fourth function is the reader's
+own role in a concurrency pool of its own, which is not a permissions decision and is explained
+below.
 
 The approval binds exact bytes by sha256, expires in fifteen minutes, and is spent by a conditional
 write, so one approval authorises one publish and cannot be replayed.
@@ -134,6 +136,24 @@ The fix was to stop making the run synchronous. Pressing the button starts a cho
 invocation, which has its own 900 second budget, and the page polls the provenance thread. The
 thread was already the memory and the audit trail; it is now also the progress bar, and there is no
 second store.
+
+**A live site answered 503 to strangers, with zero Lambda errors and no alarm firing.** Three
+background chores of about nine minutes each were holding three of the reader's five reserved
+concurrent executions, and the pages waiting on them were polling for the rest. Every new request was
+throttled, and API Gateway turns a throttled integration into a 503 with a body our code never sees.
+
+The reservation is a cost guard and worth keeping: without it, a burst through an open gateway is an
+unbounded number of Lambdas each able to call Bedrock. What was wrong is that one pool was doing two
+jobs, a page that must answer in under a second and a chore that takes minutes. They have separate
+pools now. Saturating the chore pool queues an asynchronous invoke, so a busy fleet costs a slower
+run rather than a site that is down.
+
+Looking at why led to the worse one. **The approval card was re-running the whole chore inside the
+request.** So the coordinator read a decision from one run and approved bytes from a different one.
+The digest binds the card to the publish, which is the tampering case; nothing bound the card to the
+decision that was actually read, and with a model in the fleet two runs can genuinely disagree. The
+card now renders the run the person read, and a run that is not in the thread is refused rather than
+quietly replaced by a fresh one.
 
 **The first deployment found three defects that every green plan had missed**, including a Function
 URL that was public in configuration and refused in practice, and a teardown that left six resources

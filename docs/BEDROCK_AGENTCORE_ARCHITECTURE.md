@@ -147,7 +147,7 @@ deployment, and the two must not be read as one thing. Merismos does **not** run
 
 | | What is built and deployed | What section 2 maps it to |
 |---|---|---|
-| **Runtime** | Three AWS Lambda functions, one package, three IAM roles. The agent loop is the **Strands Agents SDK**, not a managed agent runtime | AgentCore Runtime |
+| **Runtime** | Four AWS Lambda functions, one package, three IAM roles. The fourth is the reader's own role in a separate concurrency pool, so a nine minute chore cannot make the site unanswerable. The agent loop is the **Strands Agents SDK**, not a managed agent runtime | AgentCore Runtime |
 | **Models** | `eu.anthropic.claude-opus-5` for the specialists, through Bedrock `Converse`. `eu.amazon.nova-pro-v1:0` as an independent critic, called with no `toolConfig` | AgentCore model configuration |
 | **Tool boundary** | `merismos.guard.decide`, enforced in the Strands `BeforeToolCallEvent` hook by setting `cancel_tool` | AgentCore IAM tool boundary |
 | **Trigger** | `POST /run` on the reader, plus **EventBridge Scheduler one-shot `at(...)` schedules** for a parked decision. There is no S3 `ObjectCreated` trigger | EventBridge |
