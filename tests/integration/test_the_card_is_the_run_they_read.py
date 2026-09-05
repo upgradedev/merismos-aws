@@ -131,10 +131,18 @@ def test_the_bytes_on_the_card_are_the_bytes_of_the_decision_that_was_read():
 
     card = request(f"/approve/{OFFER_ID}", query={"run": run_id})["body"]
 
-    # The card escapes the body for HTML, so compare on a line that survives it.
+    # The card escapes the body for HTML, so compare on lines that survive it.
+    checked = 0
     for line in drafted.splitlines():
         if line.startswith("| ") and "%" in line:
             assert line.replace("&", "&amp;") in card, f"the card is missing {line!r}"
+            checked += 1
+
+    assert checked >= 2, (
+        "no allocation row matched, so this compared nothing. It would pass "
+        "vacuously if the draft's table format changed, which is the failure "
+        "shape this project has already paid for twice"
+    )
 
 
 def test_the_digest_on_the_card_is_over_the_recorded_bytes():
@@ -165,8 +173,8 @@ def test_a_run_that_is_not_in_the_thread_is_refused_rather_than_re_decided():
     reply = request(f"/approve/{OFFER_ID}", query={"run": "run-000000000000"})
 
     assert reply["statusCode"] == 404
-    assert "no longer in the thread" in reply["body"]
-    assert "nothing to approve" in reply["body"]
+    assert "names no run that finished" in reply["body"]
+    assert "will not decide again on your behalf" in reply["body"]
 
 
 def test_a_run_belonging_to_a_different_offer_is_refused():
@@ -178,12 +186,24 @@ def test_a_run_belonging_to_a_different_offer_is_refused():
     assert reply["statusCode"] == 404
 
 
-def test_with_no_run_id_it_still_decides_because_the_cli_and_the_suite_do():
-    """The fallback, so an absent id degrades to the old path rather than a break."""
+def test_there_is_no_fallback_that_decides_when_no_run_is_named(monkeypatch):
+    """The fallback was removed, and this is what stops it coming back.
+
+    While it existed, an approve link with no run started a whole chore inside a
+    request. Survivable when the reader had fifteen minutes, not now that it has
+    sixty seconds, and never honest: a card assembled from a run nobody read can
+    say something other than the screen they thought they were approving.
+    """
+
+    def never(*args, **kwargs):
+        raise AssertionError("a run-less approve started a chore")
+
+    monkeypatch.setattr(handler, "run_chore", never)
+
     reply = request(f"/approve/{OFFER_ID}")
 
-    assert reply["statusCode"] == 200
-    assert "Approve this record" in reply["body"]
+    assert reply["statusCode"] == 404
+    assert "no decision here to approve" in reply["body"]
 
 
 def test_publishing_uses_the_recorded_run_rather_than_deciding_again(monkeypatch):

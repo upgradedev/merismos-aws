@@ -79,21 +79,39 @@ def run_now(monkeypatch):
     return _straight_through
 
 
-def walk(offer_id: str) -> str:
-    """Press the button, follow the redirect, read the finished decision."""
+def a_run(offer_id: str) -> str:
+    """Press the button, follow the redirect, and hand back the run id."""
     started = get(f"/offer/{offer_id}", method="POST", form={})
     assert started["statusCode"] == 303, started
     where = started["headers"]["location"]
     assert where.startswith(f"/offer/{offer_id}?run=")
-    run_id = where.split("run=", 1)[1]
-    return html(f"/offer/{offer_id}", query={"run": run_id})
+    return where.split("run=", 1)[1]
+
+
+def walk(offer_id: str) -> str:
+    """Press the button, follow the redirect, read the finished decision."""
+    return html(f"/offer/{offer_id}", query={"run": a_run(offer_id)})
+
+
+def card(offer_id: str) -> str:
+    """The approval card for a run somebody actually read.
+
+    There is no shortcut to this screen any more. ``/approve/<id>`` without a run
+    used to decide, which meant a card could show bytes from a run nobody had
+    seen; it now refuses, so these tests take the same three steps a coordinator
+    does.
+    """
+    return html(f"/approve/{offer_id}", query={"run": a_run(offer_id)})
 
 
 # --------------------------------------------------------------------------
 # The contract every screen keeps.
 # --------------------------------------------------------------------------
 
-SCREENS = ["/", "/how", "/offer/offer-4471", "/offer/offer-4477", "/approve/offer-4471", "/records"]
+#: Screens reachable with a plain GET and nothing behind them. The approval card
+#: is not one: it exists only for a run somebody read, so it is held to the same
+#: contract separately, in test_the_card_keeps_the_contract_every_other_screen_keeps.
+SCREENS = ["/", "/how", "/offer/offer-4471", "/offer/offer-4477", "/records", "/offers/new"]
 
 
 @pytest.mark.parametrize("path", SCREENS)
@@ -211,41 +229,45 @@ def test_the_reads_the_specialists_made_are_shown_with_correct_grammar(run_now):
 # --------------------------------------------------------------------------
 
 
-def test_the_card_shows_the_exact_bytes_that_will_be_published():
-    page = html("/approve/offer-4471")
+def test_the_card_shows_the_exact_bytes_that_will_be_published(run_now):
+    page = card("offer-4471")
 
     assert "What will be published" in page
     assert "# Allocation, offer-4471" in page
     assert "these exact bytes" in page
 
 
-def test_the_card_shows_the_digest_the_writer_will_recompute():
-    page = html("/approve/offer-4471")
+def test_the_card_shows_the_digest_the_writer_will_recompute(run_now):
+    page = card("offer-4471")
 
     assert re.search(r'class="digest">[0-9a-f]{64}<', page), "no sha256 on the card"
 
 
-def test_the_card_states_what_the_approval_does_not_authorise():
+def test_the_card_states_what_the_approval_does_not_authorise(run_now):
     """An approval a person cannot bound is an approval they cannot give."""
-    page = html("/approve/offer-4471")
+    page = card("offer-4471")
 
     assert "What this approval does not authorise" in page
     assert "15 minutes" in page
     assert "cannot be replayed" in page
 
 
-def test_approving_requires_a_named_person():
-    page = html("/approve/offer-4471")
+def test_approving_requires_a_named_person(run_now):
+    page = card("offer-4471")
 
     assert 'name="approved_by" required' in page
 
-    refused = get("/approve/offer-4471", method="POST", form={"approved_by": "  "})
+    refused = get(
+        "/approve/offer-4471",
+        method="POST",
+        form={"approved_by": "  ", "run": a_run("offer-4471")},
+    )
     assert refused["statusCode"] == 400
     assert "names a person" in refused["body"]
 
 
-def test_the_card_is_never_offered_for_an_offer_that_was_refused():
-    reply = get("/approve/offer-4477")
+def test_the_card_is_never_offered_for_an_offer_that_was_refused(run_now):
+    reply = get("/approve/offer-4477", query={"run": a_run("offer-4477")})
 
     assert "What will be published" not in reply["body"]
     assert "Refused, and here is why" in reply["body"]
@@ -309,3 +331,36 @@ def test_the_network_is_named_the_way_a_person_would_say_it():
 
     assert "Kypseli mutual aid network" in page
     assert "kypseli-network" not in page
+
+
+def test_the_card_keeps_the_contract_every_other_screen_keeps(run_now):
+    """The card is off the SCREENS list because it needs a run behind it.
+
+    Off the list is not exempt. It is the hero screen, so it holds to the same
+    rules: a complete document, nothing loaded from anywhere else, and the line
+    about people.
+    """
+    page = card("offer-4471")
+
+    assert page.startswith("<!doctype html>")
+    assert '<meta name="viewport" content="width=device-width,initial-scale=1">' in page
+    assert "</html>" in page
+    for forbidden in ("<script", "http://", "https://fonts", "<link", "<img"):
+        assert forbidden not in page, f"the card reaches for {forbidden}"
+    assert "never a person" in page
+
+
+def test_an_approval_link_with_no_run_refuses_rather_than_deciding_again(run_now):
+    """A bookmark, a shared link, a back button. None of them may start a chore.
+
+    The reader answers requests and its budget is sixty seconds; a four
+    specialist chore started inside one is a request the gateway abandons and a
+    concurrency slot held for nothing. Refusing is also the honest answer, since
+    an approval covers the bytes one particular run produced.
+    """
+    reply = get("/approve/offer-4471")
+
+    assert reply["statusCode"] == 404
+    assert "no decision here to approve" in reply["body"]
+    assert "will not decide again on your behalf" in reply["body"]
+    assert "/offer/offer-4471" in reply["body"], "it does not offer a way forward"

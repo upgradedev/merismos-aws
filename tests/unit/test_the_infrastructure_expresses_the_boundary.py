@@ -325,3 +325,34 @@ def test_the_handlers_environment_variables_all_exist_in_the_code():
 
     unread = declared - read_by_code
     assert not unread, f"terraform sets {sorted(unread)} and no code reads them"
+
+
+def test_the_runner_is_reachable_by_nobody_from_outside(main):
+    """It carries every route and runs as the reader, so it must have no door.
+
+    The runner exists to hold a chore's nine minutes, and it is invoked only
+    asynchronously by the reader and by the scheduler. Give it a Function URL and
+    there are suddenly two public front doors on one product, only one of which
+    is behind the gateway's throttle. This asserts every deployment either has a
+    URL on purpose or has none at all.
+    """
+    with_a_url = {"reader"}
+    private = re.search(
+        r'"aws_lambda_function_url"\s+"private"[\s\S]*?for_each\s*=\s*toset\(\[([^\]]*)\]',
+        main,
+    )
+    assert private, "the private URL block is gone"
+    with_a_url |= {n.strip().strip('"') for n in private.group(1).split(",") if n.strip()}
+
+    hcl = (INFRA / "iam.tf").read_text(encoding="utf-8")
+    block = hcl[hcl.index("deployments = {") + len("deployments = {") :]
+    block = block[: block.index("}")]
+    every = {line.split("=")[0].strip() for line in block.splitlines() if "=" in line}
+
+    assert every - with_a_url == {"runner"}, (
+        f"a deployment has no URL and is not the runner: {every - with_a_url}"
+    )
+    assert "runner" not in with_a_url, "the runner has a Function URL"
+    assert 'aws_lambda_function.fleet["runner"].invoke_arn' not in main, (
+        "the gateway routes to the runner"
+    )

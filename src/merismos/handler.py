@@ -584,12 +584,18 @@ def _screens(method: str, path: str, body: dict) -> dict[str, Any] | None:
             return _html(
                 404,
                 web.page(
-                    "That run is gone",
-                    "<h1>That run is no longer in the thread</h1>"
-                    "<div class='note'>An approval covers the bytes one particular run produced. "
-                    "This one cannot be found, so there is nothing to approve. Ask the fleet "
-                    "again and read what it says.</div>"
-                    f"<p><a class='btn' href='/offer/{offer_id}'>Ask the fleet</a></p>",
+                    "Nothing to approve",
+                    "<h1>There is no decision here to approve</h1>"
+                    "<div class='note'>An approval covers the bytes <strong>one "
+                    "particular run</strong> produced, and this address names no run that "
+                    "finished. That happens with an old link, or after a run has aged out "
+                    "of the thread.</div>"
+                    "<div class='note'>Merismos will not decide again on your behalf to "
+                    "fill the gap. A card assembled from a run nobody read is a card that "
+                    "can say something different from the screen somebody thought they "
+                    "were approving.</div>"
+                    f"<p><a class='btn' href='/offer/{offer_id}'>Ask the fleet</a>"
+                    f"   <a class='btn secondary' href='/'>Back to offers</a></p>",
                 ),
             )
         key = f"records/{offer_id}.md"
@@ -653,17 +659,19 @@ def _the_run_they_read(offer_id: str, run_id: str):
     tampering; this is what binds the card to the decision, which covers honesty,
     and with a model in the fleet the two runs genuinely can differ.
 
-    It also has to be this way for the deployed path to work at all. A chore
-    takes minutes and a gateway integration gets thirty seconds, so a route that
-    ran one inside the request was a route that timed out.
+    It also has to be this way for the deployed path to work at all. A chore takes
+    minutes and a gateway integration gets thirty seconds, so a route that ran one
+    inside the request was a route that timed out.
 
-    With no run id it decides, which is what the CLI and the offline tests do.
+    **There is no fallback.** A run id that names nothing gives back no result,
+    and the route sends the person to ask the fleet rather than quietly deciding
+    for them. Deciding again is the very thing that made the card untrustworthy.
     """
     offer = _offer(offer_id)
     if offer is None:
         return None, None
     if not run_id:
-        return _decide(offer_id)
+        return offer, None
 
     from . import background, web
 
@@ -671,31 +679,6 @@ def _the_run_they_read(offer_id: str, run_id: str):
     if not record or str(record.get("offer_id", offer_id)) != offer_id:
         return offer, None
     return offer, web.recorded(record)
-
-
-def _decide(offer_id: str):
-    """Run the chore for one offer and hand back the offer and the result."""
-    corpus = corpus_from_env()
-    offers = read_offers(corpus)
-    offer = next((o for o in offers if str(o.get("id")) == offer_id), None)
-    if offer is None:
-        return None, None
-    thread = Thread(
-        ledger=ledger_from_env(),
-        subject=subject_for_offer(NETWORK, offer),
-        run_id=new_run_id(),
-    )
-    result = run_chore(
-        corpus,
-        offer,
-        thread,
-        analyst=bedrock.analyst_from_env(),
-        critic=bedrock.critic_from_env(),
-        scheduler=scheduler_from_env(),
-        network=NETWORK,
-        approver="",
-    )
-    return offer, result
 
 
 def _publish_approved(result, offer_id: str, key: str, approver: str) -> dict[str, Any]:
