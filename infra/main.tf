@@ -67,6 +67,10 @@ resource "aws_lambda_function" "fleet" {
 
   layers = [aws_lambda_layer_version.deps.arn]
 
+  # Only the reader is reachable from the internet, so only the reader needs a
+  # ceiling on how many copies of itself can run.
+  reserved_concurrent_executions = each.key == "reader" ? var.reader_reserved_concurrency : -1
+
   environment {
     variables = {
       MERISMOS_ROLE            = each.key
@@ -316,9 +320,17 @@ resource "aws_s3_object" "corpus" {
 ###############################################################################
 
 resource "aws_secretsmanager_secret" "publish" {
-  name                    = "${var.project}/publish"
-  description             = "Readable by ${var.project}-writer alone. The reader and the evaluator are denied."
-  recovery_window_in_days = 7
+  name        = "${var.project}/publish"
+  description = "The boundary canary. Readable by ${var.project}-writer alone; the other two are denied."
+
+  # Zero, and this is a considered choice rather than laziness. A recovery
+  # window on a secret holding a real credential is protection. This one holds a
+  # marker the publish path never reads, so the window protects nothing and
+  # costs something specific: a name scheduled for deletion cannot be recreated,
+  # so a seven day window blocks redeployment for a week. The deploy-then-
+  # destroy pipeline this project is required to run would have been able to run
+  # once. It failed exactly that way on 2026-09-05.
+  recovery_window_in_days = 0
 }
 
 resource "aws_secretsmanager_secret_version" "publish" {

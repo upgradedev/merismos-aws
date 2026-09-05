@@ -58,3 +58,39 @@ variable "destroyable" {
   type        = bool
   default     = true
 }
+
+variable "judge_rate_limit" {
+  description = <<-EOT
+    Requests per second the judge URL will serve before throttling. Deliberately
+    low: this serves a handful of people reading a few pages, not a launch. An
+    open endpoint with no ceiling is one somebody else can spend your money
+    through.
+  EOT
+  type        = number
+  default     = 10
+}
+
+variable "judge_burst_limit" {
+  description = "Burst allowance above the steady rate, for a page that loads several things at once."
+  type        = number
+  default     = 20
+}
+
+variable "judge_hourly_alarm" {
+  description = <<-EOT
+    Invocations in one hour that mean something other than judging is happening.
+    A panel reading every screen of every offer is well under a hundred.
+  EOT
+  type        = number
+  default     = 500
+}
+
+variable "reader_reserved_concurrency" {
+  description = <<-EOT
+    How many readers may run at once. A burst through the gateway would otherwise
+    become an unbounded number of concurrent Lambdas, each able to call Bedrock.
+    -1 disables the reservation.
+  EOT
+  type        = number
+  default     = 5
+}

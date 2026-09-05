@@ -34,3 +34,8 @@ output "teardown" {
   description = "What removing this fleet costs. Nothing here survives a destroy except the secret's recovery window."
   value       = "terraform destroy -auto-approve. The secret is retained for 7 days unless forced."
 }
+
+output "judge_url" {
+  description = "The one URL a judge opens. Rate limited, deterministic path, cannot publish."
+  value       = aws_apigatewayv2_api.judge.api_endpoint
+}
