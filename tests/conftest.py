@@ -60,8 +60,13 @@ def _the_same_aws_everywhere(monkeypatch, tmp_path_factory):
     a runner "looking" means the instance metadata service at 169.254.169.254.
     """
     nowhere = tmp_path_factory.mktemp("no-aws-config") / "does-not-exist"
-    monkeypatch.setenv("AWS_ACCESS_KEY_ID", "AKIAOFFLINESUITEONLY")
-    monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "offline-suite-only-not-a-secret")
+    # Deliberately not shaped like an access key. The first version of this line
+    # used a realistic AKIA prefix and the secret scan flagged it within the
+    # minute, which is the scan doing its job: a string that looks like a
+    # credential in a public repository costs somebody a revocation whether or
+    # not it was ever real. botocore does not care about the shape.
+    monkeypatch.setenv("AWS_ACCESS_KEY_ID", "offline-suite-no-account")
+    monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "offline-suite-no-account")
     monkeypatch.delenv("AWS_SESSION_TOKEN", raising=False)
     monkeypatch.delenv("AWS_PROFILE", raising=False)
     monkeypatch.setenv("AWS_SHARED_CREDENTIALS_FILE", str(nowhere))
