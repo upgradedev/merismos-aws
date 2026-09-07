@@ -33,19 +33,21 @@ Built for **Agents for Humans (AWS)**, track **Good Neighbor Agents**.
 
 ## Status, stated honestly
 
-**This is a build in progress and this section is the first thing to read.** Fourteen days out from
-the deadline, a README that describes a finished product is the cheapest way to lose a judge's
-trust. What follows is what runs today.
+**This is a build in progress and this section is the first thing to read.** Six days out from the
+deadline, a README that describes a finished product is the cheapest way to lose a judge's trust.
+What follows is what runs today, and one line of it says what is standing at the live URL rather
+than what is on this branch, because those are not the same thing this week.
 
 | Claim | State |
 |---|---|
-| the guard is a control, not a prompt | **proven in CI, both directions.** 3 tests, and a job that fails if that suite skips |
+| the guard is a control, not a prompt | **proven in CI, both directions, twice over.** 3 tests remove the hook and assert the same model then reaches the tool, and a second job removes the whole SDK and requires the demo to stop working. Run it yourself: `python scripts/the_swap_test.py` |
 | the deterministic gate | **runs**, 7 checks, no credential needed |
-| a deferral wakes the fleet on the day | **built and validated against the AWS API shape**, not yet deployed |
+| a deferral wakes the fleet on the day | **deployed**, an EventBridge Scheduler one-shot with a dead letter queue and a role that may only append an escalation. The live site's `/config` returns `deferrals_wake_on_a_schedule: true`. What is not yet evidenced is a schedule that has actually fired, which takes a day to observe |
 | an approval binds exact bytes, once | **runs**, 22 tests across the offline and the DynamoDB path |
 | three identities, three roles | **deployed and proven live**, though the claim was overstated until 2026-09-04 and is now two claims. The authority is `s3:PutObject`; the Secrets Manager value is a canary the publish path never reads. `/identity` attempts both. [The deployment](docs/deploy-2026-09-02.md) |
 | Bedrock reads the offers | **live on the deployed site.** Press Ask the fleet and four specialists read on `claude-opus-5`; run `run-3a8cb5d62974` opened 25 files. Also [recorded in detail](docs/live-run-2026-09-02.md) from an earlier single-specialist run |
 | a live URL a judge can open | **yes**, behind API Gateway, because Function URLs are refused account-wide. Rate limited, runs Claude Opus 5, and cannot publish without a person. [`efnt6e0kv7.execute-api.eu-west-1.amazonaws.com`](https://efnt6e0kv7.execute-api.eu-west-1.amazonaws.com) |
+| **the site is behind this branch** | **and that is the honest row.** The fleet standing there predates the intake form, the approval card bound to the run a person read, the runner's own concurrency pool and the offline path that goes through Strands. The state moved into S3 so the pipeline owns the fleet rather than a laptop, and the apply that closes the gap has not been run |
 | the governed write, end to end | **done live 2026-09-05.** A person approved on the site, the reader minted an approval it has no authority to act on, the writer recomputed the digest and published, and the record reads `200` to an anonymous request. The digest on the card and the digest in the provenance row are the same |
 
 **439 tests, `ruff` clean, coverage above the 85% floor, enforced in `addopts`.** Every socket the suite opens to anything but loopback fails the run, autouse and session wide. That was an opt-in fixture until 2026-09-05, when one test that never asked for it turned out to be invoking the deployed fleet on every local run. The floor is enforced rather than
@@ -61,8 +63,9 @@ hand-rolled mocks. A mock accepts whatever you send it, so a suite built on one 
 calls the mock the way the code calls the mock. `Stubber` validates parameters the way a real call
 does, so a misspelled key or a wrong attribute type fails here rather than in a deployment.
 
-What is **not** covered: `fleet.py` at 87% and `bedrock.py` at 88% are the two lowest. The Bedrock gap
-is the live call itself, which no offline test can reach and which is honestly still unproven.
+What is **not** covered: `fleet.py` at 88% and `bedrock.py` at 90% are the two lowest. The Bedrock gap
+is the live call itself, which no offline test can reach. It is not unproven any more, but it is
+proven by a deployment rather than by this suite, which is a weaker thing and is said as one.
 
 ## Who this is for
 
