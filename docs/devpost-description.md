@@ -108,6 +108,15 @@ Another **removes the hook and asserts the same model then reaches the tool**, s
 attributable to the guard and not to something else about the setup. A third job fails the build if
 either suite silently skips.
 
+**And a second ablation, which caught us out rather than confirming us.** `python
+scripts/the_swap_test.py` replaces the SDK with a module that imports cleanly and raises when used,
+then runs the journey a judge watches. It exits 1 if the demo stays green, and exits 1 if the run dies
+at collection instead, because a run that never reached the demo path proves nothing about it. Run on
+2026-09-07 it reported that the demo did not need the SDK, and it was right: the offline path had no
+agent at all, so the claim was true of the repository and false of the thirty second quickstart. That
+path now runs real Strands agents over a scripted model, the same dispatcher and the same guard with
+Bedrock swapped out and no socket opened, and the demo prints which of the three paths it took.
+
 Four AWS Lambda functions under three IAM roles, one package. The identity that reads the filing
 holds no authority to publish, and AWS refuses it rather than our code doing so. `/identity` proves
 that live: it **attempts** the write and reports what AWS said. The fourth function is the reader's
