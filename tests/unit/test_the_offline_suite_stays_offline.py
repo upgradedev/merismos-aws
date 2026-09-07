@@ -12,6 +12,14 @@ runner, and the false claim in the README survives.
 So the claim is a test. Every socket this process opens is intercepted, and any
 attempt to reach anything that is not the loopback fails the run and names the
 address it was trying to reach.
+
+**The enforcement moved to ``tests/conftest.py`` on 2026-09-05 and this file is
+now the demonstration rather than the mechanism.** The fixture below was opt in,
+which meant it proved the claim for the tests that remembered to ask for it, and
+one that never asked turned out to be invoking the deployed fleet on every local
+run. The refusal is autouse and session wide now. What is kept here is the case
+that shows it working on the path a judge runs, and the fixture is kept with it
+so this file still fails on its own if conftest is ever narrowed.
 """
 
 from __future__ import annotations

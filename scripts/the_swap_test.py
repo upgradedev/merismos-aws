@@ -33,6 +33,11 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 
+#: Written by the poison and read back by the run below. A `sitecustomize` that
+#: never loads is silent, and silence here would be read as "the demo does not
+#: need the SDK", which is the finding this script exists to make.
+ARMED = "MERISMOS_SWAP_TEST_ARMED"
+
 #: The journey a judge watches, and the screens a coordinator sees. If removing
 #: the sponsor's product leaves either of these green, it is not load-bearing.
 DEMO_PATH = (
@@ -47,7 +52,13 @@ EXPECTED = "test_every_specialist_actually_reached_the_analyst"
 
 POISON = '''
 """Installed ahead of merismos: a strands that imports and refuses when used."""
-import sys, types
+import os, sys, types
+
+# The sentinel. Read back by the script that wrote this file, so that a poison
+# which never loaded is reported as inconclusive rather than as the demo path
+# surviving without the SDK. Those two look identical from the outside and only
+# one of them is a finding.
+os.environ["MERISMOS_SWAP_TEST_ARMED"] = "1"
 
 
 def _refuse(*args, **kwargs):
@@ -91,6 +102,39 @@ def main() -> int:
         **{k: v for k, v in __import__("os").environ.items()},
         "PYTHONPATH": str(sitecustomize),
     }
+    # Prove the poison loads before believing anything the run says about it.
+    armed = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            (
+                "import os, strands;"
+                "print(os.environ.get('MERISMOS_SWAP_TEST_ARMED', 'no'),"
+                "getattr(strands.Agent, '__module__', 'real'))"
+            ),
+        ],
+        cwd=ROOT,
+        env=env,
+        capture_output=True,
+        text=True,
+    )
+    if "1" not in armed.stdout.split(" ")[0]:
+        print(armed.stdout + armed.stderr)
+        print(
+            textwrap.dedent(
+                f"""
+                SWAP TEST INCONCLUSIVE.
+
+                The stub never loaded, so the run below would have used the real
+                SDK and passed, and a pass here would have been reported as the
+                demo path surviving without it. {ARMED} was not set, which means
+                sitecustomize was not processed or something else supplied one
+                first. Nothing was learned. Fix the harness, not the product.
+                """
+            ).strip()
+        )
+        return 1
+
     proc = subprocess.run(
         [sys.executable, "-m", "pytest", "--no-cov", "-q", *DEMO_PATH],
         cwd=ROOT,
