@@ -16,7 +16,7 @@ reporting progress, then cuts to the finished decision. The cut is announced on
 screen rather than hidden, because a recording that implies a seven minute job
 took twenty seconds is the kind of small dishonesty this entry cannot afford.
 
-Target 4:20. The cap is 5:00 and a recording that lands at 4:59 is a recording
+Target 4:30. The cap is 5:00 and a recording that lands at 4:59 is a recording
 that fails to build on the day.
 
 ---
@@ -55,18 +55,20 @@ that fails to build on the day.
 > phone. That is the one that costs a small organisation its funding, for work
 > it genuinely did.
 
-## Beat 3. The product, live. 1:05 to 2:05
+## Beat 3. The product, live. 1:05 to 2:15
 
-**Picture.** Screen recording of the deployed site. Open the offers list. Click
-**Work out the split** on offer 4471, then **Ask the fleet**. The waiting screen
-appears, counting specialists as they answer. Cut, with a caption saying how
-long was removed. The decision screen: the shares table, then scroll to *"Not
-receiving a share, and the rule that decided it"* with three organisations and
-three reasons.
+**Picture.** Screen recording of the deployed site, at a phone width, because a
+coordinator is holding a phone. Start on **Add an offer**: type what the donor
+said into the form. Then the offers list. Click **Work out the split** on offer
+4471, then **Ask the fleet**. The waiting screen appears, counting specialists as
+they answer. Cut, with a caption saying how long was removed. The decision
+screen: the shares table, then scroll to *"Not receiving a share, and the rule
+that decided it"* with three organisations and three reasons.
 
 **Narration.**
-> This is Merismos. It does the apportionment unattended and brings back one
-> thing to approve.
+> This is Merismos. The offer goes in the way the donor said it, on a phone, in a
+> doorway. Then it does the apportionment unattended and brings back one thing to
+> approve.
 >
 > Four specialists wake. Each one is handed the network's filing and a question,
 > not an answer, and each decides what to open. That takes minutes, so this is
@@ -76,6 +78,12 @@ three reasons.
 > receiving a share, and each one is named with the rule that decided it. The
 > library has no van and can carry fifteen kilos. That is on the screen, so
 > nobody has to phone the library to find out.
+
+**One shot in this beat is not the happy path and it earns its ten seconds.**
+Type a phone number into the note and press Add. It is refused, on the spot, in
+the coordinator's own words, with everything they typed still in the form.
+Narration: *"A published record never carries a person. So it says so now, while
+you can still see what you wrote, rather than four minutes later."*
 
 ## Beat 4. The case that decides whether a model earns its place. 2:05 to 2:50
 
@@ -115,9 +123,9 @@ open the public S3 URL in a clean window with no account.
 ## Beat 6. Why the Strands SDK is load-bearing, proven by removing it. 3:30 to 4:10
 
 **Picture.** Split screen. Left: `guard.py`, the `BeforeToolCallEvent` callback
-setting `cancel_tool`. Right: a terminal running the guard suite, `3 passed`.
-Then the CI page showing the `guard-has-teeth` job. Then the ablation test
-result: the hook removed, the same model reaching the tool.
+setting `cancel_tool`. Right: a terminal running `python scripts/the_swap_test.py`
+and printing `SWAP TEST PASSED`. Then the CI page showing the `guard-has-teeth`
+job with both of its steps green.
 
 **Narration.**
 > Every refusal in this fleet happens inside the Strands tool dispatcher. The
@@ -125,9 +133,13 @@ result: the hook removed, the same model reaching the tool.
 > is no dispatcher to refuse in.
 >
 > A gate nobody has watched go red is a gate nobody should believe. So one job
-> asserts the reader is refused, and another removes the hook and asserts the
-> same model then reaches the tool. The refusal is the guard, and not something
-> else about the setup.
+> removes the hook and asserts the same model then reaches the tool. The refusal
+> is the guard, and not something else about the setup.
+>
+> And a second one takes the whole SDK away and requires the demo to stop
+> working. That one caught us out. The offline path had no agent at all, so the
+> claim was true of the repository and false of the thing you would run. You can
+> run the check yourself; it is one command and it fails if the demo stays green.
 
 ## Beat 7. What is not true yet. 4:10 to 4:20
 
@@ -146,9 +158,10 @@ result: the hook removed, the same model reaching the tool.
 
 ## Production notes
 
-**Length.** Beats sum to 4:20 against a 5:00 cap. If a beat overruns, beat 2
-loses its third card before anything else is cut; beats 5 and 6 are the two that
-carry the submission and are never trimmed.
+**Length.** Beats sum to 4:30 against a 5:00 cap. If a beat overruns, beat 2
+loses its third card before anything else is cut, and beat 3's refusal shot goes
+second. Beats 5 and 6 are the two that carry the submission and are never
+trimmed.
 
 **Capture.** The deployed URL for beats 3 and 5, at a desktop width. The site
 carries no external asset, so a capture is reproducible and will not change
@@ -163,5 +176,13 @@ carries one, and any real organisation's name. Everything in the corpus is
 invented and the video should not imply otherwise.
 
 **The claim to check before publishing.** Every number spoken in this script has
-to match the README and the description on the day it is recorded. The three
-that move: the test count, the coverage figure, and the live URL.
+to match the README and the description on the day it is recorded. The four that
+move: the test count, the coverage figure, the live URL, and the number of Lambda
+functions, which became four when the chore was given its own concurrency pool.
+The identities are still three, and the difference is worth getting right on
+screen because the whole boundary argument rests on it.
+
+**Record beat 3 against the deployed site, not against a local run.** The two are
+not the same today and the script says the site. If the fleet standing at the URL
+is behind the branch on the day of recording, that is a redeploy before a
+recording, not a caption.
