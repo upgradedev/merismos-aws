@@ -22,7 +22,8 @@ Built for **Agents for Humans (AWS)**, track **Good Neighbor Agents**.
 - [Why this is worth building, in somebody else's numbers](#why-this-is-worth-building-in-somebody-elses-numbers)
 - [Architecture](#architecture), and [the write, in the order it happens](#the-write-in-the-order-it-happens)
 - [The one thing it does](#the-one-thing-it-does)
-- [Why the Strands Agents SDK is load-bearing](#why-the-strands-agents-sdk-is-load-bearing). Proven by removing it
+- [Why the Strands Agents SDK is load-bearing](#why-the-strands-agents-sdk-is-load-bearing). Proven by removing it,
+  and [what this adds to Strands](#what-this-adds-to-strands-which-is-a-different-question), which is the opposite question
 - [Is this agentic, or a rules engine with a model attached](#is-this-agentic-or-a-rules-engine-with-a-model-attached)
 - [The controls](#the-controls)
 - [The deferral, and why it is an AWS build](#the-deferral-and-why-it-is-an-aws-build)
@@ -112,9 +113,13 @@ underneath it.
 
 ```mermaid
 flowchart TB
-    OFFER["<b>An offer arrives</b><br/>webhook, or POST /run, or the CLI"]
+    COORD(["<b>a coordinator</b><br/><i>on a phone, in a doorway</i>"])
+    FORM["<b>the intake form</b><br/><i>refuses a person or an instruction<br/>while they can still see what they typed</i>"]
+    OFFER["<b>an offer</b><br/><i>theirs, or already in the filing</i>"]
+    COORD --> FORM
+    COORD --> OFFER
 
-    subgraph READER["merismos-reader &nbsp;·&nbsp; Lambda, its own IAM role"]
+    subgraph READER["merismos-runner &nbsp;·&nbsp; Lambda, the reader's IAM role, its own concurrency pool"]
         direction TB
         R["<b>router</b><br/><i>reads the catalogue, decides who wakes</i>"]
         R --> S1["food-safety"]
@@ -137,7 +142,12 @@ flowchart TB
     GUARD -->|permitted| T
     T --> CORPUS[("<b>S3</b><br/>the network's own filing<br/>orgs · offers · registers")]
 
-    OFFER --> R
+    OFFER -->|"press the button"| PAGE["<b>merismos-reader</b> · Lambda<br/><i>serves every screen, holds no write anywhere</i><br/><i>answers in under a second</i>"]
+    FORM -->|"validated here, so the person is told at once"| PAGE
+    PAGE -->|"invoke, not awaited.<br/>a chore takes minutes and a request gets 30s"| R
+    PAGE -.->|"meta refresh, no javascript"| L
+    PAGE -->|"asks the one identity that may write"| W
+    W -->|"IfNoneMatch, so an intake<br/>cannot overwrite a decided offer"| CORPUS
     S1 & S2 & S3 & S4 --> DRAFT["<b>draft allocation</b>"]
 
     subgraph EVAL["merismos-evaluator &nbsp;·&nbsp; Lambda, second IAM role"]
@@ -164,10 +174,12 @@ flowchart TB
     L -.->|"a parked decision"| SCHED[["<b>EventBridge Scheduler</b><br/>one-shot at(...)<br/><i>wakes the fleet on the day</i>"]]
     SCHED -.->|"may only append an escalation"| L
 
-    SM[["<b>Secrets Manager</b><br/>the publish credential"]]
-    WRITER ==>|granted| SM
+    SM[["<b>Secrets Manager</b><br/><i>the boundary canary</i><br/><b>nothing on the publish path reads this</b>"]]
+    WRITER -.->|granted, and never used| SM
     READER -.->|AccessDenied| SM
     EVAL -.->|AccessDenied| SM
+
+    WRITER ==>|"<b>s3:PutObject. THIS is the publish authority</b>"| OUT
 ```
 
 **The authority that publishes is `s3:PutObject` on the records bucket, held by the writer alone.**
@@ -193,10 +205,16 @@ now probed and reported separately, and `can_write` is named as the one that dec
 The refusal is still AWS's rather than ours in both cases. No code here decides it, which is why it
 is worth more than a policy document saying the same thing.
 
-**This has been deployed once and torn down**, on 2026-09-02: 61 resources, then `destroy`. What
-that found is in [`docs/deploy-2026-09-02.md`](docs/deploy-2026-09-02.md), including two defects that
-every green plan had missed and one constraint that is not fixable here at all. Nothing is standing
-now, so the diagram describes a program that has run rather than a program that is running.
+**This has been deployed, torn down, and deployed again.** The first pass on 2026-09-02 applied 61
+resources and then destroyed them; what it found is in
+[`docs/deploy-2026-09-02.md`](docs/deploy-2026-09-02.md), including two defects that every green plan
+had missed and one constraint that is not fixable here at all. A fleet is standing now, at the URL at
+the top of this file.
+
+**It is behind this branch, and that is worth saying rather than leaving for somebody to discover.**
+The deployed build predates the intake form, the concurrency split and the card fix, because the
+state moved into S3 and the pipeline that owns the fleet is now the one that applies it. Until that
+runs, the diagram above describes this repository, and the site describes an earlier one.
 
 The boundary is asserted where it lives. [`infra/iam.tf`](infra/iam.tf) is its own file because it
 is this entry's central claim, and
@@ -224,7 +242,6 @@ sequenceDiagram
     participant IAM as AWS IAM
     participant W as merismos-writer
     participant D as DynamoDB
-    participant SM as Secrets Manager
     participant S3 as the public record
 
     Note over R: orchestrates everything and holds no credential that can publish
@@ -247,9 +264,8 @@ sequenceDiagram
     else covered, current and unspent
         W->>D: UpdateItem, attribute_not_exists(spent_at)
         Note right of D: a second use of the same approval is a condition failure inside the database
-        W->>SM: read the publish credential
-        Note over R,SM: the reader and the evaluator are refused here by IAM, not by us
         W->>S3: put the record at a public address
+        Note over R,S3: s3:PutObject is the publish authority, and the reader and the evaluator are refused it by IAM rather than by us
         W-->>R: receipt naming approved_by, the nonce and the run
     end
 
@@ -283,6 +299,45 @@ Everything before the approval is autonomous. The approval is the end, not a sta
 | `test_the_writer_reaches_it_with_the_guard_in_place` | passes | the harness genuinely dispatches, so the first row is not a broken setup |
 
 A gate nobody has watched go red is a gate nobody should believe.
+
+### What this adds to Strands, which is a different question
+
+The section above says why removing the SDK breaks Merismos. This says what
+Merismos puts on top of it, because those are opposite directions and the second
+is the one the rules ask about.
+
+`BeforeToolCallEvent` is a hook point. Strands gives you the event and the
+`cancel_tool` field; what to refuse, and on what grounds, is left to you, as it
+should be. Four things here are ours and none of them ship with the SDK.
+
+**A role is a set of tools, and it comes from the environment.** `ROLE_TOOLS`
+maps three identities onto disjoint tool sets, and the role is read from
+`MERISMOS_ROLE` rather than from anything a request can name. A request that
+could name its own role would be a request that could name its own privileges.
+An unknown role, an unnamed tool and an unknown tool all refuse, because each of
+those is a deployment fault, and a deployment fault must not become a permission.
+
+**The refusal is the same object as the audit entry.** A cancelled call appends
+`guard.refused` to the provenance thread naming the role, the tool and the run,
+so "the reader tried to publish" is a row a funder can read rather than a line in
+a log nobody keeps. `decide()` is pure and free of every SDK type, which is what
+lets a thread entry from months ago be replayed against today's policy to ask
+whether the same call would still be refused.
+
+**The bound lives in the tool rather than in the prompt.** Scope, traversal,
+size and a per-specialist read budget are enforced inside `tools.py`, and a
+refused read costs a specialist nothing and is recorded. A model that asks for
+`../../etc/passwd` is answered by the tool, not persuaded by an instruction.
+
+**And the model is never the last word.** A deterministic gate runs after the
+fleet, on the draft rather than on the conversation, and its seven checks include
+one that compares the draft against the fleet's own recorded exclusions. A second
+model reviews a sanitised envelope through Bedrock Converse with no `toolConfig`
+at all, so it can add an advisory and cannot subtract a finding.
+
+None of that is a criticism of the SDK. A framework that shipped this network's
+apportionment policy would be a framework nobody else could use. The dispatcher
+is the right thing to be given, and the refusal is the thing to build in it.
 
 ## Is this agentic, or a rules engine with a model attached
 
