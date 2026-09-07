@@ -48,7 +48,7 @@ trust. What follows is what runs today.
 | a live URL a judge can open | **yes**, behind API Gateway, because Function URLs are refused account-wide. Rate limited, runs Claude Opus 5, and cannot publish without a person. [`efnt6e0kv7.execute-api.eu-west-1.amazonaws.com`](https://efnt6e0kv7.execute-api.eu-west-1.amazonaws.com) |
 | the governed write, end to end | **done live 2026-09-05.** A person approved on the site, the reader minted an approval it has no authority to act on, the writer recomputed the digest and published, and the record reads `200` to an anonymous request. The digest on the card and the digest in the provenance row are the same |
 
-**428 tests, `ruff` clean, coverage above the 85% floor, enforced in `addopts`.** Every socket the suite opens to anything but loopback fails the run, autouse and session wide. That was an opt-in fixture until 2026-09-05, when one test that never asked for it turned out to be invoking the deployed fleet on every local run. The floor is enforced rather than
+**439 tests, `ruff` clean, coverage above the 85% floor, enforced in `addopts`.** Every socket the suite opens to anything but loopback fails the run, autouse and session wide. That was an opt-in fixture until 2026-09-05, when one test that never asked for it turned out to be invoking the deployed fleet on every local run. The floor is enforced rather than
 reported: it is in `addopts`, so the suite fails below it on a developer machine and in CI alike. Run
 it yourself, and prefer the number this prints to the number written here:
 
@@ -300,6 +300,27 @@ Everything before the approval is autonomous. The approval is the end, not a sta
 
 A gate nobody has watched go red is a gate nobody should believe.
 
+**And a second ablation, which answers a different question. Run it yourself:**
+
+```bash
+python scripts/the_swap_test.py
+```
+
+It replaces `strands` with a module that imports cleanly and raises the moment
+anything uses it, then runs the journey a judge watches. It exits 1 if the demo
+stays green, and it exits 1 if the run dies at collection instead, because a run
+that never reached the demo path proves nothing about the demo path.
+
+**It caught this project out on 2026-09-07.** The offline path had no analyst at
+all, so no agent was ever constructed: the SDK was on the deployed fleet and
+absent from the thirty second quickstart, which is the thing a judge actually
+runs. The claim was true of the repository and false of the demonstration, for
+the second time in this build. The offline path now runs real Strands agents over
+a scripted model, the same dispatcher and the same guard with Bedrock swapped
+out, and the demo prints which of the three paths it took. Take the SDK away and
+the screen says `NOT REACHED` and the journey fails at
+`test_every_specialist_actually_reached_the_analyst`.
+
 ### What this adds to Strands, which is a different question
 
 The section above says why removing the SDK breaks Merismos. This says what
@@ -470,7 +491,7 @@ pip install -e ".[dev]"
 python -m pytest -q
 ```
 
-Expected `428 passed` and `Required test coverage of 85% reached`, in about eleven seconds. Prefer the number it prints to the number written here.
+Expected `439 passed` and `Required test coverage of 85% reached`, in about eleven seconds. Prefer the number it prints to the number written here.
 
 ```bash
 python -m pytest tests/integration/test_the_guard_is_a_control.py -q

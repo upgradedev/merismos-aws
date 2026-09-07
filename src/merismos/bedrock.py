@@ -131,6 +131,11 @@ class BedrockAnalyst:
     connect_timeout: int = 5
     read_timeout: int = 120
     _model: Any = None
+    #: The guard attached to the most recently built agent. Written for the same
+    #: reason /identity attempts the write rather than reading a policy: a claim
+    #: that a control is in place is worth less than the control's own record of
+    #: having refused something.
+    _guard_seen: Any = None
 
     def __post_init__(self) -> None:
         self.model_id = self.model_id or os.environ.get("MERISMOS_MODEL") or DEFAULT_MODEL
@@ -154,6 +159,12 @@ class BedrockAnalyst:
         from strands import Agent
         from strands.models import BedrockModel
 
+        # Kept, so that whether the guard was attached is answerable by looking
+        # at what it refused rather than by asking the hook registry, which does
+        # not enumerate its providers.
+        guard = Guard(role=self.role)
+        self._guard_seen = guard
+
         model = self._model or BedrockModel(
             model_id=self.model_id,
             region_name=self.region or None,
@@ -167,7 +178,13 @@ class BedrockAnalyst:
             model=model,
             tools=box.build(),
             system_prompt=f"{brief}\n{INSTRUCTIONS}",
-            hooks=[Guard(role=self.role)],
+            hooks=[guard],
+            # Strands prints each tool call and the closing answer to stdout by
+            # default. In a Lambda that is a CloudWatch line nobody reads; on the
+            # offline path it prints into the middle of the demo a judge is
+            # watching. A run records itself in the provenance thread, and the
+            # thread is not stdout.
+            callback_handler=None,
         )
 
     def __call__(
@@ -333,17 +350,62 @@ class BedrockCritic:
 
 
 def analyst_from_env(env: Mapping[str, str] | None = None) -> BedrockAnalyst | None:
-    """Build an analyst, or ``None`` when the offline path was asked for by name.
+    """Build an analyst. Three answers, and each has to be asked for by name.
 
-    ``MERISMOS_MODEL=none`` is the offline switch and it has to be spelled. A
-    fleet that silently ran without a model would report the deterministic answer
-    as though a model had agreed with it.
+    ``scripted`` is the offline path a stranger runs and CI runs: a real Strands
+    agent over a scripted model, so the SDK, the dispatcher and the guard are all
+    genuinely on the path with no account and no network.
+
+    ``none`` is narrower and still exists: no analyst at all, the deterministic
+    rules alone. It is what the tests use when the question is what the rules do.
+
+    Anything else is a Bedrock inference profile.
+
+    None of the three is a default that happens quietly. A fleet that silently
+    ran without a model would report the deterministic answer as though a model
+    had agreed with it.
     """
     env = dict(os.environ) if env is None else env
     configured = env.get("MERISMOS_MODEL", "").strip()
+    if configured.lower() in ("scripted", "offline"):
+        return scripted_analyst()
     if configured.lower() in ("none", "off", "stub"):
         return None
     return BedrockAnalyst(model_id=configured or DEFAULT_MODEL, region=env.get("AWS_REGION", ""))
+
+
+#: What an offline specialist walks. One real tool call through the real
+#: dispatcher is enough to make the SDK load-bearing here; a longer plan would
+#: spend a read budget to prove the same thing twice.
+OFFLINE_PLAN = ("list_paths",)
+
+#: The scripted planner's closing line. It parses to ``ok`` with no reason, which
+#: unions into the deterministic envelope without moving it. An offline run must
+#: reach the same answer it reached before this was wired, or the demo a judge
+#: watches would depend on which analyst happened to be configured.
+OFFLINE_ANSWER = '{"status": "ok", "reason": ""}'
+
+
+def scripted_analyst(role: str = "reader") -> BedrockAnalyst:
+    """The offline analyst: a real Strands agent driven by a scripted model.
+
+    Everything except the model is the deployed thing. The same ``Agent``, the
+    same tool dispatcher, the same ``Guard`` on ``BeforeToolCallEvent``, the same
+    bounded toolbox. What is replaced is Bedrock, and it is replaced by a
+    ``strands.models.Model`` subclass rather than by a mock, so the agent loop
+    runs rather than being stepped around.
+
+    **It never claims to be the model.** ``model_id`` reports
+    ``scripted-planner/1.0.0`` and that string reaches the provenance thread, so
+    a run recorded offline cannot be mistaken for a run that called Bedrock.
+    """
+    from .scripted import MODEL_ID, ScriptedPlanner
+
+    return BedrockAnalyst(
+        model_id=MODEL_ID,
+        role=role,
+        _model=ScriptedPlanner(plan=OFFLINE_PLAN, closing=OFFLINE_ANSWER),
+    )
 
 
 def critic_from_env(env: Mapping[str, str] | None = None) -> BedrockCritic | None:

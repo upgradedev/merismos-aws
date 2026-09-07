@@ -92,6 +92,15 @@ jobs:
           pytest --no-cov -q \
             tests/integration/test_the_guard_is_a_control.py::test_the_same_demand_succeeds_with_the_guard_removed
 
+      # The other ablation, and it answers a different question. The guard test
+      # above proves the refusal is the guard. This proves the SDK is on the path
+      # a stranger runs: it takes strands away and requires the end to end
+      # journey to fail at a named assertion on the demo path. It exits 1 both
+      # when the journey stays green and when it dies at collection, so a run
+      # that never reached the demo path cannot be read as a pass.
+      - name: With the SDK removed, the demo stops working
+        run: python scripts/the_swap_test.py
+
   # The IaC is validated on every push. It is not applied here: an apply needs
   # credentials and creates real, billable resources, and a CI job that can
   # deploy on a push is a CI job that can deploy on somebody else's push.

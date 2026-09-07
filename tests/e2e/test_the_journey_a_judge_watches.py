@@ -32,10 +32,35 @@ def test_the_first_thing_on_screen_is_which_path_this_run_took(screen):
 
 
 def test_the_offline_path_announces_itself(screen):
-    """Otherwise a stub looks exactly like the deployed system."""
+    """Otherwise a stub looks exactly like the deployed system.
+
+    The last line changed on 2026-09-07 and the change is the point. The offline
+    path used to consult no model **and construct no agent**, so a swap test that
+    removed the Strands SDK left this whole journey green. It now runs real
+    Strands agents over a scripted model, and the banner has to say which of
+    those three things happened rather than leaving a judge to assume.
+    """
     assert "OFFLINE PATH" in screen
     assert "No AWS account is in use" in screen
-    assert "no model is consulted" in screen
+    assert "nothing here opens a socket" in screen
+    assert "real Strands agents over a scripted model" in screen
+    assert "no Bedrock" in screen
+    assert "scripted-planner" in screen, "the run does not name the planner it used"
+
+
+def test_every_specialist_actually_reached_the_analyst(screen):
+    """The assertion the swap test fails on, and the reason this file can fail at all.
+
+    A banner naming a path is a claim. This is the run's own report of whether it
+    took it. With the Strands SDK removed, every specialist falls back to the
+    deterministic rules, the screen says NOT REACHED, and this fails here rather
+    than passing on a journey that never touched the sponsor's product.
+    """
+    assert "reached by all" in screen
+    assert "NOT REACHED" not in screen, (
+        "a specialist could not reach its analyst, so this run is the "
+        "deterministic rules alone whatever the banner above it says"
+    )
 
 
 def test_every_offer_in_the_corpus_reaches_an_outcome(screen):

@@ -44,22 +44,87 @@ def banner(ledger: Any, analyst: Any, scheduler: Any, colour: bool) -> None:
     print(f"  ledger      {backend}")
     print(f"  model       {model}")
     print(f"  scheduler   {timer}")
-    if backend == "memory" and analyst is None:
+    scripted = str(model).startswith("scripted-planner")
+    if backend == "memory" and (analyst is None or scripted):
         print()
         print(
             _colour(
-                "  OFFLINE PATH. No AWS account is in use. The specialists are the",
+                "  OFFLINE PATH. No AWS account is in use and nothing here opens a socket.",
                 "33",
                 colour,
             )
         )
-        print(
-            _colour(
-                "  deterministic rules alone and no model is consulted.", "33", colour
+        if scripted:
+            # Said precisely, because the difference matters to the one claim
+            # this entry rests on. The agent loop, the tool dispatcher and the
+            # guard are the deployed ones. Bedrock is what is absent.
+            print(
+                _colour(
+                    "  The specialists run as real Strands agents over a scripted model:",
+                    "33",
+                    colour,
+                )
             )
-        )
+            print(
+                _colour(
+                    "  the same dispatcher, the same BeforeToolCallEvent guard, no Bedrock.",
+                    "33",
+                    colour,
+                )
+            )
+        else:
+            print(
+                _colour(
+                    "  The specialists are the deterministic rules alone and no model,",
+                    "33",
+                    colour,
+                )
+            )
+            print(
+                _colour(
+                    "  and no agent, is consulted at all.", "33", colour
+                )
+            )
     print("=" * 72)
     print()
+
+
+def analyst_reached(result: Any, analyst: Any, colour: bool) -> int:
+    """Say what the specialists actually reached, and count what they did not.
+
+    ``run_chore`` turns an unreachable analyst into a ``model-unreachable``
+    finding and carries on with the deterministic answer, which is the right
+    behaviour for a model outage and the wrong thing to leave unsaid. Without
+    this line the screen is identical whether the SDK was there or not, and a
+    swap test that removes it stays green.
+    """
+    if analyst is None:
+        return 0
+
+    missed = [
+        e.specialist
+        for e in result.envelopes
+        for f in e.findings
+        if f.check == "model-unreachable"
+    ]
+    reached = [e.specialist for e in result.envelopes if e.specialist not in missed]
+
+    if not missed:
+        print(
+            f"    analyst    {getattr(analyst, 'model_id', 'unknown')}, "
+            f"reached by all {len(reached)}"
+        )
+        return 0
+
+    print(
+        _colour(
+            f"    analyst    NOT REACHED by {', '.join(missed)}. "
+            f"Deterministic rules only",
+            "31",
+            colour,
+        )
+    )
+    return len(missed)
 
 
 def show(result: Any, colour: bool) -> None:
@@ -150,16 +215,29 @@ def main(argv: list[str] | None = None) -> int:
         env["MERISMOS_MODEL"] = args.model
 
     # The offline default is explicit here rather than implicit. A judge running
-    # this with no AWS account gets the deterministic path and is told so.
+    # this with no AWS account gets the offline path and is told so.
     offline_ledger = env.get("MERISMOS_LEDGER", "memory") == "memory"
     ledger = InMemoryLedger() if offline_ledger else ledger_from_env(env)
-    analyst = bedrock.analyst_from_env(env) if env.get("MERISMOS_MODEL") else None
+    # The offline default is the **scripted** analyst rather than no analyst.
+    #
+    # It was no analyst, and a swap test caught what that cost. A stub `strands`
+    # that imports and refuses when used left the whole demo path green, 53 tests
+    # across the judge's journey and every screen, because with no analyst no
+    # Agent is ever constructed and the SDK is not on the path a stranger runs.
+    # The entry's flagship claim was true of the deployed fleet and false of the
+    # thirty second quickstart.
+    #
+    # `MERISMOS_MODEL=none` still means what it always meant, the rules alone,
+    # and the tests that ask what the rules do still use it.
+    env.setdefault("MERISMOS_MODEL", "scripted")
+    analyst = bedrock.analyst_from_env(env)
     scheduler = (
         scheduler_from_env(env) if env.get("MERISMOS_WAKE_TARGET_ARN") else NullScheduler()
     )
     corpus = corpus_from_env(env) if env.get("MERISMOS_CORPUS_BUCKET") else LocalCorpus()
 
     banner(ledger, analyst, scheduler, colour)
+    unreachable = 0
 
     for offer in read_offers(corpus):
         thread = Thread(
@@ -171,6 +249,7 @@ def main(argv: list[str] | None = None) -> int:
             corpus, offer, thread, analyst=analyst, scheduler=scheduler, network=NETWORK
         )
         show(result, colour)
+        unreachable += analyst_reached(result, analyst, colour)
 
     the_case_that_settles_it(corpus, colour)
 
@@ -179,6 +258,31 @@ def main(argv: list[str] | None = None) -> int:
     print("  reads, and the publish is the writer's, behind an approval bound to")
     print("  the exact bytes.")
     print("-" * 72)
+
+    if unreachable:
+        print()
+        print(
+            _colour(
+                f"  THE ANALYST WAS NOT REACHED, on {unreachable} specialist reads.",
+                "31",
+                colour,
+            )
+        )
+        print(
+            _colour(
+                "  Everything above is the deterministic rules alone. The banner named",
+                "31",
+                colour,
+            )
+            )
+        print(
+            _colour(
+                "  a path this run did not take, and this line is how you know.",
+                "31",
+                colour,
+            )
+        )
+        print()
     return 0
 
 
