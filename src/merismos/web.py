@@ -648,8 +648,8 @@ def new_offer_form(error: str = "", values: Mapping[str, Any] | None = None) -> 
         "Add an offer",
         f"""
 <h1>Add an offer</h1>
-<p class="lede">What the donor told you, and nothing the donor's own message does not already
-contain. A coordinator standing in a doorway will not fill in twenty fields.</p>
+<p class="lede">What the donor told you, and nothing their message does not already say. A
+coordinator standing in a doorway will not fill in twenty fields.</p>
 {warn}
 <form method="post" action="/offers/new">
   <div class="card">
@@ -679,9 +679,9 @@ contain. A coordinator standing in a doorway will not fill in twenty fields.</p>
       <p><label>Hours out of the fridge<br>
         <input name="hours_unrefrigerated" type="number" step="any" min="0" max="168"
           value="{_e(v.get('hours_unrefrigerated', ''))}" placeholder="0" style="{_FIELD}">
-        <span class="why">Chilled and frozen only. The fleet refuses one that does not
-        say, because absent evidence about a cold chain is a finding and not a
-        pass.</span></label></p>
+        <span class="why">Chilled and frozen only. A chilled offer that does not say is
+        refused by the fleet, because absent evidence about a cold chain is a finding
+        and not a pass.</span></label></p>
     </div>
     <p><label>Anything the donor said<br>
       <textarea name="note" rows="3" maxlength="600" style="{_FIELD}"
