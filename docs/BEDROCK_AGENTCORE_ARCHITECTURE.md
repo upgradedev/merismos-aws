@@ -13,9 +13,18 @@ This specification details how Merismos' autonomous multi-agent institutional fl
 
 ## 1. Executive Summary
 
-Merismos deploys a decentralized fleet of institutional agents for civil society organizations and food pantry networks that cannot afford full-time administrative staff to manage surplus donation logistics.
+The buyer is the **volunteer coordinator on duty** at one of five small organisations sharing donated
+food in one Athens neighbourhood: a food pantry, a night shelter, a school, a library breakfast club
+and a soup kitchen. None of them employs anybody to do this. What it costs them today is a group
+chat where whoever answers first takes the pallet, and a record that is somebody's phone when the
+funder asks in March what happened in September.
 
-The system ensures that **no AI agent ever publishes an allocation unilaterally**. Instead, deterministic specialists, combinatorial constraint solvers, and an adversarial critic operate under strict IAM separation, presenting a single cryptographic approval card for human sign-off.
+What stops, the day this is in: nobody phones the shelter to ask why it was skipped, because the
+reason is on the screen beside the decision, and nobody reconstructs September from a chat log.
+
+**No agent here ever publishes an allocation on its own.** Deterministic specialists, a constraint
+solver and an advisory critic run under three IAM identities, and the whole fleet stops at one
+approval card bound by sha256 to the exact bytes a person read.
 
 ```
                  An offer arrives
