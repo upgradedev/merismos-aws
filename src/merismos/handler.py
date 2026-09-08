@@ -284,7 +284,33 @@ def config() -> dict[str, Any]:
         "max_files_per_search": MAX_SEARCH_SCAN,
         "ledger": os.environ.get("MERISMOS_LEDGER", "dynamodb"),
         "deferrals_wake_on_a_schedule": bool(os.environ.get("MERISMOS_WAKE_TARGET_ARN")),
+        # **The model, said out loud.** This endpoint existed to stop things
+        # being implicit and left implicit the one thing a reader of an agent
+        # entry most wants to establish. Three defects this week would have been
+        # one line here: a model configured on the function that does not run
+        # the chore, an offline path that constructed no agent at all, and a
+        # screen that looked the same whether a model answered or failed.
+        "role": role(),
+        "analyst": _analyst_description(),
+        "critic": os.environ.get("MERISMOS_CRITIC_MODEL", "").strip() or "none",
     }
+
+
+def _analyst_description() -> str:
+    """Which of the three paths this deployment is on, in one string.
+
+    Not a boolean. "A model is configured" cannot distinguish a Bedrock
+    inference profile from the scripted planner that drives the same agent loop
+    with no network, and those are different claims about what a run means.
+    """
+    configured = os.environ.get("MERISMOS_MODEL", "").strip()
+    if configured.lower() in ("scripted", "offline"):
+        from .scripted import MODEL_ID
+
+        return f"{MODEL_ID}, a scripted model driving the real agent loop with no network"
+    if configured.lower() in ("none", "off", "stub"):
+        return "none. The deterministic rules alone, and no agent is constructed"
+    return configured or "none. MERISMOS_MODEL is unset, so no agent is constructed"
 
 
 def run(body: dict) -> dict[str, Any]:
