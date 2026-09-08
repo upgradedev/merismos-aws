@@ -1,0 +1,58 @@
+{
+  "_comment": "The submission narration, one entry per beat, consumed by video/generate-narration.py from _submission_kit/repos/submission-kit/video. captionText is what a viewer reads and carries the exact names and figures a judge will check. speechText is the same sentence spelled the way a text to speech engine pronounces it: SHA256 becomes S H A two five six, IAM becomes I A M, offer-4471 becomes offer four four seven one. Nothing is said here that is not true of the deployed fleet today.",
+  "schemaVersion": "archon.submission-video/v1",
+  "provider": "elevenlabs",
+  "elevenLabs": {
+    "voiceId": "pNInz6obpgDQGcFmaJgB",
+    "modelId": "eleven_multilingual_v2",
+    "outputFormat": "mp3_44100_128"
+  },
+  "languageCode": "en-GB",
+  "voice": "en-GB-Neural2-B",
+  "speakingRate": 0.98,
+  "_comment_length": "The pipeline refuses a whole video outside 90 to 174 seconds and refuses any beat outside 3 to 40. These seven are drafted at roughly 150 seconds at a normal pace, which leaves room in both directions. That number is a draft and not a measurement: run the generator once and read the total it prints, then cut or add words. Our own docs/video-script.md targets 4:30, which this pipeline will not accept, and that collision is written into STATE.md rather than left to surface on recording day.",
+  "segments": [
+    {
+      "id": "hook",
+      "_beat": "The problem, in the buyer's words. A named segment, never a market.",
+      "captionText": "Five small charities in one Athens neighbourhood share whatever food gets donated. A pantry, a night shelter, a school, a library, a soup kitchen. None of them employs anybody to do this. An offer arrives in a group chat and whoever answers first takes it, so two vans drive to the same pallet, and in March nobody can say what happened in September.",
+      "speechText": "Five small charities in one Athens neighbourhood share whatever food gets donated. A pantry, a night shelter, a school, a library, a soup kitchen. None of them employs anybody to do this. An offer arrives in a group chat and whoever answers first takes it, so two vans drive to the same pallet, and in March nobody can say what happened in September."
+    },
+    {
+      "id": "surface",
+      "_beat": "The surface the buyer already opens. Not another dashboard.",
+      "captionText": "The decision arrives in the group chat they are already in. Merismos writes it out for them: who receives what, and who was skipped with the rule that decided it, in the words a coordinator would send. They select it and send it. No new habit, and no twelfth tab anybody has to remember to open.",
+      "speechText": "The decision arrives in the group chat they are already in. Merismos writes it out for them: who receives what, and who was skipped with the rule that decided it, in the words a coordinator would send. They select it and send it. No new habit, and no twelfth tab anybody has to remember to open."
+    },
+    {
+      "id": "trigger",
+      "_beat": "What fires without anyone asking, and the bound on it.",
+      "captionText": "Pressing a button is not the only way a run starts. A specialist that cannot settle something today parks it with a date, and on that date an EventBridge one-shot wakes the fleet and deletes itself. That path may only add a note to the record. A trigger that fires unattended and can also publish is not a feature.",
+      "speechText": "Pressing a button is not the only way a run starts. A specialist that cannot settle something today parks it with a date, and on that date an Event Bridge one shot wakes the fleet and deletes itself. That path may only add a note to the record. A trigger that fires unattended and can also publish is not a feature."
+    },
+    {
+      "id": "live",
+      "_beat": "The anonymous path executing the flagship claim. This is what the browser capture records.",
+      "captionText": "Here is the live site, with no account. Press Ask the fleet on offer-4471. Four specialists wake on Claude Opus 5, each choosing what to open. Here is the split, and here is the part that matters: three members are not receiving a share, each named with the rule that decided it. The library has no van and can carry 15kg.",
+      "speechText": "Here is the live site, with no account. Press Ask the fleet on offer four four seven one. Four specialists wake on Claude Opus five, each choosing what to open. Here is the split, and here is the part that matters: three members are not receiving a share, each named with the rule that decided it. The library has no van and can carry fifteen kilos."
+    },
+    {
+      "id": "sponsor",
+      "_beat": "How the sponsor's product is load-bearing, proven by removing it.",
+      "captionText": "Every refusal in this fleet happens inside the Strands tool dispatcher. A hook sets cancel_tool and the tool is never invoked. Take the SDK away and one command requires the demo to stop working. It caught us out: the offline path had no agent at all, so the claim was true of the repository and false of what you would run.",
+      "speechText": "Every refusal in this fleet happens inside the Strands tool dispatcher. A hook sets cancel tool and the tool is never invoked. Take the S D K away and one command requires the demo to stop working. It caught us out: the offline path had no agent at all, so the claim was true of the repository and false of what you would run."
+    },
+    {
+      "id": "evidence",
+      "_beat": "What a judge can check without asking us.",
+      "captionText": "You can check all of it without us. The published record is a public address anyone opens with no account. The approval binds a sha256 that a different identity recomputes from the bytes that arrive. And the identity serving the page is refused that write by IAM, which it proves by attempting it.",
+      "speechText": "You can check all of it without us. The published record is a public address anyone opens with no account. The approval binds a S H A two five six that a different identity recomputes from the bytes that arrive. And the identity serving the page is refused that write by I A M, which it proves by attempting it."
+    },
+    {
+      "id": "close",
+      "_beat": "The sentence to be republished. One mechanism, one consequence, nothing else.",
+      "captionText": "Merismos splits one food donation between five charities, so nobody has to phone the shelter to ask why it was skipped.",
+      "speechText": "Merismos splits one food donation between five charities, so nobody has to phone the shelter to ask why it was skipped."
+    }
+  ]
+}

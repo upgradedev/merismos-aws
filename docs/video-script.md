@@ -156,6 +156,26 @@ job with both of its steps green.
 
 ---
 
+## The length collision, found 2026-09-08 and not yet resolved
+
+**This script targets 4:30. The kit's pipeline refuses anything outside 90 to 174
+seconds.** `_submission_kit/repos/submission-kit/video` is per-beat audio locked
+and enforces that window, printing the measured figure when it rejects a run, and
+`STANDARDS.md` E1 names it as how narration is built.
+
+So the two cannot both stand. The narration is drafted to the pipeline's window,
+in [`video/narration.json`](../video/narration.json): seven beats at roughly 156
+seconds by word count, which is an estimate and not a measurement. The beats are
+the pipeline's own, and they line up with this script rather than replacing it:
+hook is beat 1, surface and trigger are the two things this script never had a
+beat for, live is beat 3, sponsor is beat 6, evidence is beat 5, close is beat 7.
+
+**Which of the two ships is the owner's call.** A 174 second cut through the
+pipeline gets the sync gate, per-beat re-cutting and CI. A 4:30 cut hand-edited
+gets beats 2 and 4, the three costs and the offer-4483 comparison, which are the
+strongest storytelling in the entry and are already built as cards. Nobody should
+discover this on recording day, which is the only reason it is written here.
+
 ## The cards, already built
 
 Every beat that is a graphic rather than a screen recording is in
