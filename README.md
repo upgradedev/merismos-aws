@@ -5,8 +5,8 @@
 [![Python 3.13](https://img.shields.io/badge/python-3.13-blue.svg)](https://www.python.org/)
 [![MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-**Merismos apportions donated food between five charities and publishes the record that says who
-was skipped and why.**
+**Merismos splits one food donation between five charities, so nobody has to phone the shelter to
+ask why it was skipped.**
 
 **▶ Open it: <https://efnt6e0kv7.execute-api.eu-west-1.amazonaws.com>** &nbsp; no account, nothing to install.
 A published record, readable by anyone: [`offer-4471.md`](https://merismos-records-e6ac6047.s3.eu-west-1.amazonaws.com/records/offer-4471.md)

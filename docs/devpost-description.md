@@ -13,8 +13,8 @@ No account, nothing to install. Press **Ask the fleet** on any offer.
 
 ## The one sentence
 
-**Merismos apportions donated food between five charities and publishes the record that says who
-was skipped and why.**
+**Merismos splits one food donation between five charities, so nobody has to phone the shelter to
+ask why it was skipped.**
 
 ---
 
