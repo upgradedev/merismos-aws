@@ -739,6 +739,41 @@ def _publish_approved(result, offer_id: str, key: str, approver: str) -> dict[st
     return _html(200, web.published(receipt, content))
 
 
+def _mark_superseded(published: list[dict]) -> list[dict]:
+    """Say which published records a later one replaced.
+
+    ``record_key`` never overwrites: a correction takes the next key in the
+    series and the original stays exactly where it is. That is the right
+    behaviour and on its own it leaves a reader with two records for the same
+    offer, disagreeing, and nothing to say which one the network stands behind.
+
+    The marking lives here rather than in the old object because editing a
+    published record is the thing being avoided. The list is the place to say it.
+    """
+    def parts(key: str) -> tuple[str, int]:
+        """The offer this record is for, and which version of it this is.
+
+        Read from the key rather than from the order the ledger returned, which
+        is not guaranteed and would silently mark the wrong record superseded if
+        it ever changed.
+        """
+        stem = key.removeprefix("records/").removesuffix(".md")
+        offer_id, _, version = stem.partition("-c")
+        return offer_id, int(version) if version.isdigit() else 1
+
+    latest: dict[str, tuple[int, str]] = {}
+    for row in published:
+        offer_id, version = parts(row["key"])
+        if version >= latest.get(offer_id, (0, ""))[0]:
+            latest[offer_id] = (version, row["key"])
+
+    for row in published:
+        offer_id, _ = parts(row["key"])
+        current = latest.get(offer_id, (0, row["key"]))[1]
+        row["superseded_by"] = current if current != row["key"] else ""
+    return published
+
+
 def _published_index() -> str:
     """Every record published so far, from the thread rather than from S3."""
     bucket = os.environ.get("MERISMOS_RECORDS_BUCKET", "")
@@ -746,11 +781,25 @@ def _published_index() -> str:
     rows = ""
     try:
         entries = ledger_from_env().recall(NETWORK, "record.published", limit=50)
-        for e in entries:
-            url = e.body.get("published_url") or (base + str(e.body.get("key", "")))
+        published = [
+            {
+                "key": str(e.body.get("key", "")),
+                "url": e.body.get("published_url") or (base + str(e.body.get("key", ""))),
+                "approved_by": str(e.body.get("approved_by", "")),
+            }
+            for e in entries
+        ]
+        for row in _mark_superseded(published):
+            note = (
+                "<br><span class='why'>Superseded by "
+                f"<a href='#{row['superseded_by']}'>{row['superseded_by']}</a>. "
+                "Kept because somebody may have acted on it.</span>"
+                if row.get("superseded_by")
+                else ""
+            )
             rows += (
-                f"<tr><td><a href='{url}'>{e.body.get('key','')}</a></td>"
-                f"<td>{e.body.get('approved_by','')}</td></tr>"
+                f"<tr><td><a id='{row['key']}' href='{row['url']}'>{row['key']}</a>{note}</td>"
+                f"<td>{row['approved_by']}</td></tr>"
             )
     except Exception:  # noqa: BLE001 - an empty list is the honest empty state
         rows = ""
