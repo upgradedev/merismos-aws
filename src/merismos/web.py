@@ -222,8 +222,9 @@ def decision(result: Any, offer: Mapping[str, Any], network: str) -> str:
         for a in result.draft.allocations
     )
     skipped = _skipped(result)
+    ran = _what_the_model_did(result)
 
-    body = head + f"""
+    body = head + ran + f"""
 <h2>The split</h2>
 <div class="scroll"><table>
   <thead><tr><th>Organisation</th><th class="num">Share</th><th class="num">Of offer</th><th>Why</th></tr></thead>
@@ -286,6 +287,63 @@ def _for_the_group_chat(result: Any, offer: Mapping[str, Any]) -> str:
 <p class="why">Every other screen here is ours. This is the bit that belongs where you already are,
 so nobody has to open a website to find out they were skipped. Select it and send it.</p>
 <pre class="scroll">{_e(chr(10).join(lines))}</pre>"""
+
+
+def _what_the_model_did(result: Any) -> str:
+    """Name the work the model did, or say plainly that it did none.
+
+    **A failed model must not read as a normal agentic run.** ``run_chore``
+    degrades to the deterministic rules when an analyst cannot be reached and
+    records a ``model-unreachable`` finding, which is the right behaviour and is
+    not the same as telling anybody. Left among twenty findings in a details
+    list, the page a coordinator reads is identical either way.
+
+    And the credit is scoped. The cold chain arithmetic, the date comparison, the
+    40% ceiling and the premises constraint matching are deterministic and were
+    deterministic before any model existed here. Presenting them as an agent's
+    reasoning would be the easiest available lie in a product like this one.
+    """
+    envelopes = list(getattr(result, "envelopes", []) or [])
+    if not envelopes:
+        return ""
+
+    unreachable = sorted(
+        {
+            e.specialist
+            for e in envelopes
+            for f in e.findings
+            if f.check == "model-unreachable"
+        }
+    )
+    models = sorted({str(e.meta.get("model", "")) for e in envelopes if e.meta.get("model")})
+    opened = sorted({p for e in envelopes for p in (e.meta.get("paths_opened") or [])})
+
+    if unreachable:
+        return f"""
+<div class="note stop"><strong>No model read this offer.</strong>
+The analyst could not be reached for {_e(', '.join(unreachable))}, so what you are
+reading is the deterministic rules alone. That is a safe answer and it is a smaller
+one: nothing here opened the manifest, and an offer whose contents are not in its
+declared fields would not have been caught.</div>"""
+
+    if not models:
+        return """
+<div class="note"><strong>Deterministic rules only.</strong> No model was configured
+for this run, so nothing here chose what to read. The dates, the cold chain
+arithmetic, the 40% ceiling and the premises matching are rules, and they are the
+same rules with or without a model.</div>"""
+
+    read = (
+        f" It chose to open {_e(', '.join(opened))}."
+        if opened
+        else " It opened nothing beyond the declared fields on this offer."
+    )
+    return f"""
+<div class="note"><strong>What the model did.</strong> {_e(', '.join(models))} read the
+filing for each specialist and decided what to open.{read} It can add a finding and
+tighten a verdict, and it cannot loosen one: the dates, the cold chain arithmetic,
+the 40% ceiling and the premises matching are deterministic rules that ran either
+way.</div>"""
 
 
 def _skipped(result: Any) -> str:
