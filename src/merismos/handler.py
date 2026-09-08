@@ -601,15 +601,43 @@ def _screens(method: str, path: str, body: dict) -> dict[str, Any] | None:
         # Never on top of a record somebody may already have acted on. The
         # helper returns the base key until one has been published and the next
         # in the series after that.
-        key = record_key(
-            offer_id,
-            [
+        #
+        # **Fails closed, and the choice is not obvious.** This was an
+        # unguarded call until it was noticed: `key` used to be a string
+        # interpolation that could not fail, and turning it into a ledger read
+        # put a transient DynamoDB error on the one route where a person is in
+        # the loop. If the recall fails we do not know whether a record for this
+        # offer already exists. Falling back to the base key is the choice that
+        # looks reasonable and it publishes on top of a record somebody may have
+        # acted on, which is what this feature exists to prevent. So the card is
+        # not assembled, and the page says which of the two it is.
+        try:
+            published = [
                 e.body
                 for e in ledger_from_env().recall(
                     subject_for_offer(NETWORK, offer), "record.published", limit=8
                 )
-            ],
-        )
+            ]
+        except Exception as error:  # noqa: BLE001 - reported, never guessed past
+            return _html(
+                503,
+                web.page(
+                    "Cannot assemble the card",
+                    "<h1>The card cannot be assembled right now</h1>"
+                    "<div class='note stop'><strong>The thread could not be read, so "
+                    "whether a record for this offer has already been published is "
+                    f"unknown.</strong> ({web._e(type(error).__name__)})</div>"
+                    "<div class='note'>Merismos will not publish on a guess. If a "
+                    "record exists, writing to the same address would replace "
+                    "something somebody may already have acted on, and a correction "
+                    "takes the next address in the series rather than the one in "
+                    "use. Nothing has been decided again and nothing has been lost: "
+                    "try once the thread is readable.</div>"
+                    f"<p><a class='btn' href='/offer/{offer_id}'>Back to the decision</a>"
+                    "   <a class='btn secondary' href='/'>Back to offers</a></p>",
+                ),
+            )
+        key = record_key(offer_id, published)
 
         if method == "GET":
             if result.draft is None:
