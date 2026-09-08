@@ -57,6 +57,13 @@ KINDS = (
     "plan.review_only",
     "approval.granted",
     "record.published",
+    # After the record. A published split is not a collection, and these are the
+    # two facts that turn one into the other: somebody undertook to fetch it, and
+    # somebody said it arrived. Appended like everything else, so "who agreed to
+    # collect this and did they" is answered from the thread rather than from
+    # anybody's memory of a group chat.
+    "pickup.claimed",
+    "pickup.confirmed",
     "run.failed",
 )
 
