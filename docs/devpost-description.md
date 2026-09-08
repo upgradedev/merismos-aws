@@ -50,7 +50,7 @@ Ninety two per cent volunteers is why "nobody here employs anybody to do this" i
 a premise. Ninety receiving organisations per food bank is why apportionment between independent
 organisations is the shape of the sector rather than an edge case.
 
-What those numbers do not establish is that these five would adopt this tool. Nobody outside this
+What those numbers do not establish is that these five would adopt this fleet. Nobody outside this
 build has used it, and no figure closes that.
 
 ## What it does
@@ -68,7 +68,7 @@ the same sha256 that was on the card they read.
 network distributed in September**, which is the question that costs a small organisation its funding
 when the only answer is somebody's phone.
 
-**And the decision arrives where the coordinators already are.** Every other screen in this product
+**And the decision arrives where the coordinators already are.** Every other screen in this fleet
 is ours, which is the twelfth tab written as a product: a volunteer who lives in a group chat should
 not have to open a website to tell four other people what happened. So the decision screen writes the
 message out, shares and exclusions and reasons, in the words a coordinator would use, ready to select
