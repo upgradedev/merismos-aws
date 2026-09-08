@@ -54,8 +54,12 @@ reported: it is in `addopts`, so the suite fails below it on a developer machine
 it yourself, and prefer the number this prints to the number written here:
 
 ```bash
-python -m pytest -q
+pip install -e ".[dev]" && python -m pytest -q
 ```
+
+The install is in that line rather than assumed. This is a src-layout package and the suite does not
+run without it, and a quickstart whose first command fails is the one thing a stranger will not
+debug for you.
 
 The AWS adapters are covered against **botocore's own service models** using `Stubber`, not against
 hand-rolled mocks. A mock accepts whatever you send it, so a suite built on one asserts that the code
@@ -499,6 +503,13 @@ against absent credentials. Those tests **passed**, in 587 seconds, where the sa
 one. A failing suite is obvious. A green suite that is 900 times slower gets blamed on the runner,
 and the false sentence in this README survives.
 
+**Install first.** This is a src-layout package, so nothing is importable until it is, and every
+command below assumes it has been run.
+
+```bash
+pip install -e ".[dev]"
+```
+
 ```bash
 python -m merismos.demo
 ```
@@ -507,10 +518,6 @@ The three offers, each to an outcome, then the comparison below run live rather 
 first three lines name the ledger, the model and the scheduler this run actually used, and the
 offline path says so in as many words. A demo that quietly falls back to a stub shows a stub and
 nobody watching can tell.
-
-```bash
-pip install -e ".[dev]"
-```
 
 ```bash
 python -m pytest -q
