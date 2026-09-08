@@ -102,6 +102,28 @@ To eliminate reliance on LLM hallucinations for resource allocation, Merismos in
 
 ---
 
+## 3b. Build or buy, read off the AgentCore page rather than assumed
+
+`https://aws.amazon.com/bedrock/agentcore/`, opened 2026-09-08. What it describes:
+framework flexibility naming the Strands SDK among others, model agnosticism,
+authentication and access control, tool and MCP integration, observability of
+"what steps your agent took, what it called, and where it went off track",
+experimentation against real traffic, and access policies verified by automated
+reasoning.
+
+**Three things it does not describe, and they are the three this build is about.**
+An approval that binds exact bytes by digest before a write and is recomputed by a
+different identity. A deterministic gate that runs after the agents, on the draft,
+that no model can talk past. And a published record, readable with no account,
+naming who was excluded and by which rule.
+
+**The honest reading is that AgentCore is where this would run, not what it
+competes with.** Its nearest thing to the claim here is visibility after the fact;
+this is refusal before it, plus an artefact a funder opens. That is a capability
+gap today rather than a moat: the same page could describe an approval primitive
+next quarter, and a build-or-buy answer that pretended otherwise would be a
+forecast rather than a reading.
+
 ## 4. Bedrock Multi-Agent Security & Least Privilege
 
 ```
