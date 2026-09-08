@@ -156,6 +156,24 @@ job with both of its steps green.
 
 ---
 
+## The cards, already built
+
+Every beat that is a graphic rather than a screen recording is in
+[`docs/video/cards.html`](video/cards.html). Open it, press full screen, and step
+with the arrow keys or the space bar. Eight cards in 16:9, scaled to whatever
+display records them, in the product's own colours and typeface so a cut between
+a card and a screen capture does not read as two different pieces of software.
+
+Self-contained on purpose: no font host, no CDN, nothing that can fail on the day
+because somebody else's server did. It carries a few lines of script for the
+arrow keys, which is why it lives in `docs/` and is never served by the fleet;
+every screen the product itself serves loads no script at all, and that is
+asserted per screen in the suite.
+
+What is **not** in it, deliberately, is anything from beats 3, 5 and 6. Those are
+the deployed site, the approval card and a terminal, and a card pretending to be
+one of those is the thing this script's opening rule forbids.
+
 ## Production notes
 
 **Length.** Beats sum to 4:30 against a 5:00 cap. If a beat overruns, beat 2

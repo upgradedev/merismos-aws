@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8">
+<title>Merismos, the cards to record</title>
+<style>
+/* Self-contained on purpose. No font host, no CDN, nothing to fail on the day.
+   The typeface stack is the one the product itself uses, so a cut between a card
+   and a screen recording does not read as two different pieces of software. */
+:root{
+  --ink:#e9edf2; --dim:#9aa7b4; --bg:#0d1117; --card:#151b23; --line:#232c37;
+  --ok:#7ee2a8; --stop:#ff9b9b; --amber:#ffd08a; --blue:#8fb6ff;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  background:var(--bg); color:var(--ink);
+  font:400 clamp(18px,2.1vw,26px)/1.5 "Segoe UI",-apple-system,system-ui,sans-serif;
+  display:grid; place-items:center; overflow:hidden;
+}
+/* 16:9 so what is captured is what is composed. Scales to whatever the screen
+   is rather than assuming 1920, because the machine that records this is not
+   necessarily the one it was written on. */
+#stage{
+  width:min(100vw,177.78vh); height:min(56.25vw,100vh);
+  position:relative; overflow:hidden;
+}
+.card{
+  position:absolute; inset:0; padding:6% 8%;
+  display:none; flex-direction:column; justify-content:center; gap:1.1em;
+}
+.card.on{display:flex}
+h1{font-size:2.3em; line-height:1.1; letter-spacing:-.02em}
+h2{font-size:1.35em; color:var(--dim); font-weight:400}
+.sub{color:var(--dim); font-size:.85em}
+.beat{
+  position:absolute; top:3%; left:8%; color:var(--dim);
+  font-size:.6em; letter-spacing:.18em; text-transform:uppercase;
+}
+.hint{position:absolute; bottom:3%; right:8%; color:var(--line); font-size:.55em}
+
+/* Beat 1. The group chat, which is the screen this actually happens on. */
+.phone{
+  width:min(34%,420px); margin:0 auto; border:1px solid var(--line);
+  border-radius:22px; padding:1.1em .9em; background:var(--card);
+  display:flex; flex-direction:column; gap:.55em;
+}
+.msg{
+  font-size:.72em; padding:.55em .8em; border-radius:14px; max-width:86%;
+  background:#1d2733;
+}
+.msg.me{align-self:flex-end; background:#24405f}
+.msg .who{display:block; color:var(--dim); font-size:.78em; margin-bottom:.15em}
+
+/* Beat 2. Three costs, one at a time. */
+.cost{
+  border-left:3px solid var(--stop); background:var(--card);
+  padding:1em 1.2em; border-radius:0 10px 10px 0;
+}
+.cost b{color:var(--stop)}
+
+/* Beat 7. The limits, plainly. */
+.limit{border-left:3px solid var(--amber); background:var(--card); padding:.9em 1.2em}
+.limit b{color:var(--amber)}
+
+.big{font-size:3.4em; font-weight:600; letter-spacing:-.03em}
+.mono{font-family:"Cascadia Mono",Consolas,ui-monospace,monospace}
+.ok{color:var(--ok)} .blue{color:var(--blue)}
+</style>
+</head><body>
+
+<div id="stage">
+
+  <!-- Title. Held for two seconds under the first line of narration. -->
+  <section class="card on">
+    <div class="beat">Merismos</div>
+    <h1>Merismos</h1>
+    <h2>Splits one food donation between five charities,<br>
+        so nobody has to phone the shelter to ask why it was skipped.</h2>
+  </section>
+
+  <!-- BEAT 1. 0:00 to 0:35. The problem, on the screen it happens on. -->
+  <section class="card">
+    <div class="beat">Beat 1 &middot; the group chat</div>
+    <div class="phone">
+      <div class="msg"><span class="who">Bakery, 18:42</span>240kg bread + veg, who can take it?</div>
+      <div class="msg me"><span class="who">Pantry</span>we can!</div>
+      <div class="msg me"><span class="who">Soup kitchen</span>we're coming too</div>
+      <div class="msg"><span class="who">Library, 19:05</span>is anyone actually getting this?</div>
+    </div>
+    <p class="sub" style="text-align:center">Five organisations. Nobody employs anybody to do this.</p>
+  </section>
+
+  <!-- BEAT 2. 0:35 to 1:05. What that costs. Three cards, one at a time. -->
+  <section class="card">
+    <div class="beat">Beat 2 &middot; what it costs, one</div>
+    <div class="cost"><b>Two vans, one pallet.</b> Both drove. One drove back empty.</div>
+  </section>
+
+  <section class="card">
+    <div class="beat">Beat 2 &middot; what it costs, two</div>
+    <div class="cost">
+      <b>A crate of gift hampers goes to the night shelter.</b>
+      Each hamper holds a 375ml bottle of red wine.
+      <p class="sub mono" style="margin-top:.6em">
+        shelter-elpida.json &rarr; premises_constraints: ["alcohol_free_premises"]<br>
+        "Runs a residential recovery programme."
+      </p>
+    </div>
+    <p class="sub">The pallet label said "assorted ambient grocery". Nobody opened the manifest.</p>
+  </section>
+
+  <section class="card">
+    <div class="beat">Beat 2 &middot; what it costs, three</div>
+    <div class="cost">
+      <b>March.</b> "Please confirm what was distributed in September."
+      <p class="sub" style="margin-top:.6em">The record was a phone.</p>
+    </div>
+    <p class="sub">This is the one that costs a small organisation its funding, for work it genuinely did.</p>
+  </section>
+
+  <!-- BEAT 4 support. The two-row comparison, held while the narration runs. -->
+  <section class="card">
+    <div class="beat">Beat 4 &middot; does reading change the answer</div>
+    <h2>offer-4483 declares <span class="mono">category: ambient</span>,
+        <span class="mono">allergens: []</span></h2>
+    <div class="cost" style="border-left-color:var(--line)">
+      The manifest says every hamper holds a bottle of wine and a pork salami,
+      and some biscuit lines contain hazelnut.
+    </div>
+    <table style="width:100%;border-collapse:collapse;font-size:.8em;margin-top:.4em">
+      <tr style="color:var(--dim);text-align:left">
+        <th style="padding:.5em 0">reading</th><th>findings</th><th>excluded</th><th>what happens</th></tr>
+      <tr style="border-top:1px solid var(--line)">
+        <td style="padding:.7em 0">declared fields only</td><td class="mono">0</td><td class="mono">0</td>
+        <td class="stop" style="color:var(--stop)">wine reaches a recovery shelter and a school</td></tr>
+      <tr style="border-top:1px solid var(--line)">
+        <td style="padding:.7em 0">after opening the manifest</td><td class="mono ok">3</td><td class="mono ok">3</td>
+        <td class="ok">the three who cannot accept it are skipped, with the reason</td></tr>
+    </table>
+    <p class="sub">Both halves are pinned by tests that need no credentials.</p>
+  </section>
+
+  <!-- BEAT 7. 4:10 to 4:20. What is not true yet. -->
+  <section class="card">
+    <div class="beat">Beat 7 &middot; what is not true yet</div>
+    <h2>Three honest limits</h2>
+    <div class="limit"><b>A run takes minutes.</b> A gateway request gets thirty seconds and a
+      specialist reading with a model takes about a hundred, so the chore runs in the background
+      and the page waits.</div>
+    <div class="limit"><b>Private repositories are not supported.</b> Reads use the public API with
+      no credential, deliberately: a read path that needs a token is a read path that can be used
+      to write.</div>
+    <div class="limit"><b>The ledger is append only by interface, not by storage policy.</b> The
+      custody chain makes an edit from outside our code detectable. It does not make a row
+      immutable, and the site says so on the page that shows the chain.</div>
+  </section>
+
+  <!-- Close. -->
+  <section class="card">
+    <div class="beat">Merismos</div>
+    <div class="big">Merismos</div>
+    <h2>Apportionment, and the record of how it was decided.</h2>
+    <p class="sub mono blue">efnt6e0kv7.execute-api.eu-west-1.amazonaws.com</p>
+  </section>
+
+</div>
+
+<div class="hint">&larr; &rarr; or space</div>
+
+<script>
+// A recording aid, not the product. The product itself loads no script at all,
+// which is asserted per screen in the suite; this file is in docs/ and is never
+// served by the fleet.
+const cards = [...document.querySelectorAll('.card')];
+let at = 0;
+const show = i => {
+  at = Math.max(0, Math.min(cards.length - 1, i));
+  cards.forEach((c, n) => c.classList.toggle('on', n === at));
+};
+addEventListener('keydown', e => {
+  if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') { e.preventDefault(); show(at + 1); }
+  if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); show(at - 1); }
+  if (e.key === 'Home') show(0);
+  if (e.key === 'End') show(cards.length - 1);
+});
+addEventListener('click', () => show(at + 1));
+show(0);
+</script>
+</body></html>
