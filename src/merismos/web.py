@@ -524,6 +524,31 @@ def _offer_of(key: str) -> str:
     return key.removeprefix("records/").removesuffix(".md")
 
 
+def _critic_clause(config_doc: Mapping[str, Any]) -> str:
+    """Say what the second model is doing here, or that there is not one.
+
+    This page said "the second model can only add to what you read" whatever was
+    running, and ``critic_model_id`` defaults to empty. On a default deployment
+    that described a review nobody was performing, on the page whose entire job
+    is to be checkable.
+
+    The design claim is still worth making, so it is made as a design claim:
+    when a critic is configured it can only add, and when one is not the page
+    says so rather than describing the feature as though it were switched on.
+    """
+    critic = str(config_doc.get("critic", "")).strip()
+    if not critic or critic.lower() == "none":
+        return (
+            ". <strong>No second model is configured here</strong>, so nothing "
+            "reviewed this beyond the deterministic checks. When one is, it is "
+            "given a sanitised envelope and can only add an advisory"
+        )
+    return (
+        f". The second model, <code>{_e(critic)}</code>, is given a sanitised "
+        f"envelope and can only add to what you read"
+    )
+
+
 def how_it_decides(catalogue_doc: Mapping[str, Any], config_doc: Mapping[str, Any]) -> str:
     """The page that answers "why should I trust this" without a sales pitch."""
     specialists = "".join(
@@ -550,8 +575,11 @@ def how_it_decides(catalogue_doc: Mapping[str, Any], config_doc: Mapping[str, An
    per offer. A refused read costs nothing, so a bad guess is not punished</td></tr>
  <tr><th>Publishing</th><td>No agent can publish. The identity that reads cannot write, and AWS
    refuses it rather than our code doing so</td></tr>
- <tr><th>The gate</th><td>Deterministic. A model cannot argue its way past it, and the second
-   model can only add to what you read</td></tr>
+ <tr><th>The gate</th><td>Deterministic. A model cannot argue its way past it{
+   _critic_clause(config_doc)}</td></tr>
+ <tr><th>Running here</th><td>{_e(config_doc.get('analyst', 'not reported'))}.
+   This request was answered by the <strong>{_e(config_doc.get('role', 'unknown'))}</strong>
+   identity</td></tr>
 </table></div>
 
 <div class="note"><strong>The record never contains a person.</strong> No name, address, phone

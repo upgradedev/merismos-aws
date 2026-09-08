@@ -89,3 +89,57 @@ def test_the_bounds_it_always_published_are_still_there():
         "ledger",
     ):
         assert key in reported, f"{key} disappeared from the published bounds"
+
+
+# --------------------------------------------------------------------------
+# And the page that publishes those bounds to a reader.
+# --------------------------------------------------------------------------
+
+
+def _how_page() -> str:
+    reply = handler.handler(
+        {
+            "requestContext": {"http": {"method": "GET", "path": "/how"}},
+            "headers": {"content-type": "application/json"},
+            "body": "{}",
+            "queryStringParameters": {},
+        }
+    )
+    assert reply["statusCode"] == 200
+    return reply["body"]
+
+
+def test_the_trust_page_does_not_describe_a_second_model_that_is_switched_off(monkeypatch):
+    """`critic_model_id` defaults to empty, and the page said it either way.
+
+    "Everything on this page is enforced in code rather than asked for in a
+    prompt" is its opening line, and it then described a review nobody was
+    performing. The design claim is still worth making and is now made as one.
+    """
+    monkeypatch.setenv("MERISMOS_MODEL", "none")
+    monkeypatch.delenv("MERISMOS_CRITIC_MODEL", raising=False)
+
+    page = _how_page()
+
+    assert "No second model is configured here" in page
+    assert "When one is" in page, "the design claim was dropped rather than qualified"
+
+
+def test_the_trust_page_names_the_second_model_when_there_is_one(monkeypatch):
+    monkeypatch.setenv("MERISMOS_MODEL", "none")
+    monkeypatch.setenv("MERISMOS_CRITIC_MODEL", "eu.amazon.nova-pro-v1:0")
+
+    page = _how_page()
+
+    assert "eu.amazon.nova-pro-v1:0" in page
+    assert "No second model is configured" not in page
+
+
+def test_the_trust_page_says_what_is_running_and_who_answered(monkeypatch):
+    monkeypatch.setenv("MERISMOS_MODEL", "scripted")
+    monkeypatch.setenv("MERISMOS_ROLE", "reader")
+
+    page = _how_page()
+
+    assert "scripted-planner" in page
+    assert "reader" in page
