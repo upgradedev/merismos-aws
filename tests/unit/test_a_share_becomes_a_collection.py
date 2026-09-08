@@ -131,7 +131,10 @@ def test_a_recomputed_plan_voids_the_claims_against_the_old_one():
 
     state = pickup.outstanding(SHARES, [claimed], "sha256:recomputed")
     assert [c["org"] for c in state["void"]] == ["Elpida Night Shelter"]
-    assert [u["org"] for u in state["unclaimed"]] == ["Omonoia Soup Kitchen", "Elpida Night Shelter"]
+    assert [u["org"] for u in state["unclaimed"]] == [
+        "Omonoia Soup Kitchen",
+        "Elpida Night Shelter",
+    ]
 
 
 def test_a_claim_has_to_name_the_plan_it_is_against():
