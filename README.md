@@ -9,7 +9,23 @@
 ask why it was skipped.**
 
 **▶ Open it: <https://efnt6e0kv7.execute-api.eu-west-1.amazonaws.com>** &nbsp; no account, nothing to install.
-A published record, readable by anyone: [`offer-4471.md`](https://merismos-records-e6ac6047.s3.eu-west-1.amazonaws.com/records/offer-4471.md)
+
+> **Read this before the link below.** The published record for `offer-4471` is
+> **wrong, and it is still up.** It allocates 96 kg to an organisation that the
+> same-day rule quoted two paragraphs above it forbids, and then says every
+> constraint was satisfied. The fleet that produced it has been fixed on this
+> branch and a correction is written; publishing one is a public write behind a
+> human approval, and the deployed fleet is still behind `main`.
+>
+> It is left up on purpose. Somebody may have acted on it, and a record that
+> quietly becomes correct is worth less than one that shows it was wrong and
+> says so. The correction takes the next address in the series rather than
+> overwriting this one.
+>
+> The record as published: [`offer-4471.md`](https://merismos-records-e6ac6047.s3.eu-west-1.amazonaws.com/records/offer-4471.md).
+> What the same offer produces on this branch: kitchen 96 kg, shelter 20 kg, and
+> **124 kg with no recipient**, which is now published as a number rather than
+> left to subtraction.
 
 *Merismos*, μερισμός, is Greek for apportionment: the sharing out of one thing among several.
 
@@ -36,7 +52,11 @@ Built for **Agents for Humans (AWS)**, track **Good Neighbor Agents**.
 
 **This is a build in progress and this section is the first thing to read.** Six days out from the
 deadline, a README that describes a finished product is the cheapest way to lose a judge's trust.
-What follows is what runs today at the live URL, which is this branch applied by the pipeline.
+
+**What follows is what runs at the live URL, which is not the same as what is on this branch.** Two
+rows below are marked as not true of the deployed fleet, and both were true when they were written.
+That gap is what a status table is for; a table that only ever agrees with the branch is a table
+nobody had to check.
 
 | Claim | State |
 |---|---|
@@ -45,12 +65,12 @@ What follows is what runs today at the live URL, which is this branch applied by
 | a deferral wakes the fleet on the day | **deployed**, an EventBridge Scheduler one-shot with a dead letter queue and a role that may only append an escalation. The live site's `/config` returns `deferrals_wake_on_a_schedule: true`. What is not yet evidenced is a schedule that has actually fired, which takes a day to observe |
 | an approval binds exact bytes, once | **runs**, 22 tests across the offline and the DynamoDB path |
 | three identities, three roles | **deployed and proven live**, though the claim was overstated until 2026-09-04 and is now two claims. The authority is `s3:PutObject`; the Secrets Manager value is a canary the publish path never reads. `/identity` attempts both. [The deployment](docs/deploy-2026-09-02.md) |
-| Bedrock reads the offers | **live on the deployed site.** Press Ask the fleet and four specialists read on `claude-opus-5`; run `run-3a8cb5d62974` opened 25 files. Also [recorded in detail](docs/live-run-2026-09-02.md) from an earlier single-specialist run |
+| Bedrock reads the offers | **not on the fleet standing right now, and this row is the reason to read this section first.** `aws lambda list-functions` returns `merismos-runner` with `MERISMOS_MODEL=none`. The runner is the function that executes a chore; the reader serves the screens and hands it over, and the reader is the one holding the model. So every deployed run today is deterministic. It was true when written, of a fleet where the reader ran the chore, and stopped being true when the chore moved to a function of its own. Fixed on this branch in `b46a3d2`, and the plan for the next apply shows `MERISMOS_MODEL "none" -> "eu.anthropic.claude-opus-5"` on the runner. What a model run looks like is [recorded in detail](docs/live-run-2026-09-02.md) |
 | a live URL a judge can open | **yes**, behind API Gateway, because Function URLs are refused account-wide. Rate limited, runs Claude Opus 5, and cannot publish without a person. [`efnt6e0kv7.execute-api.eu-west-1.amazonaws.com`](https://efnt6e0kv7.execute-api.eu-west-1.amazonaws.com) |
-| the site runs this branch, applied by the pipeline | **yes, since 2026-09-08.** No terraform runs on a laptop: the state is in S3 and a GitHub environment applies it, behind a dry run that refuses a plan proposing to build a second fleet. The approval card was returning `503` after 30 seconds until that apply and now answers in **0.44**, `/offers/new` was a `404` and now serves the form, and a fourth function carries the chore in a concurrency pool of its own |
+| the site runs this branch, applied by the pipeline | **the pipeline works and the site is behind it.** The deployed bundle is `ef3948c`, applied 2026-09-08 06:43 UTC, and this branch has moved on since. The pipeline itself is proven, which is the claim this row was making: No terraform runs on a laptop: the state is in S3 and a GitHub environment applies it, behind a dry run that refuses a plan proposing to build a second fleet. The approval card was returning `503` after 30 seconds until that apply and now answers in **0.44**, `/offers/new` was a `404` and now serves the form, and a fourth function carries the chore in a concurrency pool of its own |
 | the governed write, end to end | **done live 2026-09-05.** A person approved on the site, the reader minted an approval it has no authority to act on, the writer recomputed the digest and published, and the record reads `200` to an anonymous request. The digest on the card and the digest in the provenance row are the same |
 
-**457 tests, `ruff` clean, coverage above the 85% floor, enforced in `addopts`.** Every socket the suite opens to anything but loopback fails the run, autouse and session wide. That was an opt-in fixture until 2026-09-05, when one test that never asked for it turned out to be invoking the deployed fleet on every local run. The floor is enforced rather than
+**547 tests, `ruff` clean, coverage above the 85% floor, enforced in `addopts`.** Every socket the suite opens to anything but loopback fails the run, autouse and session wide. That was an opt-in fixture until 2026-09-05, when one test that never asked for it turned out to be invoking the deployed fleet on every local run. The floor is enforced rather than
 reported: it is in `addopts`, so the suite fails below it on a developer machine and in CI alike. Run
 it yourself, and prefer the number this prints to the number written here:
 
@@ -556,7 +576,7 @@ nobody watching can tell.
 python -m pytest -q
 ```
 
-Expected `457 passed` and `Required test coverage of 85% reached`, in about eleven seconds. Prefer the number it prints to the number written here.
+Expected `547 passed` and `Required test coverage of 85% reached`, in about eleven seconds. Prefer the number it prints to the number written here.
 
 ```bash
 python -m pytest tests/integration/test_the_guard_is_a_control.py -q
