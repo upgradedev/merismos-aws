@@ -38,7 +38,7 @@ from .approval import (
 from .corpus import corpus_from_env
 from .corpus import offers as read_offers
 from .deferral import escalate, scheduler_from_env
-from .fleet import catalogue, new_run_id, run_chore, subject_for_offer
+from .fleet import catalogue, new_run_id, record_key, run_chore, subject_for_offer
 from .guard import ROLE_TOOLS, Guard
 from .ledger import Thread, ledger_from_env
 
@@ -598,7 +598,18 @@ def _screens(method: str, path: str, body: dict) -> dict[str, Any] | None:
                     f"   <a class='btn secondary' href='/'>Back to offers</a></p>",
                 ),
             )
-        key = f"records/{offer_id}.md"
+        # Never on top of a record somebody may already have acted on. The
+        # helper returns the base key until one has been published and the next
+        # in the series after that.
+        key = record_key(
+            offer_id,
+            [
+                e.body
+                for e in ledger_from_env().recall(
+                    subject_for_offer(NETWORK, offer), "record.published", limit=8
+                )
+            ],
+        )
 
         if method == "GET":
             if result.draft is None:

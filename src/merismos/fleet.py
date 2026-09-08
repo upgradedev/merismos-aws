@@ -647,7 +647,7 @@ def run_chore(
         thread.append("plan.review_only", reason=result.note, outcome="blocked")
         return result
 
-    draft = _draft(offer, orgs, envelopes, corpus)
+    draft = _draft(offer, orgs, envelopes, corpus, published=recent)
     result.draft = draft
 
     verdict = gate_fn(draft) if gate_fn else gate.judge(draft, critic=critic)
@@ -671,7 +671,7 @@ def run_chore(
 
     approval = grant(
         network=network,
-        key=f"records/{offer_id}.md",
+        key=record_key(offer_id, recent),
         body=draft.body,
         approved_by=approver,
         run_id=thread.run_id,
@@ -832,11 +832,45 @@ def _defer(
     return deferral
 
 
+def record_key(offer_id: str, published: Sequence[Mapping[str, Any]] = ()) -> str:
+    """Where this run's record would be published, never on top of an old one.
+
+    A record for an offer already exists the moment somebody has approved one,
+    and on 2026-09-08 one of them turned out to be wrong: offer-4471 published a
+    share to an organisation a food-safety rule forbade. The repair for a public
+    document that is wrong is not to write the right bytes to the same address.
+    Somebody has read the old one, somebody has linked to it, and a coordinator
+    who acted on it needs to be able to see what they acted on.
+
+    So a correction takes the next key in the series and says what it corrects,
+    and the original stays exactly where it is, still reachable, marked
+    superseded by the index rather than edited in place.
+    """
+    keys = {str(r.get("key", "")) for r in published}
+    base = f"records/{offer_id}.md"
+    if base not in keys:
+        return base
+    n = 2
+    while f"records/{offer_id}-c{n}.md" in keys:
+        n += 1
+    return f"records/{offer_id}-c{n}.md"
+
+
+def superseded_by_this_run(offer_id: str, published: Sequence[Mapping[str, Any]] = ()) -> str:
+    """The most recent published record for this offer, or an empty string."""
+    for entry in reversed(list(published)):
+        key = str(entry.get("key", ""))
+        if key == f"records/{offer_id}.md" or key.startswith(f"records/{offer_id}-c"):
+            return key
+    return ""
+
+
 def _draft(
     offer: Mapping[str, Any],
     orgs: Sequence[Mapping[str, Any]],
     envelopes: Sequence[Envelope],
     corpus: Corpus,
+    published: Sequence[Mapping[str, Any]] = (),
 ) -> gate.Draft:
     """Turn the specialists' answers into the record that would be published."""
     quantity = float(offer.get("quantity") or 0)
@@ -897,7 +931,10 @@ def _draft(
     ]
 
     because = _why_barred(sorted(excluded), envelopes, barred_by)
-    body = _render(offer, allocations, sorted(excluded), unit, envelopes, solution, because)
+    supersedes = superseded_by_this_run(str(offer.get("id", "")), published)
+    body = _render(
+        offer, allocations, sorted(excluded), unit, envelopes, solution, because, supersedes
+    )
     return gate.Draft(
         body=body,
         allocations=allocations,
@@ -978,11 +1015,25 @@ def _render(
     envelopes: Sequence[Envelope],
     solution: AllocationSolution | None = None,
     because: Mapping[str, str] | None = None,
+    supersedes: str = "",
 ) -> str:
     """The published record, in the words a member of the network would use."""
     lines = [
         f"# Allocation, {offer.get('id')}",
         "",
+    ]
+    if supersedes:
+        # First thing on the page, because somebody arriving here from a link to
+        # the old record needs to know before they read a table.
+        lines += [
+            "> **This corrects an earlier record.**",
+            f"> It replaces `{supersedes}`, which is still published and still",
+            "> reachable, because a public document somebody may have acted on is",
+            "> not repaired by overwriting it. What changed and why is at the foot",
+            "> of this record.",
+            "",
+        ]
+    lines += [
         f"**{offer.get('title')}** from {offer.get('donor')}.",
         (
             f"{offer.get('quantity')} {unit}, category {offer.get('category')}, "
