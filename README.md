@@ -323,6 +323,29 @@ out, and the demo prints which of the three paths it took. Take the SDK away and
 the screen says `NOT REACHED` and the journey fails at
 `test_every_specialist_actually_reached_the_analyst`.
 
+**And the thing that agent does not do, said here rather than in a footnote.** It
+does not change any answer. Run the second ablation and read the diff:
+
+```bash
+python scripts/the_model_ablation.py
+```
+
+`N = 3` comparisons, one per offer in the fixture, and **0 of 3 differ**. The
+scripted planner walks the real loop through the real dispatcher under the real
+guard and then answers `ok` with no findings, so the union with the deterministic
+envelope moves nothing, because union never loosens. The offline path is
+genuinely agentic in its **mechanism** and entirely deterministic in its
+**conclusions**, and both halves are true at once.
+
+That distinction is the easiest dishonesty available to a project like this one.
+The swap test proves the SDK is on the path a stranger runs. It does not prove a
+model changed anything there, and nothing in this repository should be read as
+saying it did. The model that does change an answer is the deployed one: a run on
+Claude Opus 5 found undeclared milk and gluten in a manifest, and a contradiction
+between a donor's whole-lot condition and this network's own ceiling, none of
+which any rule here compares. That evidence is
+[a recorded run](docs/live-run-2026-09-02.md), not a local script.
+
 ### What this adds to Strands, which is a different question
 
 The section above says why removing the SDK breaks Merismos. This says what

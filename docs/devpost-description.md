@@ -117,6 +117,12 @@ agent at all, so the claim was true of the repository and false of the thirty se
 path now runs real Strands agents over a scripted model, the same dispatcher and the same guard with
 Bedrock swapped out and no socket opened, and the demo prints which of the three paths it took.
 
+**What that offline agent does not do is change any answer, and saying so is part of the claim.**
+`python scripts/the_model_ablation.py` compares every offer in the fixture with the agent and without
+it: `N = 3`, and `0 of 3` differ. It is genuinely agentic in mechanism and entirely deterministic in
+its conclusions. The model that does change an answer is the deployed one, and that is a recorded run
+rather than a local script.
+
 Four AWS Lambda functions under three IAM roles, one package. The identity that reads the filing
 holds no authority to publish, and AWS refuses it rather than our code doing so. `/identity` proves
 that live: it **attempts** the write and reports what AWS said. The fourth function is the reader's
