@@ -35,8 +35,7 @@ Built for **Agents for Humans (AWS)**, track **Good Neighbor Agents**.
 
 **This is a build in progress and this section is the first thing to read.** Six days out from the
 deadline, a README that describes a finished product is the cheapest way to lose a judge's trust.
-What follows is what runs today, and one line of it says what is standing at the live URL rather
-than what is on this branch, because those are not the same thing this week.
+What follows is what runs today at the live URL, which is this branch applied by the pipeline.
 
 | Claim | State |
 |---|---|
@@ -47,7 +46,7 @@ than what is on this branch, because those are not the same thing this week.
 | three identities, three roles | **deployed and proven live**, though the claim was overstated until 2026-09-04 and is now two claims. The authority is `s3:PutObject`; the Secrets Manager value is a canary the publish path never reads. `/identity` attempts both. [The deployment](docs/deploy-2026-09-02.md) |
 | Bedrock reads the offers | **live on the deployed site.** Press Ask the fleet and four specialists read on `claude-opus-5`; run `run-3a8cb5d62974` opened 25 files. Also [recorded in detail](docs/live-run-2026-09-02.md) from an earlier single-specialist run |
 | a live URL a judge can open | **yes**, behind API Gateway, because Function URLs are refused account-wide. Rate limited, runs Claude Opus 5, and cannot publish without a person. [`efnt6e0kv7.execute-api.eu-west-1.amazonaws.com`](https://efnt6e0kv7.execute-api.eu-west-1.amazonaws.com) |
-| **the site is behind this branch, and one screen is broken there** | **the honest row, and it is worse than a gap.** The fleet standing at that URL is build `9add723`, 17 commits back. `/approve/<id>` returns `503` after 30 seconds, measured twice, because that build re-runs the whole chore inside a request the gateway abandons at 30. `/offers/new` returns `404`. Both are fixed on this branch and neither is applied. The state moved into S3 so the pipeline owns the fleet rather than a laptop, and the apply has not been run |
+| the site runs this branch, applied by the pipeline | **yes, since 2026-09-08.** No terraform runs on a laptop: the state is in S3 and a GitHub environment applies it, behind a dry run that refuses a plan proposing to build a second fleet. The approval card was returning `503` after 30 seconds until that apply and now answers in **0.44**, `/offers/new` was a `404` and now serves the form, and a fourth function carries the chore in a concurrency pool of its own |
 | the governed write, end to end | **done live 2026-09-05.** A person approved on the site, the reader minted an approval it has no authority to act on, the writer recomputed the digest and published, and the record reads `200` to an anonymous request. The digest on the card and the digest in the provenance row are the same |
 
 **439 tests, `ruff` clean, coverage above the 85% floor, enforced in `addopts`.** Every socket the suite opens to anything but loopback fails the run, autouse and session wide. That was an opt-in fixture until 2026-09-05, when one test that never asked for it turned out to be invoking the deployed fleet on every local run. The floor is enforced rather than
