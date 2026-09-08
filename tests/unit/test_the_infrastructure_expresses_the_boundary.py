@@ -191,10 +191,21 @@ def test_the_filing_bucket_blocks_public_access_entirely(main):
         assert setting in block, f"the corpus bucket is missing {setting}"
 
 
-def test_the_model_is_set_on_the_reader_alone(main):
-    """A variable a role does not need could be misread as a capability it has."""
-    assert 'MERISMOS_MODEL        = each.key == "reader" ? var.model_id : "none"' in main
-    assert 'MERISMOS_CRITIC_MODEL = each.key == "reader" ? var.critic_model_id : ""' in main
+def test_the_model_is_set_on_the_reader_role_and_nothing_else(main):
+    """A variable a role does not need could be misread as a capability it has.
+
+    This asserted ``each.key`` until 2026-09-08 and was green while the deployed
+    fleet ran every chore without a model. ``each.key`` is the function name and
+    the fleet grew a fourth function, ``merismos-runner``, which carries the
+    reader's role and is the one that actually runs a chore. It matched nothing
+    and deployed with ``MERISMOS_MODEL=none``.
+
+    ``each.value`` is the role, so the runner is covered by construction. The
+    property this file cares about is unchanged and is now actually true: the
+    evaluator and the writer get no model.
+    """
+    assert 'MERISMOS_MODEL        = each.value == "reader" ? var.model_id : "none"' in main
+    assert 'MERISMOS_CRITIC_MODEL = each.value == "reader" ? var.critic_model_id : ""' in main
 
 
 def test_one_bundle_builds_every_function(main):
@@ -355,4 +366,39 @@ def test_the_runner_is_reachable_by_nobody_from_outside(main):
     assert "runner" not in with_a_url, "the runner has a Function URL"
     assert 'aws_lambda_function.fleet["runner"].invoke_arn' not in main, (
         "the gateway routes to the runner"
+    )
+
+
+def test_the_function_that_runs_the_chore_is_the_one_that_gets_the_model():
+    """A text-level check, and it exists because the obvious spelling was wrong.
+
+    The fleet is four Lambda functions under three IAM roles. ``merismos-runner``
+    carries the reader's role and is where a chore actually executes;
+    ``merismos-reader`` serves the screens and hands the chore over without
+    waiting. The environment block keyed the model off ``each.key``, the function
+    name, so the runner matched nothing and was deployed with
+    ``MERISMOS_MODEL=none``. Every deployed run was deterministic while the site
+    described a fleet of agents, and nothing in the suite could see it because
+    nothing in the suite reads the infrastructure.
+
+    Keying off ``each.value``, the role, covers the runner by construction. This
+    asserts the spelling rather than the intent, and says so: it cannot prove
+    what AWS will set, only that the file still says what this test says it says.
+    """
+    main = (INFRA / "main.tf").read_text(encoding="utf-8")
+
+    assert 'MERISMOS_MODEL        = each.value == "reader"' in main, (
+        "the model is keyed off the function name again, so merismos-runner, "
+        "which is the function that runs the chore, will deploy without one"
+    )
+    assert 'each.key == "reader" ? var.model_id' not in main
+
+
+def test_the_runner_carries_the_readers_role_and_not_a_fourth_identity():
+    """Four functions, three identities. The runner is a pool, not a privilege."""
+    iam = (INFRA / "iam.tf").read_text(encoding="utf-8")
+
+    assert 'runner    = "reader"' in iam, (
+        "the runner stopped being the reader's role, which means the chore now "
+        "runs under an identity whose authority nobody has argued for"
     )

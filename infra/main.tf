@@ -134,12 +134,23 @@ resource "aws_lambda_function" "fleet" {
       # kind of thing this project refuses to leave implicit elsewhere.
       MERISMOS_LEDGER = "dynamodb"
 
-      # The model is set on the reader alone. The evaluator is deterministic by
-      # design and the writer publishes bytes it was handed, so neither has any
-      # use for one, and a variable they do not need is a variable that could be
-      # misread as a capability they have.
-      MERISMOS_MODEL        = each.key == "reader" ? var.model_id : "none"
-      MERISMOS_CRITIC_MODEL = each.key == "reader" ? var.critic_model_id : ""
+      # The model goes to the reader **role**, which is two functions.
+      #
+      # This said each.key, the function name, and the fleet grew a fourth
+      # function after it was written. merismos-runner carries the reader's role
+      # and is the one that actually runs a chore; merismos-reader serves the
+      # screens and hands the chore over. So the function holding the model was
+      # the one that never used it, and the function doing the agentic work was
+      # deployed with MERISMOS_MODEL=none. Every deployed run was deterministic
+      # while the site presented it as a fleet of agents.
+      #
+      # each.value is the role, so the runner is covered by construction rather
+      # than by remembering to add it. The evaluator is deterministic by design
+      # and the writer publishes bytes it was handed, so neither has any use for
+      # a model, and a variable they do not need is one that could be misread as
+      # a capability they have.
+      MERISMOS_MODEL        = each.value == "reader" ? var.model_id : "none"
+      MERISMOS_CRITIC_MODEL = each.value == "reader" ? var.critic_model_id : ""
 
       MERISMOS_WAKE_TARGET_ARN    = "arn:aws:lambda:${var.region}:${data.aws_caller_identity.me.account_id}:function:${var.project}-runner"
       MERISMOS_SCHEDULER_ROLE_ARN = aws_iam_role.scheduler.arn
