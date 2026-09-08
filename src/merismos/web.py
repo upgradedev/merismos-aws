@@ -270,15 +270,12 @@ def _for_the_group_chat(result: Any, offer: Mapping[str, Any]) -> str:
         lines.append("")
         lines.append("Not this time, and why:")
         for name in barred:
-            why = next(
-                (
-                    f.detail
-                    for e in result.envelopes
-                    for f in e.findings
-                    if name in f.detail
-                ),
-                "a rule in the register",
-            )
+            # Read from the draft rather than worked out again here. This used
+            # to search every finding for the member's name and print the first
+            # hit, which after food-safety began excluding printed the wrong
+            # rule: the school was barred by the same-day rule and told its
+            # share had been capped by what it could carry.
+            why = result.draft.barred_because.get(name, "a rule in the register")
             lines.append(f"  {name}: {why}")
 
     lines.append("")
@@ -297,15 +294,8 @@ def _skipped(result: Any) -> str:
         return ""
     reasons = []
     for name in barred:
-        why = next(
-            (
-                f.detail
-                for e in result.envelopes
-                for f in e.findings
-                if name in f.detail
-            ),
-            "excluded by the network's policy",
-        )
+        # The third copy of this search, now the third reader of one answer.
+        why = result.draft.barred_because.get(name, "excluded by the network's policy")
         reasons.append(f"<li><strong>{_e(name)}</strong>: {_e(why)}</li>")
     return f"""
 <h2>Not receiving a share, and the rule that decided it</h2>
@@ -620,6 +610,7 @@ class _RecordedDraft:
         self.body = record.get("draft_body", "")
         self.allocations = record.get("draft_allocations", []) or []
         self.must_not_receive = set(record.get("draft_must_not_receive", []) or [])
+        self.barred_because = dict(record.get("draft_barred_because", {}) or {})
 
 
 def custody_chain(offer: Mapping[str, Any], chain: Mapping[str, Any]) -> str:

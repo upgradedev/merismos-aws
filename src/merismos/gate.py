@@ -141,6 +141,15 @@ class Draft:
     offer: Mapping[str, Any] = field(default_factory=dict)
     known_orgs: frozenset[str] = frozenset()
     must_not_receive: frozenset[str] = frozenset()
+    #: Why each barred organisation was barred, in the words of the specialist
+    #: that barred it. Computed once when the draft is built rather than
+    #: recovered by each renderer searching the findings for a member's name.
+    #: There were three copies of that search, and on 2026-09-08 all three
+    #: started printing the wrong rule at once: the library was barred by the
+    #: same-day rule and told it was about the weight it could carry. A reason
+    #: is part of the decision, so it belongs in the draft the gate checks, not
+    #: in the presentation of it.
+    barred_because: Mapping[str, str] = field(default_factory=dict)
 
     @property
     def untrusted_text(self) -> str:

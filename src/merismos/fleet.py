@@ -160,26 +160,50 @@ def food_safety(offer: Mapping[str, Any], orgs: Sequence[Mapping[str, Any]]) -> 
             ),
         )
 
+    eligible: list[str] | None = None
     if use_by and collection:
         margin = _days_between(collection, use_by)
         if margin is not None and margin <= 1:
             same_day = [o["name"] for o in orgs if o.get("same_day_service")]
+            # **This is the exclusion, not the sentence below it.** Until
+            # 2026-09-08 this branch appended the finding and returned an
+            # envelope carrying no meta at all, so the rule reached the reader
+            # of the record and never reached the solver, which takes
+            # eligibility from meta. offer-4471 published 96 kg to an
+            # organisation this rule forbids, in a document that quoted the rule
+            # two paragraphs above the table. A control that is prose on one
+            # page and absent from the mechanism is the failure this whole
+            # system exists to prevent, and it was sitting in the flagship
+            # example.
+            eligible = same_day
             findings.append(
                 _finding(
                     "same-day-only",
-                    "medium",
+                    "high",
                     (
                         f"use-by is {margin} day after collection, so only "
                         f"organisations that serve same day may take a share: "
                         f"{', '.join(same_day) or 'none in this network'}"
                     ),
+                    evidence=f"use_by={use_by} collection_date={collection}",
                 )
             )
+    if eligible is not None and not eligible:
+        return Envelope(
+            specialist="food-safety",
+            status=Status.BLOCKED,
+            reason=(
+                "this has to be collected and served on the same day and no "
+                "member of this network serves same day. Tell the donor now"
+            ),
+            findings=tuple(findings),
+        )
     return Envelope(
         specialist="food-safety",
         status=Status.NEEDS_CHANGES if findings else Status.OK,
         reason="dates constrain who may take a share" if findings else "",
         findings=tuple(findings),
+        meta={"eligible": eligible} if eligible is not None else {},
     )
 
 
@@ -232,19 +256,26 @@ def capacity(offer: Mapping[str, Any], orgs: Sequence[Mapping[str, Any]]) -> Env
                     )
                 )
             elif even_share > limit:
+                # **A cap, and no longer a bar.** The register says the share
+                # "has to be within what a volunteer carries", which constrains
+                # the share and not the membership, and ``_capacities`` already
+                # passes that limit to the solver. Excluding here as well meant
+                # the two mechanisms disagreed and the exclusion won: Elpida
+                # Night Shelter, one of only two organisations allowed to take
+                # offer-4471, was dropped from it entirely for want of a van it
+                # did not need to carry twenty kilos of bread.
                 findings.append(
                     _finding(
-                        "transport",
+                        "transport-capped",
                         "medium",
                         (
                             f"{name} has no van and can carry {limit:g} kg on foot, "
-                            f"against a share of about {even_share:.0f} kg. The "
-                            f"policy makes transport a veto rather than a preference"
+                            f"against an even split of about {even_share:.0f} kg, so "
+                            f"its share is capped at {limit:g} kg rather than skipped"
                         ),
                         evidence=f"walk_in_limit_kg={limit:g}",
                     )
                 )
-                continue
         eligible.append(name)
     if not eligible:
         return Envelope(
@@ -508,6 +539,12 @@ class ChoreResult:
             "draft_body": self.draft.body if self.draft else "",
             "draft_allocations": [dict(a) for a in self.draft.allocations] if self.draft else [],
             "draft_must_not_receive": sorted(self.draft.must_not_receive) if self.draft else [],
+            # The reason travels with the exclusion. A screen rebuilt from the
+            # thread months later has to be able to say why somebody was
+            # skipped, and recomputing it there would mean re-running the
+            # specialists against today's register rather than the one that was
+            # applied on the day.
+            "draft_barred_because": dict(self.draft.barred_because) if self.draft else {},
             "deferrals": [d.as_dict() for d in self.deferrals],
             "reads": self.read_log,
         }
@@ -810,17 +847,30 @@ def _draft(
     # permanent bar, and because only the absolute set is a safety claim.
     barred: set[str] = set()
     deprioritised: set[str] = set()
+    # Which specialist barred whom. The record has to name the rule that
+    # actually excluded an organisation, and a search for the member's name
+    # across every finding returns whichever one mentions it first. That was
+    # enough while one specialist did the excluding. It stopped being enough the
+    # moment food-safety started excluding too: the library and the school were
+    # barred by the same-day rule and the record attributed it to a note about
+    # how much they can carry, which named the wrong rule to the one member most
+    # likely to argue with it.
+    barred_by: dict[str, str] = {}
     ceiling = quantity
     for envelope in envelopes:
-        barred.update(envelope.meta.get("blocked_for", []) or [])
+        for name in envelope.meta.get("blocked_for", []) or []:
+            barred.add(name)
+            barred_by.setdefault(str(name), envelope.specialist)
         deprioritised.update(envelope.meta.get("back_of_queue", []) or [])
         if "ceiling" in envelope.meta:
             ceiling = float(envelope.meta["ceiling"])
         eligible_meta = envelope.meta.get("eligible")
         if eligible_meta is not None:
-            barred.update(
-                str(o.get("name", "")) for o in orgs if o.get("name") not in eligible_meta
-            )
+            for org in orgs:
+                name = str(org.get("name", ""))
+                if name not in eligible_meta:
+                    barred.add(name)
+                    barred_by.setdefault(name, envelope.specialist)
     excluded = barred | deprioritised
 
     receiving = [str(o.get("name", "")) for o in orgs if o.get("name") not in excluded]
@@ -846,14 +896,51 @@ def _draft(
         for share in solution.shares
     ]
 
-    body = _render(offer, allocations, sorted(excluded), unit, envelopes, solution)
+    because = _why_barred(sorted(excluded), envelopes, barred_by)
+    body = _render(offer, allocations, sorted(excluded), unit, envelopes, solution, because)
     return gate.Draft(
         body=body,
         allocations=allocations,
         offer=offer,
         known_orgs=org_names(corpus),
         must_not_receive=frozenset(barred),
+        barred_because=because,
     )
+
+
+def _why_barred(
+    excluded: Sequence[str],
+    envelopes: Sequence[Envelope],
+    barred_by: Mapping[str, str],
+) -> dict[str, str]:
+    """One sentence per excluded member, from the specialist that excluded them.
+
+    Three renderers used to work this out for themselves by scanning every
+    finding for the member's name, and a name search cannot tell which rule did
+    the excluding. It returned whichever finding mentioned them first, which
+    after food-safety began excluding was a note about how much they could
+    carry. Computed here, once, so the record, the message for the group chat
+    and the summary on the decision screen cannot disagree about why somebody
+    was skipped.
+    """
+    reasons: dict[str, str] = {}
+    for name in excluded:
+        owner = barred_by.get(name)
+        candidates = [
+            f.detail
+            for e in envelopes
+            if owner is None or e.specialist == owner
+            for f in e.findings
+            if name in f.detail
+        ]
+        if not candidates and owner is not None:
+            # A rule that excludes by naming who *may* receive never mentions
+            # the excluded member, so the rule itself is the sentence to print.
+            candidates = [
+                f.detail for e in envelopes if e.specialist == owner for f in e.findings
+            ] or [f"{e.reason} (`{e.specialist}`)" for e in envelopes if e.specialist == owner]
+        reasons[name] = candidates[0] if candidates else "a rule in the register"
+    return reasons
 
 
 def _capacities(
@@ -890,6 +977,7 @@ def _render(
     unit: str,
     envelopes: Sequence[Envelope],
     solution: AllocationSolution | None = None,
+    because: Mapping[str, str] | None = None,
 ) -> str:
     """The published record, in the words a member of the network would use."""
     lines = [
@@ -915,13 +1003,7 @@ def _render(
     if excluded:
         lines += ["", "## Not receiving a share, and the rule that decided it", ""]
         for name in excluded:
-            reasons = [
-                f.detail
-                for e in envelopes
-                for f in e.findings
-                if name in f.detail
-            ]
-            lines.append(f"- **{name}**: {reasons[0] if reasons else 'excluded by policy'}")
+            lines.append(f"- **{name}**: {(because or {}).get(name, 'excluded by policy')}")
     if solution is not None:
         lines += [
             "",

@@ -86,8 +86,14 @@ def test_the_decision_comes_with_a_message_for_a_surface_we_do_not_own():
 def test_the_message_carries_the_shares():
     text = the_message(decision_screen("offer-4471"))
 
+    # These two lines asserted the defect. Until 2026-09-08 this said the pantry
+    # received 96 kg, and the pantry does not serve same day, and this offer has
+    # to be gone the next day. The test was green and the product was wrong,
+    # which is the worst combination available and the reason the regression
+    # suite now pins the rule rather than the numbers.
     assert "Omonoia Soup Kitchen: 96.0 kg" in text
-    assert "Kypseli Food Pantry: 96.0 kg" in text
+    assert "Elpida Night Shelter: 20.0 kg" in text
+    assert "Kypseli Food Pantry: 96.0 kg" not in text
 
 
 def test_the_message_carries_who_was_skipped_and_why_which_is_the_whole_point():
@@ -99,9 +105,17 @@ def test_the_message_carries_who_was_skipped_and_why_which_is_the_whole_point():
     text = the_message(decision_screen("offer-4471"))
 
     assert "Not this time, and why:" in text
-    for name in ("Anemos Community Library", "Elpida Night Shelter", "Second Chance School"):
+    # Elpida is off this list on purpose now. It serves same day, so it is one
+    # of the two organisations this offer may go to, and it receives 20 kg. The
+    # previous version of this test asserted it was skipped and passed anyway
+    # once it started receiving, because the assertion was "the name appears
+    # somewhere in the message" and the name appears in the shares.
+    for name in ("Anemos Community Library", "Kypseli Food Pantry", "Second Chance School"):
         assert name in text, f"{name} was skipped and the message does not say so"
-    assert "no van" in text, "a name with no reason beside it is the phone call again"
+    assert "same day" in text, (
+        "a name with no reason beside it is the phone call again, and the reason "
+        "these three are skipped is the same-day rule"
+    )
 
 
 def test_the_message_says_nothing_is_published_yet():

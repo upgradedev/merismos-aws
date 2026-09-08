@@ -80,8 +80,35 @@ def test_an_offer_a_person_typed_runs_all_the_way_through_the_fleet(tmp_path):
     assert result.draft.allocations, "an ordinary offer reached nobody"
 
     # And it produced the part this product exists for: who was skipped, and why.
-    assert result.draft.must_not_receive
-    assert "Not receiving a share" in result.draft.body
+    #
+    # This asserted a non-empty ``must_not_receive`` until 2026-09-08, and it
+    # passed for a bad reason: transport was being applied as a veto on the
+    # organisation, so members with no van were barred from an ambient offer
+    # they could have carried a smaller share of. With transport corrected to a
+    # cap, an ordinary ambient offer with a long shelf life bars nobody, and
+    # that is the right answer rather than a missing one.
+    #
+    # The distinction the record turns on is kept: the rota moves a member down
+    # the queue and that is a skip, an absolute rule bars them and that is a
+    # bar. Only the second is a safety claim, and conflating them is what let a
+    # rota decision look like a veto.
+    assert not result.draft.must_not_receive, (
+        "nothing about this offer bars anybody absolutely, so a non-empty bar "
+        "list means a rota decision has been recorded as a safety exclusion"
+    )
+
+    # Every member is accounted for: a share, or a reason. That is the property
+    # worth pinning and it is stronger than the one that was here, which only
+    # asked that somebody had been excluded and was satisfied by a defect.
+    named = {a["org"] for a in result.draft.allocations} | set(result.draft.barred_because)
+    everyone = {
+        "Omonoia Soup Kitchen",
+        "Kypseli Food Pantry",
+        "Anemos Community Library",
+        "Second Chance School",
+        "Elpida Night Shelter",
+    }
+    assert named == everyone, f"unaccounted for: {sorted(everyone - named)}"
     assert result.verdict.passed, result.verdict.findings
 
 
