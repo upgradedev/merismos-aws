@@ -265,14 +265,49 @@ def capacity(offer: Mapping[str, Any], orgs: Sequence[Mapping[str, Any]]) -> Env
     )
 
 
+#: The ceiling used when a network's filing does not state one. Documented rather
+#: than silent: a network with no policy file gets a stated default, not no
+#: ceiling, and the envelope says which of the two was applied.
+DEFAULT_CEILING = 0.40
+
+
+def ceiling_share(policy_text: str) -> tuple[float, str]:
+    """The share ceiling this network wrote down, and where it came from.
+
+    Read out of ``registers/allocation-policy.md`` rather than compiled in. It
+    was compiled in until 2026-09-08, and a substitute corpus found it: a network
+    whose own policy said 25% had its offers split at exactly 40%, because the
+    register was listed as something the equity specialist reads while the number
+    never came out of it. The premise of this product is that a network points
+    the fleet at its own filing, and a ceiling that ignores the filing makes that
+    a sentence about the wrong file.
+
+    The first percentage in the document wins, because these registers are one
+    page and state their ceiling in their first paragraph. A file that states two
+    would need a person, and this returns the first with the source named so a
+    reader can see which one was applied.
+    """
+    import re as _re
+
+    match = _re.search(r"(\d{1,3}(?:\.\d+)?)\s*(?:%|percent)", policy_text or "")
+    if not match:
+        return DEFAULT_CEILING, "the default, because this filing states no ceiling"
+    found = float(match.group(1)) / 100
+    if not 0 < found <= 1:
+        return DEFAULT_CEILING, f"the default, because {match.group(1)}% is not a share"
+    return found, "registers/allocation-policy.md"
+
+
 def equity(
     offer: Mapping[str, Any],
     orgs: Sequence[Mapping[str, Any]],
     recent: Sequence[Mapping[str, Any]] = (),
+    policy_text: str = "",
 ) -> Envelope:
-    """The 40% ceiling and the two-in-a-row rota."""
+    """The ceiling this network wrote down, and the two-in-a-row rota."""
     quantity = float(offer.get("quantity") or 0)
-    ceiling = quantity * 0.40
+    share, source = ceiling_share(policy_text)
+    ceiling = quantity * share
     category = str(offer.get("category", "")).lower()
     took_last_two = _took_last_two(recent, category)
     findings: list[Finding] = []
@@ -292,7 +327,12 @@ def equity(
         status=Status.NEEDS_CHANGES if findings else Status.OK,
         reason="the rota moves somebody down" if findings else "",
         findings=tuple(findings),
-        meta={"ceiling": ceiling, "back_of_queue": took_last_two},
+        meta={
+            "ceiling": ceiling,
+            "ceiling_share": share,
+            "ceiling_from": source,
+            "back_of_queue": took_last_two,
+        },
     )
 
 
@@ -524,6 +564,7 @@ def run_chore(
     # The manifest read is the run's own and is not charged to any specialist.
     setup_log = ReadLog()
     manifest_text = _read_manifest(corpus, offer, setup_log)
+    policy_text = _read_policy(corpus)
     recent = [e.body for e in thread.recall("record.published", limit=8)]
     if recent:
         thread.append("recall.performed", found=len(recent))
@@ -531,7 +572,7 @@ def run_chore(
     envelopes: list[Envelope] = []
     logs: list[ReadLog] = [setup_log]
     for name in woken:
-        envelope = _run_specialist(name, offer, orgs, recent, manifest_text)
+        envelope = _run_specialist(name, offer, orgs, recent, manifest_text, policy_text)
         # The deterministic verdict is the floor and it is never skipped. Where
         # it refuses, the model is not asked at all.
         if envelope.blocks:
@@ -612,10 +653,11 @@ def _run_specialist(
     orgs: Sequence[Mapping[str, Any]],
     recent: Sequence[Mapping[str, Any]],
     manifest_text: str,
+    policy_text: str = "",
 ) -> Envelope:
     """Call one deterministic specialist with the arguments it takes."""
     if name == "equity":
-        return equity(offer, orgs, recent)
+        return equity(offer, orgs, recent, policy_text)
     if name == "premises":
         return premises(offer, orgs, manifest_text)
     return SPECIALISTS[name](offer, orgs)
@@ -691,6 +733,20 @@ def _combined(logs: Sequence[ReadLog]) -> dict[str, Any]:
         "remaining": sum(log.remaining for log in logs),
         "reads": entries,
     }
+
+def _read_policy(corpus: Corpus) -> str:
+    """This network's allocation policy, or nothing if it does not keep one.
+
+    Not charged to a specialist's read budget, for the same reason the manifest
+    is not: it is the run's own setup and every specialist would otherwise pay
+    for it. An absent file is a legitimate state, and ``ceiling_share`` returns a
+    documented default and says that is what it did.
+    """
+    try:
+        return corpus.read("registers/allocation-policy.md")
+    except Exception:  # noqa: BLE001 - a filing without a policy is not an error
+        return ""
+
 
 def _read_manifest(corpus: Corpus, offer: Mapping[str, Any], log: ReadLog) -> str:
     """Open the offer's manifest, if it names one and it can be read."""

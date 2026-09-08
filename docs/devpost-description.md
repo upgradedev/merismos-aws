@@ -96,6 +96,10 @@ One recorded run found **two things the deterministic rules do not**. Undeclared
 And a contradiction between the donor's whole-lot condition and the network's own 40% ceiling, which
 no rule here compares. Neither was planted for it to find.
 
+That ceiling is **this** network's, read out of its own `registers/allocation-policy.md` rather than
+compiled in. Point the fleet at another network's filing and its number is the one applied, which is
+asserted by a test building two filings that differ only in that percentage.
+
 ## How we built it
 
 The **Strands Agents SDK** is load-bearing, and the specific reason is worth one sentence: every

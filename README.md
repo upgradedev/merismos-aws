@@ -28,6 +28,7 @@ Built for **Agents for Humans (AWS)**, track **Good Neighbor Agents**.
 - [The controls](#the-controls)
 - [The deferral, and why it is an AWS build](#the-deferral-and-why-it-is-an-aws-build)
 - [Open it](#open-it). The live site, no account
+- [Point it at your own filing](#point-it-at-your-own-filing). Your members, your offers, your ceiling
 - [Run it locally](#run-it-locally). No credentials, no network
 - [Repository](#repository) · [Pre-existing components](#pre-existing-components) · [Licence](#licence)
 
@@ -49,7 +50,7 @@ What follows is what runs today at the live URL, which is this branch applied by
 | the site runs this branch, applied by the pipeline | **yes, since 2026-09-08.** No terraform runs on a laptop: the state is in S3 and a GitHub environment applies it, behind a dry run that refuses a plan proposing to build a second fleet. The approval card was returning `503` after 30 seconds until that apply and now answers in **0.44**, `/offers/new` was a `404` and now serves the form, and a fourth function carries the chore in a concurrency pool of its own |
 | the governed write, end to end | **done live 2026-09-05.** A person approved on the site, the reader minted an approval it has no authority to act on, the writer recomputed the digest and published, and the record reads `200` to an anonymous request. The digest on the card and the digest in the provenance row are the same |
 
-**439 tests, `ruff` clean, coverage above the 85% floor, enforced in `addopts`.** Every socket the suite opens to anything but loopback fails the run, autouse and session wide. That was an opt-in fixture until 2026-09-05, when one test that never asked for it turned out to be invoking the deployed fleet on every local run. The floor is enforced rather than
+**450 tests, `ruff` clean, coverage above the 85% floor, enforced in `addopts`.** Every socket the suite opens to anything but loopback fails the run, autouse and session wide. That was an opt-in fixture until 2026-09-05, when one test that never asked for it turned out to be invoking the deployed fleet on every local run. The floor is enforced rather than
 reported: it is in `addopts`, so the suite fails below it on a developer machine and in CI alike. Run
 it yourself, and prefer the number this prints to the number written here:
 
@@ -493,6 +494,38 @@ the audit trail, and there is no second store.
 Polling is a meta refresh, not a script. Every screen here loads no JavaScript and that is asserted
 per screen.
 
+## Point it at your own filing
+
+```bash
+MERISMOS_CORPUS=local MERISMOS_CORPUS_ROOT=/path/to/your/network python -m merismos.demo
+```
+
+Four directories: `orgs/` for the members, `offers/` for what has come in,
+`registers/` for what the network agreed, and `offers/manifests/` if a donor
+sends one. Nothing about this repository's own five organisations is compiled in.
+
+**That was not true until 2026-09-08 and it is worth saying how it was found.** A
+persona whose method is to run the quickstart against a fixture the product never
+shipped with, and to treat identical output as the *harder* failure, was pointed
+at an invented four-member network in Rotterdam whose own policy states a 25%
+ceiling. It printed Omonoia Soup Kitchen, Kypseli Food Pantry and offer-4471.
+
+Two causes behind one symptom. The demo called `LocalCorpus()` with no argument
+whenever no S3 bucket was set, so `MERISMOS_CORPUS_ROOT` was ignored on exactly
+the path a stranger runs, while the deployed handler had honoured it all along.
+And `equity` computed a 40% ceiling as a constant while
+`registers/allocation-policy.md` was listed as a file that specialist reads.
+
+The second one is the one that mattered. **The premise of this product is that a
+network points the fleet at its own filing, and a ceiling that ignores the filing
+makes that a sentence about the wrong file.** The share is read out of the
+register now, the envelope records which ceiling was applied and where it came
+from, and a filing with no policy gets a documented default that says so rather
+than a silent 40%. Pinned by
+[`test_the_ceiling_is_the_networks_own.py`](tests/unit/test_the_ceiling_is_the_networks_own.py),
+whose last test builds two filings differing only in that number and asserts the
+splits differ: 22.5 kg against 36 kg out of the same 90.
+
 ## Run it locally
 
 No AWS account, no credentials, no network. **That last claim is itself a test.** Every socket the
@@ -523,7 +556,7 @@ nobody watching can tell.
 python -m pytest -q
 ```
 
-Expected `439 passed` and `Required test coverage of 85% reached`, in about eleven seconds. Prefer the number it prints to the number written here.
+Expected `450 passed` and `Required test coverage of 85% reached`, in about eleven seconds. Prefer the number it prints to the number written here.
 
 ```bash
 python -m pytest tests/integration/test_the_guard_is_a_control.py -q

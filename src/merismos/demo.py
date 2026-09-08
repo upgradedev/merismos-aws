@@ -18,7 +18,7 @@ import sys
 from typing import Any
 
 from . import bedrock
-from .corpus import LocalCorpus, corpus_from_env
+from .corpus import corpus_from_env
 from .corpus import offers as read_offers
 from .corpus import orgs as read_orgs
 from .deferral import NullScheduler, scheduler_from_env
@@ -162,7 +162,21 @@ def the_case_that_settles_it(corpus: Any, colour: bool) -> None:
     This is the comparison the README reports, run live rather than quoted, so a
     viewer sees the two answers rather than being told about them.
     """
-    offer = next(o for o in read_offers(corpus) if o["id"] == "offer-4483")
+    offer = next((o for o in read_offers(corpus) if o["id"] == "offer-4483"), None)
+    if offer is None:
+        # Another network's filing. This comparison needs the one offer built to
+        # carry it, and saying so beats both a traceback and silence: a reader
+        # who pointed this at their own corpus should be told what was skipped
+        # and why, rather than wondering what the section was for.
+        print("-" * 72)
+        print("  The manifest comparison is skipped")
+        print("-" * 72)
+        print("  It needs offer-4483, which is the offer in this repository's own")
+        print("  corpus built to carry it: declared ambient with no allergens, and a")
+        print("  manifest holding wine, pork and hazelnut. This filing does not have")
+        print("  it, and everything above is this filing's own offers, decided.")
+        print()
+        return
     orgs = read_orgs(corpus)
     manifest = corpus.read("offers/manifests/4483.md")
 
@@ -234,7 +248,14 @@ def main(argv: list[str] | None = None) -> int:
     scheduler = (
         scheduler_from_env(env) if env.get("MERISMOS_WAKE_TARGET_ARN") else NullScheduler()
     )
-    corpus = corpus_from_env(env) if env.get("MERISMOS_CORPUS_BUCKET") else LocalCorpus()
+    # Always through corpus_from_env, so MERISMOS_CORPUS_ROOT works here exactly
+    # as it works in the deployed handler. It read LocalCorpus() directly when no
+    # bucket was set, which pinned the demo to the corpus inside this repository:
+    # point it at another network's filing and it silently showed you ours.
+    # Persona 09 asks for the quickstart to be run against a substitute fixture
+    # and calls identical output the harder failure, because it means the fixture
+    # is never read. It was identical.
+    corpus = corpus_from_env(env)
 
     banner(ledger, analyst, scheduler, colour)
     unreachable = 0
