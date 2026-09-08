@@ -1,0 +1,102 @@
+name: The judges can still reach it
+
+# Rules section 1 requires the project to be available to the Sponsor, the
+# Administrator and the Judges, free of charge and without restriction, **until
+# the judging period ends on 2026-10-08 17:00 PT**. That is 24 days past the
+# submission deadline, and it is a rule rather than a nicety: an entry nobody can
+# open during judging is an entry that was not submitted.
+#
+# "Re-curl it weekly" was written in a state file as an intention. This is the
+# same sentence as a mechanism. It runs on a schedule, needs no credentials
+# because it is the same anonymous fetch a judge makes, and it fails loudly.
+#
+# It exists because of what happened on 2026-09-05 and again on 2026-09-08. The
+# site answered 503 to strangers for a stretch with no Lambda error and no alarm,
+# and separately the approval card returned 503 after thirty seconds for three
+# days. Both were found by somebody deciding to look. Nothing was watching.
+
+on:
+  schedule:
+    # Twice a week, Monday and Thursday at 09:00 UTC. Often enough that an
+    # outage is measured in days rather than in "whenever somebody next looked",
+    # and rare enough that it is not noise.
+    - cron: "0 9 * * 1,4"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: still-up
+  cancel-in-progress: false
+
+jobs:
+  reachable:
+    runs-on: ubuntu-latest
+    env:
+      URL: https://efnt6e0kv7.execute-api.eu-west-1.amazonaws.com
+    steps:
+      # Anonymous, on purpose. No AWS credentials, no OIDC, no token. If this
+      # job needed a credential it would be checking something a judge cannot do.
+      - name: The front door answers, and answers with our product
+        run: |
+          set -euo pipefail
+          code=$(curl -s -o body.html -m 30 -w '%{http_code}' "${URL}/")
+          echo "GET / -> ${code}"
+          test "${code}" = "200" || { echo "::error::the site answered ${code}"; exit 1; }
+          grep -q "Merismos" body.html || {
+            echo "::error::200 with a body that is not our product. A CDN error page is still a 200"
+            exit 1
+          }
+
+      # The screen the entry is about. It was returning 503 after thirty seconds
+      # for three days in September because the deployed build re-ran the whole
+      # chore inside the request, and the front door stayed green throughout. One
+      # working page proves one working page.
+      - name: The approval route answers, and fast
+        run: |
+          set -euo pipefail
+          code=$(curl -s -o approve.html -m 40 -w '%{http_code}' "${URL}/approve/offer-4471")
+          took=$(curl -s -o /dev/null -m 40 -w '%{time_total}' "${URL}/approve/offer-4471")
+          echo "GET /approve/offer-4471 -> ${code} in ${took}s"
+
+          # 404 is the correct answer with no run named: an approval covers the
+          # bytes one particular run produced, and this route refuses rather than
+          # deciding again. A 503 here is the regression this step exists for.
+          test "${code}" = "404" || {
+            echo "::error::expected 404 and got ${code}. 503 means it is re-deciding inside the request"
+            exit 1
+          }
+          grep -q "no decision here to approve" approve.html
+
+      - name: A coordinator can still reach the intake
+        run: |
+          set -euo pipefail
+          code=$(curl -s -o intake.html -m 30 -w '%{http_code}' "${URL}/offers/new")
+          echo "GET /offers/new -> ${code}"
+          test "${code}" = "200" || { echo "::error::the intake answered ${code}"; exit 1; }
+          grep -q "Add an offer" intake.html
+
+      - name: And a published record is readable with no account
+        run: |
+          set -euo pipefail
+          records="https://merismos-records-e6ac6047.s3.eu-west-1.amazonaws.com/records/offer-4471.md"
+          code=$(curl -s -o record.md -m 30 -w '%{http_code}' "${records}")
+          echo "GET the published record -> ${code}"
+          # 404 is acceptable and 403 is not. Nothing may have been published yet,
+          # which is a state this product is allowed to be in; a bucket that
+          # refuses an anonymous reader is a broken promise in the description.
+          case "${code}" in
+            200) grep -q "Allocation" record.md ;;
+            404) echo "nothing published yet, which is a legitimate state" ;;
+            *) echo "::error::the record address answered ${code} to a stranger"; exit 1 ;;
+          esac
+
+      - name: Say so in the summary
+        if: always()
+        run: |
+          {
+            echo "### Reachability, ${URL}"
+            echo ""
+            echo "Checked anonymously, the way a judge does. Judging ends 2026-10-08 17:00 PT."
+          } >> "$GITHUB_STEP_SUMMARY"
