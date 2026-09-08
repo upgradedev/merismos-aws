@@ -14,9 +14,9 @@
   "segments": [
     {
       "id": "hook",
-      "_beat": "The problem, in the buyer's words. A named segment, never a market.",
-      "captionText": "Five small charities in one Athens neighbourhood share whatever food gets donated. A pantry, a night shelter, a school, a library, a soup kitchen. None of them employs anybody to do this. An offer arrives in a group chat and whoever answers first takes it, so two vans drive to the same pallet, and in March nobody can say what happened in September.",
-      "speechText": "Five small charities in one Athens neighbourhood share whatever food gets donated. A pantry, a night shelter, a school, a library, a soup kitchen. None of them employs anybody to do this. An offer arrives in a group chat and whoever answers first takes it, so two vans drive to the same pallet, and in March nobody can say what happened in September."
+      "_beat": "The problem, in the buyer's words. A named segment, and the cost that lands.",
+      "captionText": "Five small charities in one Athens neighbourhood share whatever food gets donated. None of them employs anybody to do this, so an offer arrives in a group chat and whoever answers first takes it. That is how a crate of gift hampers went to the night shelter that runs a recovery programme. Every hamper held a bottle of wine, and nobody had opened the manifest.",
+      "speechText": "Five small charities in one Athens neighbourhood share whatever food gets donated. None of them employs anybody to do this, so an offer arrives in a group chat and whoever answers first takes it. That is how a crate of gift hampers went to the night shelter that runs a recovery programme. Every hamper held a bottle of wine, and nobody had opened the manifest."
     },
     {
       "id": "surface",
@@ -32,9 +32,9 @@
     },
     {
       "id": "live",
-      "_beat": "The anonymous path executing the flagship claim. This is what the browser capture records.",
-      "captionText": "Here is the live site, with no account. Press Ask the fleet on offer-4471. Four specialists wake on Claude Opus 5, each choosing what to open. Here is the split, and here is the part that matters: three members are not receiving a share, each named with the rule that decided it. The library has no van and can carry 15kg.",
-      "speechText": "Here is the live site, with no account. Press Ask the fleet on offer four four seven one. Four specialists wake on Claude Opus five, each choosing what to open. Here is the split, and here is the part that matters: three members are not receiving a share, each named with the rule that decided it. The library has no van and can carry fifteen kilos."
+      "_beat": "The anonymous path executing the flagship claim, which is that reading changes the answer. This is the beat the browser capture records.",
+      "captionText": "Here is the live site, no account. offer-4483 declares category ambient and no allergens, and the donor was honest. Read only those fields: zero findings, nobody excluded, and the wine reaches the shelter. Press Ask the fleet. Four specialists wake on Claude Opus 5, one opens the manifest, and now there are three findings and three organisations skipped, each with its reason.",
+      "speechText": "Here is the live site, no account. Offer four four eight three declares category ambient and no allergens, and the donor was honest. Read only those fields: zero findings, nobody excluded, and the wine reaches the shelter. Press Ask the fleet. Four specialists wake on Claude Opus five, one opens the manifest, and now there are three findings and three organisations skipped, each with its reason."
     },
     {
       "id": "sponsor",

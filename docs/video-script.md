@@ -170,11 +170,20 @@ the pipeline's own, and they line up with this script rather than replacing it:
 hook is beat 1, surface and trigger are the two things this script never had a
 beat for, live is beat 3, sponsor is beat 6, evidence is beat 5, close is beat 7.
 
-**Which of the two ships is the owner's call.** A 174 second cut through the
-pipeline gets the sync gate, per-beat re-cutting and CI. A 4:30 cut hand-edited
-gets beats 2 and 4, the three costs and the offer-4483 comparison, which are the
-strongest storytelling in the entry and are already built as cards. Nobody should
-discover this on recording day, which is the only reason it is written here.
+**The choice is smaller than it first looked, and that was our fault.** The
+argument for the hand cut was that the pipeline's seven beats lose beats 2 and 4,
+the wine hamper and the offer-4483 comparison, which are the strongest material
+in the entry. They are content rather than beats, so they now sit inside the
+seven: `hook` trades the two vans, the weakest of the three costs, for the hamper
+reaching the recovery shelter, and `live` moves from offer-4471 to offer-4483 and
+carries zero findings against three. The flagship claim is not that it splits
+things, it is that reading changed the answer.
+
+So the pipeline path no longer costs the entry its best material. What it still
+buys is the sync gate, per-beat re-cutting and CI, against a hand cut that has
+none of those and where fixing one line means rebuilding. Two entries in this
+workspace have died with a finished video sitting on disk, which is the whole
+reason the kit exists.
 
 ## The cards, already built
 
