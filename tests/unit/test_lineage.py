@@ -27,7 +27,7 @@ def test_append_stages_and_verify_integrity():
 
     # Stage 2: Food safety inspection
     n2 = chain.append_stage(
-        stage=LineageStage.SAFETY_INSPECTION,
+        stage=LineageStage.SPECIALIST_ASSESSMENT,
         actor="specialist:food-safety",
         data={"temp_celsius": 3.4, "status": "approved"},
         timestamp=1725440300.0,
@@ -36,7 +36,7 @@ def test_append_stages_and_verify_integrity():
 
     # Stage 3: OR solver optimization
     n3 = chain.append_stage(
-        stage=LineageStage.OR_OPTIMIZATION,
+        stage=LineageStage.DETERMINISTIC_GATE,
         actor="solver:combinatorial",
         data={"shares_allocated": 3, "max_ratio": 0.40},
         timestamp=1725440600.0,
@@ -62,7 +62,7 @@ def test_append_stages_and_verify_integrity():
 def test_tampered_node_hash_detected():
     chain = ProvenanceChain(offer_id="OFFER-TAMPER")
     chain.append_stage(LineageStage.DONOR_OFFER, "donor", "fresh bread", timestamp=1000.0)
-    chain.append_stage(LineageStage.SAFETY_INSPECTION, "inspector", "temp ok", timestamp=2000.0)
+    chain.append_stage(LineageStage.SPECIALIST_ASSESSMENT, "inspector", "temp ok", timestamp=2000.0)
 
     # Tamper with internal node
     tampered_node = LineageNode(
@@ -85,7 +85,7 @@ def test_tampered_node_hash_detected():
 def test_broken_parent_link_detected():
     chain = ProvenanceChain(offer_id="OFFER-BROKEN")
     chain.append_stage(LineageStage.DONOR_OFFER, "donor", "data1", timestamp=1000.0)
-    chain.append_stage(LineageStage.SAFETY_INSPECTION, "inspector", "data2", timestamp=2000.0)
+    chain.append_stage(LineageStage.SPECIALIST_ASSESSMENT, "inspector", "data2", timestamp=2000.0)
 
     # Tamper with parent hash of node 1
     tampered_node1 = LineageNode(
@@ -108,7 +108,7 @@ def test_broken_parent_link_detected():
 def test_export_dag():
     chain = ProvenanceChain(offer_id="OFFER-DAG")
     chain.append_stage(LineageStage.DONOR_OFFER, "donor", "lot 101", timestamp=1000.0)
-    chain.append_stage(LineageStage.SAFETY_INSPECTION, "safety", "passed", timestamp=1100.0)
+    chain.append_stage(LineageStage.SPECIALIST_ASSESSMENT, "safety", "passed", timestamp=1100.0)
     chain.append_stage(LineageStage.HUMAN_APPROVAL, "lead", "signed", timestamp=1200.0)
 
     dag = chain.export_dag()
@@ -116,7 +116,7 @@ def test_export_dag():
     assert dag["total_stages"] == 3
     assert len(dag["nodes"]) == 3
     assert len(dag["edges"]) == 2
-    assert dag["edges"][0]["transition"] == "donor_offer -> safety_inspection"
+    assert dag["edges"][0]["transition"] == "donor_offer -> specialist_assessment"
 
     n_dict = chain.nodes[0].as_dict()
     assert n_dict["stage"] == "donor_offer"

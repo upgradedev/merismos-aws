@@ -17,10 +17,15 @@ from enum import StrEnum
 
 
 class LineageStage(StrEnum):
+    #: Each name says what happened at that stage, because the chain is read by
+    #: somebody deciding whether to believe the record. Three of these were
+    #: renamed on 2026-09-08: a rota decision was being recorded as a safety
+    #: inspection, and the gate, which optimises nothing, was recorded as an
+    #: optimisation while the solver that does optimise sat under another name.
     DONOR_OFFER = "donor_offer"
-    SAFETY_INSPECTION = "safety_inspection"
-    OR_OPTIMIZATION = "or_optimization"
-    PANTRY_ALLOCATION = "pantry_allocation"
+    SPECIALIST_ASSESSMENT = "specialist_assessment"
+    DETERMINISTIC_GATE = "deterministic_gate"
+    PROPOSED_ALLOCATION = "proposed_allocation"
     HUMAN_APPROVAL = "human_approval"
     DISPATCH_RECEIPT = "dispatch_receipt"
 

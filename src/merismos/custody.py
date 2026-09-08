@@ -28,9 +28,9 @@ from .lineage import LineageStage, ProvenanceChain
 #: make the chain longer without making it mean more.
 STAGE_OF = {
     "offer.received": LineageStage.DONOR_OFFER,
-    "specialist.answered": LineageStage.SAFETY_INSPECTION,
-    "gate.verdict": LineageStage.OR_OPTIMIZATION,
-    "plan.proposed": LineageStage.PANTRY_ALLOCATION,
+    "specialist.answered": LineageStage.SPECIALIST_ASSESSMENT,
+    "gate.verdict": LineageStage.DETERMINISTIC_GATE,
+    "plan.proposed": LineageStage.PROPOSED_ALLOCATION,
     "approval.granted": LineageStage.HUMAN_APPROVAL,
     "record.published": LineageStage.DISPATCH_RECEIPT,
 }
@@ -38,9 +38,12 @@ STAGE_OF = {
 #: Who is accountable at each stage, in the words a coordinator would use.
 ACTOR_OF = {
     LineageStage.DONOR_OFFER: "the donor",
-    LineageStage.SAFETY_INSPECTION: "a specialist",
-    LineageStage.OR_OPTIMIZATION: "the gate",
-    LineageStage.PANTRY_ALLOCATION: "the fleet",
+    LineageStage.SPECIALIST_ASSESSMENT: "a specialist",
+    # Named for what it is rather than for what it might be mistaken for. The
+    # gate runs seven deterministic checks and optimises nothing; the solver
+    # that does optimise is inside the stage below.
+    LineageStage.DETERMINISTIC_GATE: "the gate",
+    LineageStage.PROPOSED_ALLOCATION: "the fleet",
     LineageStage.HUMAN_APPROVAL: "a named person",
     LineageStage.DISPATCH_RECEIPT: "the writer",
 }
@@ -75,7 +78,7 @@ def _actor(stage: LineageStage, entry: Any) -> str:
         named = body.get("approved_by")
         if named:
             return str(named)
-    if stage is LineageStage.SAFETY_INSPECTION:
+    if stage is LineageStage.SPECIALIST_ASSESSMENT:
         named = body.get("specialist")
         if named:
             return str(named)

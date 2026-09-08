@@ -36,9 +36,9 @@ def test_the_chain_covers_the_custody_events_and_not_the_bookkeeping():
 
     assert stages == [
         "donor_offer",
-        "safety_inspection",
-        "or_optimization",
-        "pantry_allocation",
+        "specialist_assessment",
+        "deterministic_gate",
+        "proposed_allocation",
         "human_approval",
         "dispatch_receipt",
     ]
@@ -99,7 +99,7 @@ def test_the_actor_comes_from_the_entry_where_the_entry_names_one():
 
     assert actors["human_approval"] == "the coordinator"
     assert actors["dispatch_receipt"] == "the coordinator"
-    assert actors["safety_inspection"] == "premises"
+    assert actors["specialist_assessment"] == "premises"
     assert actors["donor_offer"] == "the donor"
 
 
@@ -130,3 +130,28 @@ def test_lineage_is_no_longer_imported_only_by_its_own_test():
 
     assert importers, "lineage.py is dead weight again"
     assert "custody.py" in importers
+
+
+def test_no_stage_claims_a_kind_of_scrutiny_that_did_not_happen():
+    """The chain is the artifact whose whole purpose is to be believed.
+
+    Every ``specialist.answered`` was recorded as ``safety_inspection`` until
+    2026-09-08, so a funder reading the chain was told that ``equity`` performed
+    a safety inspection. Equity does the rota: who went to the back of the queue
+    because they had the last two offers in this category. Calling that a safety
+    inspection is the overclaim this project polices everywhere else, made in the
+    document where it costs the most.
+
+    The gate was ``or_optimization`` and optimises nothing, while the solver that
+    does optimise sat one stage further on under a different name.
+    """
+    from merismos.lineage import LineageStage
+
+    names = {stage.value for stage in LineageStage}
+
+    assert "safety_inspection" not in names, (
+        "a rota decision and a storage check are both being recorded as safety "
+        "inspections, which tells a reader a kind of scrutiny happened that did not"
+    )
+    assert "or_optimization" not in names, "the gate is a deterministic check, not a solver"
+    assert {"specialist_assessment", "deterministic_gate", "proposed_allocation"} <= names
