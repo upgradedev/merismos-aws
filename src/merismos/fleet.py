@@ -161,6 +161,25 @@ def food_safety(offer: Mapping[str, Any], orgs: Sequence[Mapping[str, Any]]) -> 
         )
 
     eligible: list[str] | None = None
+    if not use_by:
+        # Not a refusal. A donor who did not say is ordinary, and a fleet that
+        # refused every offer without a use by would be a fleet coordinators
+        # learn to type a date into. It is a finding, so the gap is on the card
+        # and in the record rather than resolved into a long shelf life by a
+        # comparison that never ran.
+        findings.append(
+            _finding(
+                "use-by-not-established",
+                "medium",
+                (
+                    "no use by date was recorded, so the same day rule could not "
+                    "be applied. Confirm with the donor before this is collected: "
+                    "an offer that has to be gone tomorrow may only go to members "
+                    "that serve same day"
+                ),
+                evidence="use_by=",
+            )
+        )
     if use_by and collection:
         margin = _days_between(collection, use_by)
         if margin is not None and margin <= 1:
@@ -367,6 +386,38 @@ def equity(
     )
 
 
+def _singular(word: str) -> str:
+    """Enough stemming for a form field, and no more.
+
+    A real stemmer would be a dependency and a source of surprises. This exists
+    because ``nut_free`` has to catch ``nuts``.
+    """
+    word = word.strip().lower()
+    return word[:-1] if len(word) > 3 and word.endswith("s") else word
+
+
+def _constraint_hit(token: str, declared: set[str]) -> str:
+    """The declared allergen a constraint catches, or an empty string.
+
+    Matches either way round, on the singular of both sides, so ``nut_free``
+    catches ``nuts``, ``no_pork`` catches ``pork gelatin`` and
+    ``alcohol_free_premises`` catches ``cooking alcohol``.
+
+    It over-matches, and that is the direction chosen on purpose: ``nut`` is
+    inside ``coconut``, so a coconut offer costs the library a share it could
+    have had. The other error puts an allergen in front of a child who has a
+    severe allergy to it. The record names the word and the constraint it
+    matched, so the cheap error is visible and arguable and the expensive one
+    does not happen quietly.
+    """
+    stem = _singular(token)
+    for item in declared:
+        other = _singular(item)
+        if stem and (stem in other or other in stem):
+            return item
+    return ""
+
+
 def premises(
     offer: Mapping[str, Any],
     orgs: Sequence[Mapping[str, Any]],
@@ -387,16 +438,43 @@ def premises(
     README reports and ``test_rules_alone_are_not_enough.py`` pins from both
     directions.
     """
-    declared = {str(a).lower() for a in offer.get("allergens", []) or []}
+    raw = offer.get("allergens", [])
+    declared = {str(a).lower() for a in raw or []}
     findings: list[Finding] = []
     blocked_for: list[str] = []
+
+    # ``None`` is not ``[]``. An empty list is "somebody checked and there are
+    # none"; ``None`` is "nobody has established what is in this". They were the
+    # same value until 2026-09-08, and every offer a coordinator typed carried
+    # the second while being read as the first.
+    #
+    # This does not bar anybody. Barring the whole network on an unknown would
+    # make the honest answer more expensive than the careless one, and the form
+    # would go back to claiming there are no allergens. It states the gap, at
+    # high severity, so it is on the card a person reads before approving and in
+    # the published record afterwards.
+    if raw is None:
+        findings.append(
+            _finding(
+                "allergens-not-established",
+                "high",
+                (
+                    "nobody has established what is in this offer, so the premises "
+                    "constraints could not be checked against it. Absent evidence "
+                    "is a finding, never a pass: ask the donor before collection, "
+                    "and do not send it to a member whose constraint is absolute"
+                ),
+                evidence="allergens=null",
+            )
+        )
 
     for org in orgs:
         name = str(org.get("name", ""))
         constraints = [str(c).lower() for c in org.get("premises_constraints", []) or []]
         for constraint in constraints:
             token = constraint.replace("_free", "").replace("no_", "").replace("_premises", "")
-            if token and token in declared:
+            if token and _constraint_hit(token, declared):
+                matched = _constraint_hit(token, declared)
                 blocked_for.append(name)
                 findings.append(
                     _finding(
@@ -404,9 +482,10 @@ def premises(
                         "high",
                         (
                             f"{name} cannot accept this offer: the offer declares "
-                            f"{token} and the premises constraint {constraint} is absolute"
+                            f"{matched!r}, which the premises constraint {constraint} "
+                            f"covers, and that constraint is absolute"
                         ),
-                        evidence=constraint,
+                        evidence=f"{constraint} matched {matched!r}",
                     )
                 )
 

@@ -81,7 +81,9 @@ def offer_from_form(form: Mapping[str, Any], offer_id: str) -> dict[str, Any]:
         raise Rejected(f"A quantity has to be above zero and below {MAX_QUANTITY:,}.")
 
     collection_date = _a_date(form.get("collection_date"))
+    use_by = _a_use_by(form.get("use_by"), collection_date)
     hours = _hours_out_of_the_fridge(form.get("hours_unrefrigerated"), category)
+    allergens = _allergens(form.get("allergens"), form.get("allergens_unknown"))
 
     _refuse_a_person(title, donor, note)
     _refuse_an_instruction(f"{title}\n{note}")
@@ -94,11 +96,56 @@ def offer_from_form(form: Mapping[str, Any], offer_id: str) -> dict[str, Any]:
         "quantity": round(quantity, 2),
         "unit": unit,
         "collection_date": collection_date,
+        "use_by": use_by,
         "note": note,
-        "allergens": [],
+        "allergens": allergens,
         "hours_unrefrigerated": hours,
         "added_by": "the coordinator on duty",
     }
+
+
+def _a_use_by(value, collection_date: str) -> str:
+    """When it stops being safe to give away. Asked for, never inferred.
+
+    **This field did not exist until 2026-09-08 and its absence was expensive.**
+    The register's same-day rule turns on the gap between collection and use by,
+    and a typed offer carried no use by at all, so a coordinator could not
+    express the one condition that produced this network's worst published
+    record. Every offer a person filed was silently a long dated one.
+
+    Empty is allowed and is not a default. It means the donor did not say, the
+    offer records that they did not say, and the fleet turns an unestablished
+    shelf life into a finding rather than into a long one.
+    """
+    text = _clean(value, 32)
+    if not text:
+        return ""
+    stamped = _a_date(text)
+    if collection_date and stamped and stamped < collection_date:
+        raise Rejected(
+            f"The use by date {stamped} is before the collection date "
+            f"{collection_date}. One of the two is wrong, and guessing which one "
+            f"is not something to do on somebody else's behalf."
+        )
+    return stamped
+
+
+def _allergens(declared, unknown) -> list[str] | None:
+    """What is in it, or ``None`` for nobody has established what is in it.
+
+    The distinction is the whole point and it used to be flattened to ``[]``,
+    which means "checked, and there are none".
+
+    ``None`` is not a safe default. It is an unsafe one, recorded honestly, and
+    the specialists are what turn it into a finding.
+    """
+    if str(unknown).strip().lower() in ("1", "true", "on", "yes"):
+        return None
+    text = _clean(declared, 200)
+    if not text:
+        return None
+    found = [part.strip().lower() for part in text.replace(";", ",").split(",")]
+    return sorted({item for item in found if item}) or None
 
 
 def _a_date(value: Any) -> str:

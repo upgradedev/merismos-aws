@@ -718,12 +718,27 @@ coordinator standing in a doorway will not fill in twenty fields.</p>
       <p><label>Collected when<br>
         <input name="collection_date" required type="date" style="{_FIELD}"
           value="{_e(v.get('collection_date', ''))}"></label></p>
+      <p><label>Good until<br>
+        <input name="use_by" type="date" style="{_FIELD}"
+          value="{_e(v.get('use_by', ''))}">
+        <span class="why">Leave it empty if the donor did not say. Do not guess: something
+        that has to be gone tomorrow may only go to the members that serve same day, and
+        that is decided by this date.</span></label></p>
+    </div>
+    <div class="row">
       <p><label>Hours out of the fridge<br>
         <input name="hours_unrefrigerated" type="number" step="any" min="0" max="168"
           value="{_e(v.get('hours_unrefrigerated', ''))}" placeholder="0" style="{_FIELD}">
         <span class="why">Chilled and frozen only. A chilled offer that does not say is
         refused by the fleet, because absent evidence about a cold chain is a finding
         and not a pass.</span></label></p>
+      <p><label>What is in it<br>
+        <input name="allergens" maxlength="200" style="{_FIELD}"
+          value="{_e(v.get('allergens', ''))}" placeholder="gluten, sesame">
+        <span class="why">Separated by commas, as the donor described it. Empty means nobody
+        has established what is in it, which the fleet records and raises rather than reading
+        as none. One member is nut free because a child who eats there has a severe
+        allergy.</span></label></p>
     </div>
     <p><label>Anything the donor said<br>
       <textarea name="note" rows="3" maxlength="600" style="{_FIELD}"
