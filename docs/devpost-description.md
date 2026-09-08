@@ -68,6 +68,14 @@ the same sha256 that was on the card they read.
 network distributed in September**, which is the question that costs a small organisation its funding
 when the only answer is somebody's phone.
 
+**And the decision arrives where the coordinators already are.** Every other screen in this product
+is ours, which is the twelfth tab written as a product: a volunteer who lives in a group chat should
+not have to open a website to tell four other people what happened. So the decision screen writes the
+message out, shares and exclusions and reasons, in the words a coordinator would use, ready to select
+and send in the chat that is already open. Merismos does not send it. Sending would mean holding a
+token for somebody's messaging account and posting under their name, which is a different product and
+a conversation to have with a coordinator first.
+
 The offers are the network's own, not ours. That mattered enough to change the architecture: filing
 an offer is a write, and the identity serving the public form cannot write. It validates what was
 typed, tells the coordinator immediately if a phone number or an instruction to the fleet is in

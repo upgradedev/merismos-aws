@@ -50,7 +50,7 @@ What follows is what runs today at the live URL, which is this branch applied by
 | the site runs this branch, applied by the pipeline | **yes, since 2026-09-08.** No terraform runs on a laptop: the state is in S3 and a GitHub environment applies it, behind a dry run that refuses a plan proposing to build a second fleet. The approval card was returning `503` after 30 seconds until that apply and now answers in **0.44**, `/offers/new` was a `404` and now serves the form, and a fourth function carries the chore in a concurrency pool of its own |
 | the governed write, end to end | **done live 2026-09-05.** A person approved on the site, the reader minted an approval it has no authority to act on, the writer recomputed the digest and published, and the record reads `200` to an anonymous request. The digest on the card and the digest in the provenance row are the same |
 
-**450 tests, `ruff` clean, coverage above the 85% floor, enforced in `addopts`.** Every socket the suite opens to anything but loopback fails the run, autouse and session wide. That was an opt-in fixture until 2026-09-05, when one test that never asked for it turned out to be invoking the deployed fleet on every local run. The floor is enforced rather than
+**457 tests, `ruff` clean, coverage above the 85% floor, enforced in `addopts`.** Every socket the suite opens to anything but loopback fails the run, autouse and session wide. That was an opt-in fixture until 2026-09-05, when one test that never asked for it turned out to be invoking the deployed fleet on every local run. The floor is enforced rather than
 reported: it is in `addopts`, so the suite fails below it on a developer machine and in CI alike. Run
 it yourself, and prefer the number this prints to the number written here:
 
@@ -556,7 +556,7 @@ nobody watching can tell.
 python -m pytest -q
 ```
 
-Expected `450 passed` and `Required test coverage of 85% reached`, in about eleven seconds. Prefer the number it prints to the number written here.
+Expected `457 passed` and `Required test coverage of 85% reached`, in about eleven seconds. Prefer the number it prints to the number written here.
 
 ```bash
 python -m pytest tests/integration/test_the_guard_is_a_control.py -q

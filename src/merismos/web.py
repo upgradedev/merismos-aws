@@ -236,8 +236,59 @@ def decision(result: Any, offer: Mapping[str, Any], network: str) -> str:
 stopped. A person reads the exact bytes and approves them, and only then does anything leave this
 screen.</div>
 <p><a class="btn" href="/approve/{oid}{_run_query(result)}">Read it and decide</a>
-   <a class="btn secondary" href="/">Back to offers</a></p>"""
+   <a class="btn secondary" href="/">Back to offers</a></p>
+{_for_the_group_chat(result, offer)}"""
     return page(offer.get("title", "Offer"), body, "What the fleet decided and why")
+
+
+def _for_the_group_chat(result: Any, offer: Mapping[str, Any]) -> str:
+    """The decision as a message, ready to send where the coordinators already are.
+
+    Every other surface in this product is ours: this list, this screen, the card,
+    the record. A coordinator who lives in a group chat should not have to open a
+    website to tell four other people what happened, and an answer that only
+    exists on our page is an answer somebody has to retype.
+
+    So it is written out for them. Not sent: **sent** would mean this product
+    holding a token for somebody's messaging account and posting under their name,
+    which is a different product and a different conversation with a coordinator.
+    Selected and pasted is the honest version, and it costs a person two seconds.
+
+    No copy button, deliberately. Every screen here loads no JavaScript and that
+    is asserted per screen; a block of text is worth more than the guarantee.
+    """
+    if result.draft is None:
+        return ""
+
+    lines = [f"{offer.get('title', 'Offer')} from {offer.get('donor', 'a donor')}."]
+    unit = str(offer.get("unit", ""))
+    for a in result.draft.allocations:
+        lines.append(f"  {a['org']}: {a['quantity']} {unit}")
+
+    barred = sorted(result.draft.must_not_receive)
+    if barred:
+        lines.append("")
+        lines.append("Not this time, and why:")
+        for name in barred:
+            why = next(
+                (
+                    f.detail
+                    for e in result.envelopes
+                    for f in e.findings
+                    if name in f.detail
+                ),
+                "a rule in the register",
+            )
+            lines.append(f"  {name}: {why}")
+
+    lines.append("")
+    lines.append("Nobody has published anything yet. It needs one of us to read it and approve.")
+
+    return f"""
+<h2>To send in the group chat</h2>
+<p class="why">Every other screen here is ours. This is the bit that belongs where you already are,
+so nobody has to open a website to find out they were skipped. Select it and send it.</p>
+<pre class="scroll">{_e(chr(10).join(lines))}</pre>"""
 
 
 def _skipped(result: Any) -> str:
