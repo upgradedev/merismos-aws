@@ -108,6 +108,13 @@ fields mention none of those words, so the comparison cannot quietly become triv
 **You can run this yourself on the live site.** Press Ask the fleet. Four specialists wake on Claude
 Opus 5. Each chooses what to open.
 
+**Pressing it is not the only way a run starts, and it is the least interesting one.** A specialist
+that cannot settle something today parks it with a date, and on that date an EventBridge Scheduler
+one-shot wakes the fleet and the schedule deletes itself. Nobody opens anything and nobody presses
+anything; the run happens because the date arrived. That path may only append an escalation to the
+provenance thread, which is enforced by the IAM role the scheduler assumes rather than by our code,
+because a trigger that fires unattended and can also publish is not a feature.
+
 One recorded run found **two things the deterministic rules do not**. Undeclared milk and gluten.
 And a contradiction between the donor's whole-lot condition and the network's own 40% ceiling, which
 no rule here compares. Neither was planted for it to find.
