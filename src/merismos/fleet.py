@@ -305,6 +305,18 @@ def capacity(offer: Mapping[str, Any], orgs: Sequence[Mapping[str, Any]]) -> Env
                 f"The donor should be told today rather than after it spoils"
             ),
             findings=tuple(findings),
+            # The one block in this fleet that turns on something which can
+            # change, and the case the README describes: a member's cold storage
+            # is a fact about today, not about the offer. A freezer is repaired,
+            # a shelter confirms space. Two days is the horizon because a
+            # perishable offer does not have a week.
+            meta={
+                "revisit_because": (
+                    "no member could store it today. Cold storage is a fact "
+                    "about the members rather than about the offer, so this is "
+                    "worth asking again while the food is still good"
+                )
+            },
         )
     return Envelope(
         specialist="capacity",
@@ -879,16 +891,33 @@ def _read_manifest(corpus: Corpus, offer: Mapping[str, Any], log: ReadLog) -> st
 def _defer(
     envelope: Envelope, thread: Thread, scheduler: Any, result: ChoreResult
 ) -> Deferral | None:
-    """Park a blocked specialist's decision and schedule the wake."""
+    """Park a blocked specialist's decision and schedule the wake.
+
+    **Only when waiting could change the answer.** This parked every blocked
+    specialist, which meant a cold chain refusal was scheduled for another look
+    in two days. The register's answer to a broken cold chain is "refused in
+    full", and the only thing two days changes is that the food is worse. A wake
+    can only append an escalation, so nothing unsafe was going to be published,
+    but a coordinator being asked to revisit a refusal that is not revisitable is
+    a product telling somebody their judgement is wanted where it is not.
+
+    An envelope that says nothing is treated as final. Silence should fall on the
+    safe side, and the specialist that knows whether its refusal turns on an
+    unknown is the specialist, not this function.
+    """
+    if not envelope.meta.get("revisit_because"):
+        return None
+
     entry = thread.append(
         "finding.deferred", specialist=envelope.specialist, reason=envelope.reason
     )
-    when = dt.datetime.now(dt.timezone.utc) + dt.timedelta(days=2)
+    days = int(envelope.meta.get("revisit_in_days") or 2)
+    when = dt.datetime.now(dt.timezone.utc) + dt.timedelta(days=days)
     deferral = Deferral(
         deferral_id=entry.entry_id,
         subject=thread.subject,
         run_id=thread.run_id,
-        reason=envelope.reason,
+        reason=str(envelope.meta.get("revisit_because")),
         until=when,
     )
     try:
