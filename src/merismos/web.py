@@ -474,6 +474,56 @@ is the point: the answer to "what happened to the Tuesday pallet" should not req
     return page("Published", body, "A published allocation record")
 
 
+def one_record(
+    key: str,
+    body_text: str,
+    receipt: Mapping[str, Any],
+    superseded_by: str = "",
+) -> str:
+    """One published record, current or superseded, read from the thread.
+
+    A superseded record is served rather than hidden or redirected. Somebody was
+    sent this address and may have acted on what it said, and the useful thing to
+    give them is what they were told, next to the fact that it changed. A
+    redirect would quietly replace their memory of it.
+    """
+    warning = ""
+    if superseded_by:
+        warning = f"""
+<div class="note stop"><strong>This record was corrected.</strong> It is kept because
+it was published and somebody may have acted on it, and it is not what this network
+says now. The record that replaced it is
+<a href="/record/{_e(_offer_of(superseded_by))}"><code>{_e(superseded_by)}</code></a>.</div>"""
+
+    body = f"""
+<h1>{_e(key)}</h1>{warning}
+<div class="note"><strong>This record is public.</strong> Anyone can read it with no
+account, which is the point: the answer to "what happened to the Tuesday pallet"
+should not require asking.</div>
+<h2>The record</h2>
+<pre class="scroll">{_e(body_text)}</pre>
+<h2>The receipt</h2>
+<div class="scroll"><table>
+ <tr><th>Approved by</th><td>{_e(receipt.get('approved_by'))}</td></tr>
+ <tr><th>Address</th><td><code>{_e(receipt.get('key'))}</code></td></tr>
+ <tr><th>Digest</th><td class="digest">{_e(receipt.get('content_digest'))}</td></tr>
+ <tr><th>Run</th><td><code>{_e(receipt.get('run_id'))}</code></td></tr>
+</table></div>
+<p><a class="btn secondary" href="/records">Published records</a>
+   <a class="btn secondary" href="/">Back to offers</a></p>"""
+    return page(key, body, "A published allocation record")
+
+
+def _offer_of(key: str) -> str:
+    """The offer id inside a record key, correction suffix and all.
+
+    ``records/offer-4471-c2.md`` addresses the same offer as
+    ``records/offer-4471.md`` and has to link to itself rather than to the
+    original, or the correction notice sends a reader back where they started.
+    """
+    return key.removeprefix("records/").removesuffix(".md")
+
+
 def how_it_decides(catalogue_doc: Mapping[str, Any], config_doc: Mapping[str, Any]) -> str:
     """The page that answers "why should I trust this" without a sales pitch."""
     specialists = "".join(

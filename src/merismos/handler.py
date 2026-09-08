@@ -38,7 +38,14 @@ from .approval import (
 from .corpus import corpus_from_env
 from .corpus import offers as read_offers
 from .deferral import escalate, scheduler_from_env
-from .fleet import catalogue, new_run_id, record_key, run_chore, subject_for_offer
+from .fleet import (
+    catalogue,
+    new_run_id,
+    record_key,
+    run_chore,
+    subject_for_offer,
+    superseded_by_this_run,
+)
 from .guard import ROLE_TOOLS, Guard
 from .ledger import Thread, ledger_from_env
 
@@ -670,6 +677,9 @@ def _screens(method: str, path: str, body: dict) -> dict[str, Any] | None:
             return _html(status, web.new_offer_form(detail, body))
         return _redirect(f"/offer/{offer_id}")
 
+    if path.startswith("/record/"):
+        return _one_record(path.rsplit("/", 1)[-1])
+
     if path == "/records":
         return _html(200, web.page("Published", _published_index()))
 
@@ -767,6 +777,11 @@ def _publish_approved(result, offer_id: str, key: str, approver: str) -> dict[st
     return _html(200, web.published(receipt, content))
 
 
+def _slug(key: str) -> str:
+    """``records/offer-4471-c2.md`` to ``offer-4471-c2``, for the record route."""
+    return key.removeprefix("records/").removesuffix(".md")
+
+
 def _mark_superseded(published: list[dict]) -> list[dict]:
     """Say which published records a later one replaced.
 
@@ -802,6 +817,72 @@ def _mark_superseded(published: list[dict]) -> list[dict]:
     return published
 
 
+def _one_record(slug: str) -> dict[str, Any]:
+    """Serve one published record, current or superseded, from the thread.
+
+    Read from the provenance thread rather than from S3, the same as every other
+    live screen: the thread was always the memory, and a record rebuilt from it
+    is a record a judge can also read back.
+
+    ``slug`` is ``offer-4471`` or ``offer-4471-c2``. The first names the base
+    record and the second names a correction, and both are served, because
+    somebody was sent the superseded address and may have acted on it.
+    """
+    from . import background, web
+
+    key = f"records/{slug}.md"
+    offer_id = slug.split("-c")[0]
+    offer = _offer(offer_id)
+    if offer is None:
+        return _html(404, web.page("Not found", "<h1>No such offer</h1>"))
+
+    try:
+        entries = ledger_from_env().recall(
+            subject_for_offer(NETWORK, offer), "record.published", limit=8
+        )
+    except Exception:  # noqa: BLE001 - an unreadable thread is not a missing record
+        return _html(
+            503,
+            web.page(
+                "Cannot read the record",
+                "<h1>The record could not be read</h1>"
+                "<div class='note stop'>The thread is not readable right now. The "
+                "record itself is published and unaffected; this screen is what "
+                "cannot be assembled.</div>",
+            ),
+        )
+
+    published = [e.body for e in entries]
+    mine = next((r for r in published if str(r.get("key", "")) == key), None)
+    if mine is None:
+        return _html(
+            404,
+            web.page(
+                "Not published",
+                f"<h1>Nothing published at {web._e(key)}</h1>"
+                "<div class='note'>A record appears here once somebody has approved "
+                "one. Merismos does not publish without a person.</div>"
+                f"<p><a class='btn' href='/offer/{web._e(offer_id)}'>Ask the fleet</a></p>",
+            ),
+        )
+
+    # ``superseded_by_this_run`` names the address currently in use. If it is not
+    # this one, this one has been replaced.
+    latest = superseded_by_this_run(offer_id, published)
+    superseded_by = latest if latest and latest != key else ""
+
+    thread = ledger_from_env().thread(str(mine.get("run_id", "")))
+    record = background.completed_result(thread) or {}
+    body_text = str(record.get("draft_body") or "")
+    if not body_text:
+        body_text = (
+            "The record was published and the run that produced it is no longer "
+            "in the thread, so the bytes cannot be shown here. The published "
+            f"address is {mine.get('published_url') or key}."
+        )
+    return _html(200, web.one_record(key, body_text, mine, superseded_by))
+
+
 def _published_index() -> str:
     """Every record published so far, from the thread rather than from S3."""
     bucket = os.environ.get("MERISMOS_RECORDS_BUCKET", "")
@@ -820,13 +901,14 @@ def _published_index() -> str:
         for row in _mark_superseded(published):
             note = (
                 "<br><span class='why'>Superseded by "
-                f"<a href='#{row['superseded_by']}'>{row['superseded_by']}</a>. "
+                f"<a href='/record/{_slug(row['superseded_by'])}'>{row['superseded_by']}</a>. "
                 "Kept because somebody may have acted on it.</span>"
                 if row.get("superseded_by")
                 else ""
             )
             rows += (
-                f"<tr><td><a id='{row['key']}' href='{row['url']}'>{row['key']}</a>{note}</td>"
+                f"<tr><td><a id='{row['key']}' href='/record/{_slug(row['key'])}'>"
+                f"{row['key']}</a>{note}</td>"
                 f"<td>{row['approved_by']}</td></tr>"
             )
     except Exception:  # noqa: BLE001 - an empty list is the honest empty state
