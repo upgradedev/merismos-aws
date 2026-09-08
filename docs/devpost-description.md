@@ -60,6 +60,14 @@ it, how much, when it is collected. A fleet of specialists wakes, reads the netw
 works out the split. A deterministic gate checks the draft. Then it stops, and one person reads the
 exact bytes and approves them.
 
+**The coordinator on duty presses Ask the fleet and comes away with one card naming who receives what
+and which rule skipped everybody else.** They type a name, press publish, and hold a receipt carrying
+the same sha256 that was on the card they read.
+
+**In March, the funder opens a public address with no account and reads the record of what this
+network distributed in September**, which is the question that costs a small organisation its funding
+when the only answer is somebody's phone.
+
 The offers are the network's own, not ours. That mattered enough to change the architecture: filing
 an offer is a write, and the identity serving the public form cannot write. It validates what was
 typed, tells the coordinator immediately if a phone number or an instruction to the fleet is in
