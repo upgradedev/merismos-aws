@@ -69,7 +69,43 @@ aws s3api put-bucket-encryption \
 # adds a role that trusts it, and trusts exactly one repository and one
 # environment. Not "repo:owner/name:*": this repository is public, and a
 # wildcard there admits any ref anybody can open a pull request from.
-# ---------------------------------------------------------------------------
+#
+# **It does not match on `sub`, and that is the whole lesson of 2026-09-08.**
+# Two runs failed with "Not authorized to perform sts:AssumeRoleWithWebIdentity"
+# against a trust policy that looked correct and matched the shape of every other
+# GitHub OIDC role in this account. GitHub has rolled out immutable subject
+# claims, which carry numeric ids rather than names, and this repository is on
+# the new format while the older ones are not:
+#
+#   repo:upgradedev/archon-cockroach-memory              the classic prefix
+#   repo:upgradedev@25751981/merismos-aws@1338494452     what this repo sends
+#
+# So copying the working sibling's shape is precisely what carried the mistake
+# in. The claims below do not move under either format, and they are **tighter**
+# than a name: a rename does not widen them, and another repository that later
+# takes this one's name cannot satisfy them, which a name match would allow.
+#
+# AWS also refuses a GitHub trust policy that does not constrain `sub` at all:
+# "must evaluate ... token.actions.githubusercontent.com:sub or
+# token.actions.githubusercontent.com:job_workflow_ref which is not scoped to
+# all". It is right to insist, so `sub` is in there. What it is not is a guess.
+# GitHub publishes the prefix this repository actually sends, so this reads it
+# rather than assembling it out of a name that turned out to be the wrong shape.
+IDS=$(gh api "repos/${REPO}" --jq '.id, .owner.id' 2>/dev/null || true)
+REPO_ID="${REPO_ID:-$(echo "${IDS}" | sed -n 1p)}"
+OWNER_ID="${OWNER_ID:-$(echo "${IDS}" | sed -n 2p)}"
+SUB_PREFIX="${SUB_PREFIX:-$(gh api "repos/${REPO}/actions/oidc/customization/sub" \
+  --jq '.sub_claim_prefix // empty' 2>/dev/null || true)}"
+SUB_PREFIX="${SUB_PREFIX:-repo:${REPO}}"
+
+if [ -z "${REPO_ID}" ] || [ -z "${OWNER_ID}" ]; then
+  echo "could not read the numeric ids for ${REPO}. Set REPO_ID and OWNER_ID and run again." >&2
+  echo "  gh api repos/${REPO} --jq '.id, .owner.id'" >&2
+  exit 1
+fi
+echo "repository ${REPO} is id ${REPO_ID}, owner id ${OWNER_ID}"
+echo "subject claim prefix ${SUB_PREFIX}"
+
 TRUST=$(cat <<JSON
 {
   "Version": "2012-10-17",
@@ -80,7 +116,10 @@ TRUST=$(cat <<JSON
     "Condition": {
       "StringEquals": {
         "token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
-        "token.actions.githubusercontent.com:sub": "repo:${REPO}:environment:${ENVIRONMENT}"
+        "token.actions.githubusercontent.com:sub": "${SUB_PREFIX}:environment:${ENVIRONMENT}",
+        "token.actions.githubusercontent.com:repository_id": "${REPO_ID}",
+        "token.actions.githubusercontent.com:repository_owner_id": "${OWNER_ID}",
+        "token.actions.githubusercontent.com:environment": "${ENVIRONMENT}"
       }
     }
   }]
@@ -105,6 +144,12 @@ fi
 # What it may do. Scoped to this project's own resources where a name allows it,
 # and to a service where it does not: an inference profile resolves across
 # regions, and IAM's own list and get calls take no useful resource scope.
+#
+# **The Secrets Manager line reads `${PROJECT}*` and not `${PROJECT}-*` on
+# purpose.** Every other resource here is `merismos-something`; the secret is
+# `merismos/publish-e6ac6047`, with a slash. The hyphen was a reasonable guess
+# and it was still a guess, and the first plan failed on it. A name is not a
+# pattern until something has checked it against the name.
 POLICY=$(cat <<JSON
 {
   "Version": "2012-10-17",
@@ -199,7 +244,7 @@ POLICY=$(cat <<JSON
       "Sid": "TheBoundaryCanary",
       "Effect": "Allow",
       "Action": "secretsmanager:*",
-      "Resource": "arn:aws:secretsmanager:${REGION}:${ACCOUNT}:secret:${PROJECT}-*"
+      "Resource": "arn:aws:secretsmanager:${REGION}:${ACCOUNT}:secret:${PROJECT}*"
     },
     {
       "Sid": "TheLogsAndTheAlarms",
