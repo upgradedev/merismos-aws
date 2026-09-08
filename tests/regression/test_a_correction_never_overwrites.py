@@ -56,6 +56,35 @@ def test_the_record_being_corrected_is_named_rather_than_implied():
     assert superseded_by_this_run("offer-4483", published) == ""
 
 
+def test_neither_helper_depends_on_the_order_the_ledger_returned_them():
+    """``recall`` returns newest first, and this test used to pass ascending.
+
+    Both helpers guessed the current record from where an entry sat in the list.
+    ``superseded_by_this_run`` reversed it and took the first match, which is the
+    oldest, so a correction to a correction opened by claiming it replaced the
+    original. The test agreed with the bug because it passed the list the other
+    way up, which is the more useful half of this: the code and its test agreed
+    with each other and both disagreed with production.
+    """
+    ascending = _published("records/offer-4471.md", "records/offer-4471-c2.md")
+    newest_first = list(reversed(ascending))
+
+    assert superseded_by_this_run("offer-4471", newest_first) == "records/offer-4471-c2.md"
+    assert superseded_by_this_run("offer-4471", ascending) == "records/offer-4471-c2.md"
+    assert record_key("offer-4471", newest_first) == "records/offer-4471-c3.md"
+    assert record_key("offer-4471", ascending) == "records/offer-4471-c3.md"
+
+
+def test_a_gap_in_the_series_does_not_reuse_a_key_that_was_published():
+    """Counting collisions and counting versions differ the moment one is missing."""
+    published = _published("records/offer-4471.md", "records/offer-4471-c3.md")
+
+    assert record_key("offer-4471", published) == "records/offer-4471-c4.md", (
+        "the next key landed inside a gap, on top of nothing today and on top of "
+        "a published record as soon as the series is not contiguous"
+    )
+
+
 @pytest.mark.parametrize("prior", [(), ("records/offer-4471.md",)])
 def test_a_correction_says_so_at_the_top_and_a_first_record_does_not(prior, monkeypatch):
     """The banner is the first thing on the page or it is not there at all.

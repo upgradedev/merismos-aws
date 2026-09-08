@@ -925,23 +925,47 @@ def record_key(offer_id: str, published: Sequence[Mapping[str, Any]] = ()) -> st
     and the original stays exactly where it is, still reachable, marked
     superseded by the index rather than edited in place.
     """
-    keys = {str(r.get("key", "")) for r in published}
-    base = f"records/{offer_id}.md"
-    if base not in keys:
-        return base
-    n = 2
-    while f"records/{offer_id}-c{n}.md" in keys:
-        n += 1
-    return f"records/{offer_id}-c{n}.md"
+    highest = _highest_version(offer_id, published)
+    if highest == 0:
+        return f"records/{offer_id}.md"
+    return f"records/{offer_id}-c{highest + 1}.md"
 
 
 def superseded_by_this_run(offer_id: str, published: Sequence[Mapping[str, Any]] = ()) -> str:
-    """The most recent published record for this offer, or an empty string."""
-    for entry in reversed(list(published)):
+    """The record this run would replace, or an empty string for a first record.
+
+    Read from the version in the key rather than from where the entry sits in the
+    list. ``recall`` returns newest first and this used to reverse it and take
+    the first match, which is the oldest, so a correction to a correction opened
+    by claiming it replaced the original. Its test passed a list in ascending
+    order, so the bug and the test agreed with each other and both disagreed with
+    what the ledger hands over.
+    """
+    highest = _highest_version(offer_id, published)
+    if highest == 0:
+        return ""
+    return f"records/{offer_id}.md" if highest == 1 else f"records/{offer_id}-c{highest}.md"
+
+
+def _highest_version(offer_id: str, published: Sequence[Mapping[str, Any]]) -> int:
+    """Which version of this offer's record has been published. 0 for none.
+
+    The base key is version 1, ``-c2`` is version 2. Order independent on
+    purpose: nothing guarantees the order these arrive in, and both callers were
+    guessing it.
+    """
+    base = f"records/{offer_id}.md"
+    prefix = f"records/{offer_id}-c"
+    highest = 0
+    for entry in published:
         key = str(entry.get("key", ""))
-        if key == f"records/{offer_id}.md" or key.startswith(f"records/{offer_id}-c"):
-            return key
-    return ""
+        if key == base:
+            highest = max(highest, 1)
+        elif key.startswith(prefix) and key.endswith(".md"):
+            number = key[len(prefix) : -len(".md")]
+            if number.isdigit():
+                highest = max(highest, int(number))
+    return highest
 
 
 def _draft(
