@@ -30,7 +30,9 @@ from typing import Any
 
 from .gate import (
     _BYPASS,
+    _CARD,
     _EMAIL,
+    _IBAN,
     _INJECTION,
     _NAMED_HOUSEHOLD,
     _NATIONAL_ID,
@@ -232,6 +234,8 @@ def _refuse_a_person(*fields: str) -> None:
 
 def _refuse_a_person_in(text: str) -> None:
     for pattern, what in (
+        (_IBAN, "a bank account number"),
+        (_CARD, "what reads as a payment card number"),
         (_EMAIL, "an email address"),
         (_PHONE, "what reads as a phone number"),
         (_STREET, "a street address"),

@@ -36,6 +36,18 @@ from .envelope import Finding
 # Greek and international mobile shapes, and a generic long digit run that
 # would be a phone number or a case reference either way.
 _PHONE = re.compile(r"(?:(?:\+|00)\d{1,3}[\s.-]?)?(?:\d[\s.-]?){9,14}\d")
+# Payment details, checked for themselves rather than left to _PHONE.
+#
+# Both used to be caught as "what reads as a phone number", because _PHONE
+# matches any run of nine or more digits. Caught is the safe direction and the
+# message was wrong: somebody told to remove a phone number when they pasted a
+# bank account has been told to look for the wrong thing.
+#
+# And it worked by luck. Tighten _PHONE to a plausible phone length, which is the
+# obvious future edit, and a card number stops being caught at all, in a record
+# that is published and permanent.
+_IBAN = re.compile(r"\b[A-Z]{2}\d{2}(?:\s?[A-Z0-9]{4}){2,7}\s?[A-Z0-9]{0,4}\b")
+_CARD = re.compile(r"\b(?:\d[\s-]?){12,18}\d\b")
 _EMAIL = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
 # A street line: a number attached to a word that looks like a thoroughfare.
 # Up to three words between the two, because real Athens addresses have them
@@ -197,6 +209,11 @@ def check_personal_data(draft: Draft) -> list[Finding]:
     findings: list[Finding] = []
     body = draft.body
     probes = (
+        # Ordered so the most specific shape names itself. An IBAN and a card
+        # number both satisfy the phone pattern, and being told to remove a
+        # phone number is not something a person can act on correctly.
+        ("no-bank-account", _IBAN, "a bank account number"),
+        ("no-card-number", _CARD, "what reads as a payment card number"),
         ("no-email", _EMAIL, "an email address"),
         ("no-street-address", _STREET, "a street address"),
         ("no-national-id", _NATIONAL_ID, "a national identifier"),
