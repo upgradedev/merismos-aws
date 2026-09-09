@@ -221,5 +221,17 @@
       "resolver": "npm 11.19.1",
       "generated_lock_sha256": "5bc84ad1cb764c8ae5900a29a043f4d562c4ce3898305e80182472b54b9bf0ac"
     }
+  },
+  "live_aws_verification": {
+    "status": "PASS_AUTOMATED_AWS",
+    "date": "2026-09-09",
+    "url": "https://d2qnkmlhs7y5fp.cloudfront.net/",
+    "frontend_commit": "5bdb573151c49499c8f01d938b7d12d3ca3b94be",
+    "test_commit": "8586d0c",
+    "run_url": "https://github.com/upgradedev/merismos-aws/actions/runs/34328335818",
+    "command": "MERISMOS_UI_URL=https://d2qnkmlhs7y5fp.cloudfront.net/ npm run test:e2e",
+    "passed": 10,
+    "failed": 0,
+    "scope": "CloudFront, Lambda and DynamoDB. Real scripted Strands; synthetic isolated offers, approvals and pickup confirmations. Live-mode mutation was refused by API with HTTP 403. No historical public record overwritten; human signoff NOT_RUN."
   }
 }
