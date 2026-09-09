@@ -101,4 +101,7 @@ it('round-trips selection, filter, unit and multiword query and rejects unrecogn
   expect(routeLink('/dashboard')).toBe('#/dashboard');
   expect(parseRoute('/workspace?filter=__proto__').filter).toBe('all');
   expect(parseRoute('/offers/%broken').offer).toBe('%broken');
+  const pickup = JSON.stringify(['Community kitchen', 'exact-digest']);
+  expect(parseRoute(routeLink('/workspace', { offer: 'offer-4471', pickup }).slice(1))).toMatchObject({ offer: 'offer-4471', pickup });
+  expect(routeLink('/workspace', { pickup })).toBe('#/workspace');
 });

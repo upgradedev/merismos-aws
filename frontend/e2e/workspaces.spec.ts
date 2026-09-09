@@ -48,6 +48,8 @@ test('ME10: integrated exact decision and independent pickup selection, screensh
   await consent.check(); await page.getByRole('button', { name: 'Approve in sandbox' }).click();
   const dispatch = page.getByRole('region', { name: 'Selected offer pickups' });
   await expect(dispatch.getByText('Needs a collector', { exact: true })).toBeVisible();
+  const selectedPickup = await dispatch.getByLabel('Pickup organisation').inputValue();
+  await expect(page).toHaveURL(/pickup=/);
   await expect(dispatch.getByText('Confirmed collected')).toHaveCount(0);
   await dispatch.getByRole('button', { name: 'Claim this share' }).click();
   await expect(dispatch.getByText('Claimed', { exact: true })).toBeVisible();
@@ -75,6 +77,8 @@ test('ME10: integrated exact decision and independent pickup selection, screensh
   await page.getByRole('link', { name: 'Return to workspace →' }).click();
   await expect(page.locator('.decision-context')).toContainText('offer-4471');
   await page.reload(); await expect(dispatch.getByText('Confirmed collected')).toBeVisible();
+  await expect(dispatch.getByLabel('Pickup organisation')).toHaveValue(selectedPickup);
+  await expect(dispatch.getByRole('button', { name: 'Claim this share' })).toHaveCount(0);
   await page.screenshot({ path: info.outputPath('selected-workspace-collected.png'), fullPage: true });
 });
 

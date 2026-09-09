@@ -109,6 +109,36 @@ it('guards duplicate form submits and direct submit without consent', async () =
   const data = workspace(); const mutate = vi.fn(); render(<OfferDetail row={data.offers[0]} data={data} busy={false} mutate={mutate}/>);
   fireEvent.submit(screen.getByText('Approve in sandbox').closest('form')!); expect(mutate).not.toHaveBeenCalled();
 });
+it('keeps an exact pickup in navigation URLs and on remount, but clears it on offer change', async () => {
+  const data = twoOffers(); data.offers[0].plan!.recorded = true;
+  data.pickups = ['Kitchen', 'Shelter'].map(org => ({ offer_id: 'offer-4471', title: 'Bread', org, quantity: 20, unit: 'kg', role: 'duty manager', state: 'claimed', agreed_at: '', plan_digest: 'digest', run_id: 'run' }));
+  vi.mocked(api.loadWorkspace).mockResolvedValue(data); location.hash = '/workspace?offer=offer-4471';
+  const first = render(<App/>);
+  await userEvent.selectOptions(await screen.findByLabelText('Pickup organisation'), JSON.stringify(['Shelter', 'digest']));
+  expect(parseRoute(location.hash.slice(1)).pickup).toBe(JSON.stringify(['Shelter', 'digest']));
+  await userEvent.click(within(screen.getByRole('navigation', { name: 'Main navigation' })).getByText('Dashboard'));
+  await screen.findByRole('heading', { name: 'Dashboard' });
+  await userEvent.click(screen.getByRole('link', { name: /^Pending pickups/ }));
+  await screen.findByRole('heading', { name: 'Records', exact: true });
+  await userEvent.click(screen.getByRole('link', { name: 'Return to workspace →' }));
+  expect(await screen.findByLabelText('Pickup organisation')).toHaveValue(JSON.stringify(['Shelter', 'digest']));
+  first.unmount(); render(<App/>);
+  expect(await screen.findByLabelText('Pickup organisation')).toHaveValue(JSON.stringify(['Shelter', 'digest']));
+  await navigate('/workspace?offer=offer-4483');
+  expect(parseRoute(location.hash.slice(1)).pickup).toBe('');
+  await navigate('/workspace?offer=offer-4471');
+  expect(await screen.findByLabelText('Pickup organisation')).toHaveValue(JSON.stringify(['Kitchen', 'digest']));
+  expect(screen.getByLabelText(/This collection actually happened/)).not.toBeChecked();
+});
+it('does not fall back to another organisation for an unavailable pickup deep link', async () => {
+  const data = workspace(); data.offers[0].plan!.recorded = true;
+  data.pickups = [{ offer_id: 'offer-4471', title: 'Bread', org: 'Kitchen', quantity: 20, unit: 'kg', role: '', state: 'unclaimed', agreed_at: '', plan_digest: 'digest', run_id: 'run' }];
+  vi.mocked(api.loadWorkspace).mockResolvedValue(data);
+  location.hash = '/workspace?offer=offer-4471&pickup=missing'; render(<App/>);
+  expect(await screen.findByText(/selected pickup is unavailable/)).toBeVisible();
+  expect(screen.queryByText('Claim this share')).not.toBeInTheDocument();
+  expect(api.action).not.toHaveBeenCalled();
+});
 it('allows corrected intake after known HTTP 400 without refreshing and assigns a new input-bound request', async () => {
   location.hash = '/offers/new'; vi.mocked(api.action).mockRejectedValueOnce(new api.ApiError('Remove the phone number', 400));
   render(<App/>); const submit = await screen.findByText('Add to sandbox');
