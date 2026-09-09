@@ -49,13 +49,25 @@ _STREET = re.compile(
 )
 # A national identifier: the Greek AMKA is 11 digits, a UK NI number has a
 # distinctive shape. Both are things a volunteer might paste into a note.
+# AFM was missing until 2026-09-09. It is the Greek tax number and the identifier
+# most often written down here, in a product set in one Athens neighbourhood,
+# while AMKA and the British NI number were both covered.
 _NATIONAL_ID = re.compile(
-    r"\b(?:AMKA|A\.M\.K\.A\.?|NI(?:NO)?)\s*[:#]?\s*[A-Z0-9]{8,12}\b", re.IGNORECASE
+    r"\b(?:AMKA|A\.M\.K\.A\.?|AFM|A\.F\.M\.?|ΑΦΜ|NI(?:NO)?)\s*[:#]?\s*[A-Z0-9]{8,12}\b",
+    re.IGNORECASE,
 )
 # A household named as a recipient rather than counted.
+#
+# The second alternative was added on 2026-09-09. The first requires a courtesy
+# title, so "collected by Mrs Papadopoulou" was caught and "the Papadopoulos
+# family collected it" was not, and naming a family without a title is the
+# ordinary way anybody would write it.
 _NAMED_HOUSEHOLD = re.compile(
     r"\b(?:for|to|deliver(?:ed)?\s+to|collected\s+by)\s+"
-    r"(?:Mr|Mrs|Ms|Miss|Dr|Kyria|Kyrios)\.?\s+[A-Z][A-Za-z'-]+",
+    r"(?:Mr|Mrs|Ms|Miss|Dr|Kyria|Kyrios)\.?\s+[A-Z][A-Za-z'-]+"
+    # ``[Tt]he`` rather than a case insensitive flag: the flag would also
+    # loosen ``[A-Z]`` on the name and match "the food family".
+    r"|\b[Tt]he\s+[A-Z][A-Za-z'-]+\s+(?:family|household|οικογένεια)\b",
 )
 
 # --------------------------------------------------------------------------

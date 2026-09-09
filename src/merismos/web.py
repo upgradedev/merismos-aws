@@ -633,9 +633,14 @@ def how_it_decides(catalogue_doc: Mapping[str, Any], config_doc: Mapping[str, An
    identity</td></tr>
 </table></div>
 
-<div class="note"><strong>The record never contains a person.</strong> No name, address, phone
-number or national identifier reaches a published record. The gate refuses a draft carrying one and
-an approver cannot override that.</div>
+<div class="note"><strong>The record is not supposed to contain a person, and two different
+things keep it that way.</strong> The gate refuses a draft carrying an email address, a phone
+number, a street address, a national identifier or a named household,
+and an approver cannot override that. But a pattern cannot tell a first name from a word, so the load-bearing half is
+that <strong>no field in this product asks for a person</strong>: a collection names an
+organisation and a role from a fixed list, and the form says so where somebody would otherwise
+type a name. Saying the gate alone guarantees it would be claiming more than a regular
+expression can do.</div>
 """,
         "What the fleet may and may not do",
     )

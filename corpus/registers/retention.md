@@ -26,4 +26,10 @@ to members of the network.
 ## Beneficiary counts
 
 Counts are kept. Counts are not people. "41 households" is a count and is
-publishable; "41 households including the Georgiou family" is not.
+publishable. The same sentence with a household named inside it is not, however
+small the number and however well the name is known locally.
+
+This paragraph deliberately describes the forbidden shape rather than writing one
+out. A specialist reads this register and can quote it into a finding, and a
+finding reaches the published record, so a policy document that spells out an
+example of a named household is a policy document that can put one there.
