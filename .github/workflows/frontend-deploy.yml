@@ -1,5 +1,7 @@
 name: Deploy AWS frontend
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
 permissions:
   contents: read
@@ -7,6 +9,7 @@ permissions:
 concurrency:
   group: merismos-frontend-release
   cancel-in-progress: false
+  queue: max
 jobs:
   verify:
     uses: ./.github/workflows/frontend-ci.yml
@@ -54,3 +57,11 @@ jobs:
         with:
           name: aws-frontend-release
           path: frontend-release.json
+  acceptance:
+    name: Live Playwright testbook
+    needs: release
+    permissions:
+      contents: read
+    uses: ./.github/workflows/aws-uat.yml
+    with:
+      release_sha: ${{ github.sha }}

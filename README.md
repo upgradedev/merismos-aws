@@ -130,6 +130,17 @@ Offline SQLite CI results are not evidence of AWS deployment behavior.
 `frontend/UAT.testbook.html` and its JSON companion distinguish automated evidence from human
 acceptance; human signoff remains `NOT_RUN` until an actual reviewer signs off.
 
+Every push to `main`, including a merged pull request, now starts
+[`frontend-deploy.yml`](https://github.com/upgradedev/merismos-aws/actions/workflows/frontend-deploy.yml):
+offline checks -> AWS frontend deployment -> live desktop/mobile Playwright testbook journeys.
+The release lock stays held through acceptance; queued releases do not interrupt a running test.
+The reusable `aws-uat.yml` checks the exact frontend SHA before and after the journeys and fails
+on browser errors or a changed release. Focused `test.only` tests are refused. Each run retains
+HTML/JUnit reports, traces, screenshots, failure video and the testbook for 14 days, with a
+result summary in GitHub Actions. Failure makes the pipeline red; it does not undo a merge
+or automatically roll back the deployed frontend. Backend deployment remains a separate process.
+Manual reruns remain available. Automated results never set human UAT signoff to PASS.
+
 Five small organisations in one Athens neighbourhood who share whatever food gets donated: a food
 pantry, a night shelter, a school, a library breakfast club and a soup kitchen. None of them
 employs anyone to do this. An offer arrives in a group chat and whoever answers first gets it.
