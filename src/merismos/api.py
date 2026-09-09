@@ -172,6 +172,7 @@ def pickup_rows(offer: dict, run: dict, plan: dict | None, claims: list) -> list
                     < time.time() else "scheduled"
             rows.append({**row, "state": state})
     return [{**r, "offer_id": offer["id"], "title": offer["title"], "unit": offer["unit"],
+             "commitment_digest": r.get("plan_digest", plan["digest"]),
              "plan_digest": plan["digest"], "run_id": run["run_id"]} for r in rows]
 
 

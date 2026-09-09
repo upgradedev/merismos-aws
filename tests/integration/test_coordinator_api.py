@@ -3,11 +3,13 @@
 import json
 import time
 import uuid
-from datetime import datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 
 import pytest
 
 from merismos import api, handler, pickup
+from merismos.approval import InMemoryApprovalStore
+from merismos.ledger import Thread, ledger_from_env, reset_memory_ledger
 from merismos.workspace_store import Conflict, WorkspaceStore
 
 
@@ -18,6 +20,7 @@ def client(monkeypatch, tmp_path):
     monkeypatch.setenv("MERISMOS_ROLE", "reader")
     monkeypatch.setenv("MERISMOS_MODEL", "scripted")
     monkeypatch.setenv("MERISMOS_LEDGER", "memory")
+    reset_memory_ledger()
     handle = ""
 
     def call(path="/api/workspace", method="GET", data=None, token=None, context=None):
@@ -246,3 +249,101 @@ def test_an_unrelated_offer_does_not_invalidate_an_approved_pickup(client):
                              "role": "duty manager", "action": "claim"})
     post(client, "pickup", {**current, "org": "Omonoia Soup Kitchen",
                              "action": "confirm", "consent": True})
+
+
+def test_live_authorized_journey_uses_the_separate_writer_and_never_overwrites(client, monkeypatch):
+    """Real handler on both sides of a local Lambda transport, no live AWS call."""
+    import io
+    import os
+
+    import boto3
+
+    state = client.store.get(api.fingerprint(client.handle))
+    files = state["files"]
+    offer = json.loads(files["offers/offer-4471.json"])
+    offer["collection_date"] = (date.today() + timedelta(days=1)).isoformat()
+    offer["use_by"] = (date.today() + timedelta(days=2)).isoformat()
+    files["offers/offer-4471.json"] = json.dumps(offer)
+    corpus = api.SnapshotCorpus(files)
+    monkeypatch.setattr(api, "corpus_from_env", lambda: corpus)
+    monkeypatch.setattr(handler, "corpus_from_env", lambda: corpus)
+    approvals = InMemoryApprovalStore()
+    monkeypatch.setattr(api, "ApprovalStore", lambda: approvals)
+    monkeypatch.setattr(handler, "ApprovalStore", lambda: approvals)
+    monkeypatch.setenv("MERISMOS_WRITER_FUNCTION", "offline-writer")
+    monkeypatch.setenv("MERISMOS_RECORDS_BUCKET", "offline-records")
+    writes = []
+
+    class Transport:
+        def invoke(self, FunctionName, Payload):  # noqa: N803
+            assert FunctionName == "offline-writer"
+            previous = os.environ.get("MERISMOS_ROLE")
+            os.environ["MERISMOS_ROLE"] = "writer"
+            try:
+                response = handler.handler(json.loads(Payload))
+            finally:
+                os.environ["MERISMOS_ROLE"] = previous
+            return {"Payload": io.BytesIO(json.dumps(response).encode())}
+
+        def put_object(self, **kwargs):
+            assert kwargs["IfNoneMatch"] == "*"
+            assert not any(w["Key"] == kwargs["Key"] for w in writes)
+            writes.append(kwargs)
+
+    monkeypatch.setattr(boto3, "client", lambda *_args, **_kwargs: Transport())
+
+    def finish(offer_id, run_id, network):
+        thread = Thread(ledger_from_env(), api.subject_for_offer(network, offer), run_id)
+        result = api.run_chore(corpus, offer, thread, analyst=api.bedrock.scripted_analyst())
+        thread.append("run.completed", **result.as_dict())
+
+    monkeypatch.setattr(api.background, "start", finish)
+    context = {"authorizer": {"lambda": {"network": handler.NETWORK,
+               "principalId": "trusted-user", "permissions": ["merismos:coordinate"]}}}
+
+    def live(kind, extra=None):
+        _, current = client(data={"mode": "live"}, context=context)
+        return client(f"/api/offers/offer-4471/{kind}", "POST", {
+            "mode": "live", "version": current["version"],
+            "request_id": uuid.uuid4().hex, **(extra or {}),
+        }, context=context)
+
+    code, current = live("run")
+    assert code == 200, current
+    exact = next(o for o in current["offers"] if o["offer"]["id"] == offer["id"])["plan"]
+    code, published = live("approve", {**exact, "consent": True})
+    assert code == 200, published
+    assert len(writes) == 1 and writes[0]["Body"].decode() == exact["body"]
+    assert len(published["records"]) == 1
+    assert "trusted-user" not in json.dumps(published)
+    assert live("approve", {**exact, "consent": True})[0] == 409
+    code, result = live("pickup", {**exact, "action": "claim",
+                                    "org": "Omonoia Soup Kitchen", "role": "duty manager"})
+    assert code == 200, result
+
+
+def test_outcome_unknown_is_not_retried_and_new_actions_are_held(client, monkeypatch):
+    monkeypatch.setattr(api.bedrock, "scripted_analyst", lambda: (_ for _ in ()).throw(
+        RuntimeError("offline agent unavailable")))
+    state, payload = post(client, "run", expected=500)
+    assert state["detail"] == "RuntimeError"
+    code, answer = client("/api/offers/offer-4471/run", "POST", payload)
+    assert code == 409 and "unknown" in answer["detail"]
+    post(client, "run", expected=409)
+
+
+def test_overdue_and_expired_claims_have_distinct_states(client):
+    current = approved(client)
+    args = {**current, "org": "Omonoia Soup Kitchen", "role": "duty manager", "action": "claim"}
+    post(client, "pickup", args)
+    key = api.fingerprint(client.handle)
+    state = client.store.get(key)
+    state["claims"][0]["agreed_at"] = datetime.fromtimestamp(
+        time.time() - 60, timezone.utc).isoformat()
+    client.store.save(key, state, state["version"])
+    assert any(p["state"] == "overdue" for p in client()[1]["pickups"])
+    state = client.store.get(key)
+    state["claims"][0]["claimed_at"] = time.time() - 15 * 86400
+    client.store.save(key, state, state["version"])
+    assert any(p["state"] == "invalidated" for p in client()[1]["pickups"])
+    post(client, "pickup", {**args, "action": "confirm", "consent": True}, expected=409)

@@ -52,6 +52,13 @@ jobs:
         if: ${{ !cancelled() && steps.deps_node.outcome == 'success' }}
         working-directory: frontend
         run: npm run build
+      - name: Upload static build for review (deployment still requires all checks)
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist/
+          if-no-files-found: error
       - name: Lint Python
         if: ${{ !cancelled() && steps.deps_python.outcome == 'success' }}
         run: ruff check src/ tests/
@@ -83,10 +90,3 @@ jobs:
             frontend/coverage-python.xml
             frontend/UAT.testbook.*
           retention-days: 10
-      - name: Upload static build for review (deployment still requires all checks)
-        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: frontend-dist
-          path: frontend/dist/
-          if-no-files-found: error
