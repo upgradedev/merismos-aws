@@ -1,6 +1,6 @@
 """Offline HTTP harness used by CI. Explicit SQLite, real handler, no AWS sockets.
 
-Run from a provisioned CI environment with python -m merismos.devserver.
+Run from a provisioned CI environment with python tests/http_server.py.
 This harness binds loopback and never supplies live coordinator authorization.
 """
 
@@ -21,7 +21,7 @@ def main() -> None:
     os.environ["MERISMOS_MODEL"] = "scripted"
     os.environ["AWS_EC2_METADATA_DISABLED"] = "true"
     os.environ.pop("MERISMOS_CORPUS_BUCKET", None)
-    from .handler import handler
+    from merismos.handler import handler
 
     real_connect = socket.socket.connect
 

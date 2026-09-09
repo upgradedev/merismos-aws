@@ -59,7 +59,7 @@ def test_default_adapter_requires_config_and_constructs_client(monkeypatch):
     monkeypatch.delenv("MERISMOS_WORKSPACE_DB", raising=False)
     monkeypatch.delenv("MERISMOS_LEDGER_TABLE", raising=False)
     with pytest.raises(RuntimeError, match="not configured"):
-        WorkspaceStore().client
+        _ = WorkspaceStore().client
     monkeypatch.setenv("MERISMOS_LEDGER_TABLE", "merismos-thread")
     assert WorkspaceStore().client.meta.service_model.service_name == "dynamodb"
 

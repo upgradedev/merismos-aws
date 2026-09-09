@@ -76,8 +76,9 @@ def initial_state(mode: str) -> dict:
 
 def coordinator(event: dict, network: str) -> str:
     context = (event.get("requestContext", {}).get("authorizer") or {}).get("lambda") or {}
-    if context.get("network") != network or "merismos:coordinate" not in context.get(
-        "permissions", []
+    permissions = context.get("permissions", [])
+    if context.get("network") != network or not isinstance(permissions, list) or (
+        "merismos:coordinate" not in permissions
     ) or not context.get("principalId"):
         raise ApiError(403, "Live changes require an authenticated network coordinator. "
                        "Use the separate sandbox to rehearse this journey.")

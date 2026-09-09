@@ -6,30 +6,30 @@ import * as api from './api';
 import { removePreference } from './storage';
 import { workspace } from './test/fixtures';
 vi.mock('./api', async original => ({...await original<typeof api>(),loadWorkspace:vi.fn(),action:vi.fn()}));
-beforeEach(() => { removePreference('merismos.mode'); vi.mocked(api.loadWorkspace).mockResolvedValue(workspace()); vi.mocked(api.action).mockResolvedValue(workspace()); });
+beforeEach(() => { vi.clearAllMocks(); removePreference('merismos.mode'); vi.mocked(api.loadWorkspace).mockResolvedValue(workspace()); vi.mocked(api.action).mockResolvedValue(workspace()); });
 async function navigate(path: string) { await act(async () => { location.hash=path; window.dispatchEvent(new HashChangeEvent('hashchange')); }); }
 it('loads, navigates with durable URLs, switches mode and refreshes', async () => {
   const user=userEvent.setup(); render(<App/>); expect(screen.getByText(/Loading your coordinator/)).toBeVisible();
-  await screen.findByRole('heading',{name:'Offers',exact:true});
+  await screen.findByRole('heading',{name:'Offers'});
   await user.click(screen.getByText('Skip to main content')); expect(screen.getByRole('main')).toHaveFocus();
-  await navigate('/pickups'); expect(screen.getByRole('heading',{name:'Pickups',exact:true})).toBeVisible(); expect(document.title).toContain('Pickups');
+  await navigate('/pickups'); expect(screen.getByRole('heading',{name:'Pickups'})).toBeVisible(); expect(document.title).toContain('Pickups');
   await navigate('/history'); expect(screen.getByText('Sandbox history')).toBeVisible(); expect(document.title).toContain('History');
   await navigate('/offers/new'); expect(screen.getByRole('heading',{name:'Add an offer'})).toBeVisible();
   await navigate('/offers/offer-4471'); expect(screen.getByRole('heading',{name:'Bread and vegetables'})).toBeVisible();
   await navigate('/missing'); expect(screen.getByText('Page not found')).toBeVisible();
-  await navigate(''); await screen.findByRole('heading',{name:'Offers',exact:true});
+  await navigate(''); await screen.findByRole('heading',{name:'Offers'});
   await user.selectOptions(screen.getByLabelText('Workspace',{exact:true}),'live'); await waitFor(() => expect(api.loadWorkspace).toHaveBeenCalledWith('live'));
-  await screen.findByRole('heading',{name:'Offers',exact:true}); await user.click(screen.getByText('Refresh workspace')); expect(api.loadWorkspace).toHaveBeenCalledTimes(3);
+  await screen.findByRole('heading',{name:'Offers'}); await user.click(screen.getByText('Refresh workspace')); expect(api.loadWorkspace).toHaveBeenCalledTimes(3);
 });
 it('reports a failed request and recovers an expired sandbox', async () => {
   vi.mocked(api.loadWorkspace).mockRejectedValueOnce(new api.ApiError('Session expired',410));
   render(<App/>); expect(await screen.findByRole('alert')).toHaveTextContent('Session expired');
-  await userEvent.click(screen.getByText('Start a new sandbox')); await screen.findByRole('heading',{name:'Offers',exact:true});
+  await userEvent.click(screen.getByText('Start a new sandbox')); await screen.findByRole('heading',{name:'Offers'});
 });
 it('refreshes on ordinary failures and safely handles non-Error failures', async () => {
   vi.mocked(api.loadWorkspace).mockRejectedValueOnce('bad'); render(<App/>);
   expect(await screen.findByRole('alert')).toHaveTextContent('could not be loaded');
-  await userEvent.click(screen.getByText('Refresh and review')); await screen.findByRole('heading',{name:'Offers',exact:true});
+  await userEvent.click(screen.getByText('Refresh and review')); await screen.findByRole('heading',{name:'Offers'});
 });
 it('does not automatically retry failed mutations and reuses the request id on explicit retry', async () => {
   location.hash='/offers/offer-4471'; vi.mocked(api.action).mockRejectedValueOnce(new Error('Connection lost'));

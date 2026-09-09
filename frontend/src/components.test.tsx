@@ -74,7 +74,7 @@ it('takes a pickup from claim through scheduling and explicit confirmation', asy
   expect(screen.queryByText('Claim this share')).not.toBeInTheDocument();
   data.mode='live'; rerender(<Pickups data={data} busy={false} mutate={mutate}/>); expect(screen.getByText(/coordinator register/)).toBeVisible();
   data.pickups[0].state='invalidated'; await user.selectOptions(screen.getByLabelText('Show'),'all'); rerender(<Pickups data={data} busy={false} mutate={mutate}/>); expect(screen.getByText(/allocation changed or the commitment expired/)).toBeVisible();
-  await user.selectOptions(screen.getByLabelText('Show'),'invalidated'); expect(screen.getByText('Invalidated')).toBeVisible();
+  await user.selectOptions(screen.getByLabelText('Show'),'invalidated'); expect(within(screen.getByRole('article')).getByText('Invalidated')).toBeVisible();
 });
 it('shows empty pickups and live authorization instead of unusable controls', () => {
   const data=workspace(); const {rerender}=render(<Pickups data={data} busy={false} mutate={vi.fn()}/>);
