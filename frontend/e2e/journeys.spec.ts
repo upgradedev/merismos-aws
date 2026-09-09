@@ -121,6 +121,7 @@ test('Safety refusal, empty filters, deep link and live read-only boundary', asy
   await expect(page.getByRole('button', { name: 'Approve in sandbox' })).toHaveCount(0);
   await page.screenshot({ path: info.outputPath('refusal.png'), fullPage: true });
   await page.getByRole('link', { name: 'All offers' }).click();
+  await expect(page.getByRole('heading', { name: 'Offers', exact: true })).toBeVisible();
   await page.getByRole('searchbox', { name: 'Search offers' }).fill('no such donation');
   await expect(page.getByRole('heading', { name: 'No offers match' })).toBeVisible();
   await page.getByLabel('Workspace', { exact: true }).selectOption('live');
