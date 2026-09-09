@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Empty, Status, Summary } from './components';
 import { DonationEvidence, AllocationEvidence, DecisionPanel, type Mutate } from './OfferDetail';
 import { PickupCard } from './Pickups';
@@ -9,13 +9,17 @@ import type { OfferRow, Workspace } from './types';
 
 function DispatchTasks({ data, row, busy, mutate, today }: { data: Workspace; row: OfferRow; busy: boolean; mutate: Mutate; today: string }) {
   const pickups = projection(data).pickups.filter(p => p.offer_id === row.offer.id);
-  const [selected, setSelected] = useState('');
   const identity = (p: typeof pickups[number]) => JSON.stringify([p.org, p.commitment_digest || p.plan_digest]);
-  const item = pickups.find(p => identity(p) === selected) || pickups[0];
+  const first = pickups[0] ? identity(pickups[0]) : '';
+  const [selected, setSelected] = useState(first);
+  // New tasks arrive after approval. Capture the initial identity once; the API
+  // orders unclaimed rows first, so array position changes after every claim.
+  useEffect(() => { if (!selected && first) setSelected(first); }, [selected, first]);
+  const item = pickups.find(p => identity(p) === selected);
   return <section className="dispatch-tasks" aria-label="Selected offer pickups"><div className="section-heading"><h2>Claim & collection</h2><a href={routeLink('/pickups', { offer: row.offer.id })}>All pickup tasks →</a></div>
     <p className="small-note">Approval records the allocation. A claim, an agreed time and explicit arrival confirmation are separate steps.</p>
-    {item ? <><label>Pickup organisation<select value={identity(item)} onChange={event => setSelected(event.target.value)}>{pickups.map(p => <option key={identity(p)} value={identity(p)}>{p.org} · {p.quantity} {p.unit} · {p.state}</option>)}</select></label>
-      <PickupCard key={`${identity(item)}-${item.state}-${data.version}`} item={item} data={data} busy={busy} mutate={mutate} today={today}/></> : <p className="notice">No pickup is authorised for this offer. Approve the exact allocation before claiming a share.</p>}
+    {pickups.length > 0 && <><label htmlFor="pickup-organisation">Pickup organisation</label><select id="pickup-organisation" value={item ? identity(item) : ''} onChange={event => setSelected(event.target.value)}>{!item && <option value="">Choose a current pickup</option>}{pickups.map(p => <option key={identity(p)} value={identity(p)}>{p.org} · {p.quantity} {p.unit} · {p.state}</option>)}</select></>}
+    {item ? <PickupCard key={`${identity(item)}-${item.state}-${data.version}`} item={item} data={data} busy={busy} mutate={mutate} today={today}/> : <p className="notice">{selected ? 'The selected pickup is unavailable. Choose a current pickup before acting.' : 'No pickup is authorised for this offer. Approve the exact allocation before claiming a share.'}</p>}
   </section>;
 }
 export function DispatchWorkspace({ data, selected, filter, unit, today, busy, mutate }: { data: Workspace; selected: string; filter: Filter; unit: string; today: string; busy: boolean; mutate: Mutate }) {

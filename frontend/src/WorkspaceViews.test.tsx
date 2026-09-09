@@ -94,6 +94,17 @@ it('stale response cannot replace a newer workspace or silently reenable unsafe 
   render(<App/>); await userEvent.selectOptions(screen.getByLabelText('Workspace', { exact: true }), 'live'); await screen.findByRole('heading', { name: 'Dashboard' });
   const stale = workspace(); stale.network = 'STALE NETWORK'; await act(async () => resolve(stale)); expect(screen.queryByText(/STALE NETWORK/)).not.toBeInTheDocument();
 });
+it('keeps the same pickup when backend ordering changes after a claim, and withholds a missing selection', async () => {
+  const data = workspace(); data.offers[0].plan!.recorded = true;
+  data.pickups = ['Kitchen', 'Shelter'].map(org => ({ offer_id: 'offer-4471', title: 'Bread', org, quantity: 20, unit: 'kg', role: '', state: 'unclaimed', agreed_at: '', plan_digest: 'digest', run_id: 'run' }));
+  const props = { data, selected: 'offer-4471', filter: 'all' as const, unit: '', today, busy: false, mutate: vi.fn() };
+  const { rerender } = render(<DispatchWorkspace {...props}/>);
+  expect(screen.getByLabelText('Pickup organisation')).toHaveValue(JSON.stringify(['Kitchen', 'digest']));
+  data.pickups[0].state = 'claimed'; data.pickups.reverse(); rerender(<DispatchWorkspace {...props}/>);
+  expect(screen.getByLabelText('Pickup organisation')).toHaveValue(JSON.stringify(['Kitchen', 'digest'])); expect(screen.getByText('Claimed', { exact: true })).toBeVisible();
+  data.pickups = data.pickups.filter(p => p.org !== 'Kitchen'); rerender(<DispatchWorkspace {...props}/>);
+  expect(screen.getByText(/selected pickup is unavailable/)).toBeVisible(); expect(screen.queryByText('Claim this share')).not.toBeInTheDocument();
+});
 it('guards duplicate form submits and direct submit without consent', async () => {
   const data = workspace(); const mutate = vi.fn(); render(<OfferDetail row={data.offers[0]} data={data} busy={false} mutate={mutate}/>);
   fireEvent.submit(screen.getByText('Approve in sandbox').closest('form')!); expect(mutate).not.toHaveBeenCalled();
