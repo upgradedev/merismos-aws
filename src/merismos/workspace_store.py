@@ -11,6 +11,7 @@ import json
 import os
 import sqlite3
 import time
+from contextlib import contextmanager
 from typing import Any
 
 
@@ -30,8 +31,14 @@ class WorkspaceStore:
                 db.execute("CREATE TABLE IF NOT EXISTS workspace ("
                            "id TEXT PRIMARY KEY, version INTEGER, body TEXT, expires REAL)")
 
+    @contextmanager
     def connection(self):
-        return sqlite3.connect(self.path, timeout=10)
+        db = sqlite3.connect(self.path, timeout=10)
+        try:
+            with db:
+                yield db
+        finally:
+            db.close()
 
     @property
     def client(self):
