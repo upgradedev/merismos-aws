@@ -1,0 +1,53 @@
+name: Live AWS acceptance
+on:
+  workflow_dispatch:
+    inputs:
+      release_sha:
+        description: Full commit SHA reported by the deployed release.json
+        required: true
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: merismos-live-acceptance
+  cancel-in-progress: false
+jobs:
+  acceptance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      MERISMOS_UI_URL: https://d2qnkmlhs7y5fp.cloudfront.net/
+      EXPECTED_RELEASE: ${{ inputs.release_sha }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.18.0'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Verify real AWS release before any synthetic action
+        run: |
+          python -c 'import os,re; assert re.fullmatch("[0-9a-f]{40}", os.environ["EXPECTED_RELEASE"]), "Full release SHA required"'
+          python infra/frontend_smoke.py --url "$MERISMOS_UI_URL" --sha "$EXPECTED_RELEASE"
+      - name: Install browser tools on CI only
+        working-directory: frontend
+        run: |
+          npm install --global npm@11.19.1 --ignore-scripts
+          npm ci
+          npm audit --omit=dev --audit-level=low
+          npx playwright install --with-deps chromium
+      - name: Real CloudFront API and durable AWS workspace journeys
+        working-directory: frontend
+        run: npm run test:e2e
+      - name: Keep observed results separate from human acceptance
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: aws-acceptance-${{ github.run_id }}
+          path: |
+            frontend/test-results/
+            frontend/artifacts/browser-junit.xml
+            frontend/playwright-report/
+          retention-days: 14
+
