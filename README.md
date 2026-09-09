@@ -107,12 +107,16 @@ collection. Live mode is separate: mutations require a trusted API Gateway Lambd
 context naming the network, a principal, and the `merismos:coordinate` permission. Without that
 integration, live mode is read-only. The browser stores only a session handle and preferences.
 Sandbox access expires after 24 hours; this is access expiry, not a physical-deletion guarantee.
+The React legacy-view link opens the existing API Gateway origin in a separate tab, so its
+compatible form and approval routes do not depend on CloudFront SPA routing.
 
 The reusable `frontend-ci.yml` workflow installs dependencies in GitHub Actions, generates a
 package lock only when absent, preserves that lock, builds the app, measures Vitest/RTL coverage,
 runs the existing Python suite and API tests, then runs desktop/mobile Playwright journeys against
 the real offline Python HTTP handler with SQLite persistence. Installation and browser setup must
 run in CI, not on this workspace's disk. The parent release workflow owns AWS hosting.
+CI also blocks on production dependency audit findings and high/critical findings in the full
+dependency graph; complete audit JSON is preserved for review, including lower-severity findings.
 `frontend/UAT.testbook.html` and its JSON companion distinguish automated evidence from human
 acceptance; human signoff remains `NOT_RUN` until an actual reviewer signs off.
 
