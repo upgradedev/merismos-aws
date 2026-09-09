@@ -16,7 +16,7 @@
       "automation_mapping": "e2e/journeys.spec.ts; src/storage.test.ts; src/App.test.tsx",
       "human_signoff": "NOT_RUN",
       "historical_observed_result_evidence": "PASS (automated): desktop/mobile sandbox and live labels; storage-blocked browser journey and storage recovery tests. Evidence: https://github.com/upgradedev/merismos-aws/actions/runs/34327011203 (frontend-evidence artifact: test-results/*.xml, coverage/, Playwright traces/screenshots).",
-      "current_revision_status": "PENDING_CI"
+      "current_revision_status": "AUTOMATION_PASS"
     },
     {
       "id": "ME01",
@@ -34,7 +34,7 @@
       "automation_mapping": "e2e/intake.spec.ts; tests/integration/test_coordinator_api.py::test_add_offer_uses_existing_validation_and_flows_to_the_fleet",
       "human_signoff": "NOT_RUN",
       "historical_observed_result_evidence": "PASS (automated): desktop/mobile human intake -> persisted offer after reload -> Strands split -> exact approval -> confirmed collection; invalid phone field retained and recoverable. Evidence: https://github.com/upgradedev/merismos-aws/actions/runs/34327011203 (frontend-evidence artifact: test-results/*.xml, coverage/, Playwright traces/screenshots).",
-      "current_revision_status": "PENDING_CI"
+      "current_revision_status": "AUTOMATION_PASS"
     },
     {
       "id": "ME02-A",
@@ -55,7 +55,7 @@
       "human_signoff": "NOT_RUN",
       "historical_observed_result_evidence": "PASS (automated): desktop/mobile exact-plan approval; API rejects missing consent, stale digest, duplicate approval and relevant evidence changes. Offline writer transport test confirms exact bytes and no overwrite; no live publication exercised. Evidence: https://github.com/upgradedev/merismos-aws/actions/runs/34327011203 (frontend-evidence artifact: test-results/*.xml, coverage/, Playwright traces/screenshots).",
       "historical_ui_enhancement_observed_result_evidence": "PASS_AUTOMATED_OFFLINE at 5774011: real HTTP response required the exact cap; desktop/mobile meters showed 20/240 kg allocated and 96/240 kg ceiling. Unit/API regressions cover 25%, 12.5%, long fraction, absent/invalid/bool/nonfinite metadata, old results and personal-data refusal. Native browser clipboard matched the exact digest without a server version change; approval then changed the server-recorded pill. Denied clipboard recovery covered in unit tests. Evidence: https://github.com/upgradedev/merismos-aws/actions/runs/34336944213 . Updated external AWS cap assertion NOT_RUN pending deployment; human signoff NOT_RUN.",
-      "current_revision_status": "PENDING_CI"
+      "current_revision_status": "AUTOMATION_PASS"
     },
     {
       "id": "ME02-B",
@@ -74,7 +74,7 @@
       "automation_mapping": "e2e/journeys.spec.ts; src/components.test.tsx; tests/integration/test_coordinator_api.py",
       "human_signoff": "NOT_RUN",
       "historical_observed_result_evidence": "PASS (automated): desktop/mobile claim, reload, future schedule and explicit confirmation; API rejects invalid roles/times and duplicate confirmation. Evidence: https://github.com/upgradedev/merismos-aws/actions/runs/34327011203 (frontend-evidence artifact: test-results/*.xml, coverage/, Playwright traces/screenshots).",
-      "current_revision_status": "PENDING_CI"
+      "current_revision_status": "AUTOMATION_PASS"
     },
     {
       "id": "ME02-C",
@@ -91,7 +91,7 @@
       "automation_mapping": "tests/integration/test_coordinator_api.py::test_changed_evidence_and_recomputed_plan_invalidate_claims; tests/integration/test_coordinator_api.py::test_an_unrelated_offer_does_not_invalidate_an_approved_pickup",
       "human_signoff": "NOT_RUN",
       "historical_observed_result_evidence": "PASS (automated API regression): relevant source change rejects old commitment; rerun invalidates it and preserves superseded record. Adding an unrelated offer leaves original pickup usable. Evidence: https://github.com/upgradedev/merismos-aws/actions/runs/34327011203 (frontend-evidence artifact: test-results/*.xml, coverage/, Playwright traces/screenshots).",
-      "current_revision_status": "PENDING_CI"
+      "current_revision_status": "AUTOMATION_PASS"
     },
     {
       "id": "ME02-D",
@@ -110,7 +110,7 @@
       "human_signoff": "NOT_RUN",
       "historical_observed_result_evidence": "PASS (automated): component status/filter coverage and persisted API overdue/expired transitions; confirmed facts remain confirmed after 14 days. Time transitions were fixture-driven, not a real elapsed-time study. Evidence: https://github.com/upgradedev/merismos-aws/actions/runs/34327011203 (frontend-evidence artifact: test-results/*.xml, coverage/, Playwright traces/screenshots).",
       "historical_ui_enhancement_observed_result_evidence": "PASS_AUTOMATED_OFFLINE at 5774011: date-only edge cases passed; confirmed pickup retained its server status and displayed Recorded date. Browser calendar was deliberately fixed at 2026-09-07 for the upcoming-date fixture; API/persistence used their own real clock. This is not elapsed shelf-life or live AWS evidence. Evidence: https://github.com/upgradedev/merismos-aws/actions/runs/34336944213 . Human signoff NOT_RUN.",
-      "current_revision_status": "PENDING_CI"
+      "current_revision_status": "AUTOMATION_PASS"
     },
     {
       "id": "ME03",
@@ -126,7 +126,7 @@
       "automation_mapping": "src/components.test.tsx; tests/integration/test_coordinator_api.py::test_public_text_refuses_pii_and_confirmed_history_does_not_expire",
       "human_signoff": "NOT_RUN",
       "historical_observed_result_evidence": "PASS (automated): summary content in real browser; clipboard success/refusal in component tests; exported personal data rejected by API. Actual sharing with another person NOT_RUN. Evidence: https://github.com/upgradedev/merismos-aws/actions/runs/34327011203 (frontend-evidence artifact: test-results/*.xml, coverage/, Playwright traces/screenshots).",
-      "current_revision_status": "PENDING_CI"
+      "current_revision_status": "AUTOMATION_PASS"
     },
     {
       "id": "ME04",
@@ -143,7 +143,7 @@
       "automation_mapping": "e2e/journeys.spec.ts; existing tests/unit/test_the_model_cannot_clear_a_refusal.py",
       "human_signoff": "NOT_RUN",
       "historical_observed_result_evidence": "PASS (automated): desktop/mobile chilled-offer safety refusal, findings and absent approval action; existing model-cannot-clear-refusal regression suite passed. Evidence: https://github.com/upgradedev/merismos-aws/actions/runs/34327011203 (frontend-evidence artifact: test-results/*.xml, coverage/, Playwright traces/screenshots).",
-      "current_revision_status": "PENDING_CI"
+      "current_revision_status": "AUTOMATION_PASS"
     },
     {
       "id": "ME05",
@@ -162,7 +162,7 @@
       "automation_mapping": "e2e/journeys.spec.ts; src/App.test.tsx; src/components.test.tsx",
       "human_signoff": "NOT_RUN",
       "historical_observed_result_evidence": "PASS (automated): desktop/mobile deep links, reload, search and history; component missing-route and expired-session recovery. Legacy link URL/new-tab/noreferrer verified by component test, not followed to mutate live state. Evidence: https://github.com/upgradedev/merismos-aws/actions/runs/34327011203 (frontend-evidence artifact: test-results/*.xml, coverage/, Playwright traces/screenshots).",
-      "current_revision_status": "PENDING_CI"
+      "current_revision_status": "AUTOMATION_PASS"
     },
     {
       "id": "ME06",
@@ -178,7 +178,7 @@
       "automation_mapping": "tests/integration/test_coordinator_api.py; e2e/journeys.spec.ts",
       "human_signoff": "NOT_RUN",
       "historical_observed_result_evidence": "PASS (automated): anonymous live read-only browser and API rejection of forged identity. Trusted-authorizer writer journey exercised through local handler transport only; deployed coordinator authentication NOT_RUN. Evidence: https://github.com/upgradedev/merismos-aws/actions/runs/34327011203 (frontend-evidence artifact: test-results/*.xml, coverage/, Playwright traces/screenshots).",
-      "current_revision_status": "PENDING_CI"
+      "current_revision_status": "AUTOMATION_PASS"
     },
     {
       "id": "ME07",
@@ -195,7 +195,7 @@
       "automation_mapping": "src/api.test.ts; src/App.test.tsx; tests/integration/test_coordinator_api.py",
       "human_signoff": "NOT_RUN",
       "historical_observed_result_evidence": "PASS (automated): timeout/cancellation and explicit retry request-id tests; failed consent/intake entries retained; persisted pending outcome rejects replay and new mutation. Evidence: https://github.com/upgradedev/merismos-aws/actions/runs/34327011203 (frontend-evidence artifact: test-results/*.xml, coverage/, Playwright traces/screenshots).",
-      "current_revision_status": "PENDING_CI"
+      "current_revision_status": "AUTOMATION_PASS"
     },
     {
       "id": "ME08",
@@ -215,7 +215,7 @@
       "human_signoff": "NOT_RUN",
       "historical_observed_result_evidence": "PARTIAL: automated desktop/mobile journeys and captured screenshots passed; agent visually inspected approval and pickup captures. Human keyboard, screen-reader, zoom and contrast study NOT_RUN. Evidence: https://github.com/upgradedev/merismos-aws/actions/runs/34327011203 (frontend-evidence artifact: test-results/*.xml, coverage/, Playwright traces/screenshots).",
       "historical_ui_enhancement_observed_result_evidence": "PARTIAL at 5774011: desktop/mobile computed-font, bounded animation, reduced-motion and no-document-overflow assertions passed. Agent inspected current inbox, approval and confirmed-pickup captures. Earlier c9143ca browser failure was an incorrect test fixture name, corrected to Elpida Night Shelter. Evidence: https://github.com/upgradedev/merismos-aws/actions/runs/34336944213 (frontend-evidence screenshots/traces). Human keyboard, screen-reader, zoom, contrast and usability study NOT_RUN; automated font checks are not full accessibility certification.",
-      "current_revision_status": "PENDING_CI"
+      "current_revision_status": "AUTOMATION_PASS"
     },
     {
       "id": "ME09",
@@ -231,7 +231,7 @@
       "expected_outcome": "Kilograms and units stay separate. Unknown allocations are not zero. All metric links retain their filters. Search focus stays in the input; page navigation focuses the heading. Offer context survives navigation and reload.",
       "negative_recovery_case": "Missing, conflicting and duplicated source identities do not inflate totals; empty scopes are labelled.",
       "automation_mapping": "e2e/workspaces.spec.ts; src/workspaceModel.test.ts; src/WorkspaceViews.test.tsx; existing API regression suite",
-      "current_revision_status": "PENDING_CI",
+      "current_revision_status": "AUTOMATION_PASS",
       "human_signoff": "NOT_RUN"
     },
     {
@@ -249,7 +249,7 @@
       "expected_outcome": "Only selected offer evidence and decisions are integrated. Approval creates no collection fact. One confirmed share leaves the other pending. Selected pickup, role, time and consent reset on offer or plan change.",
       "negative_recovery_case": "Duplicate approval or confirmation, stale consent and mismatched plan cannot authorize a second write.",
       "automation_mapping": "e2e/workspaces.spec.ts; src/workspaceModel.test.ts; src/WorkspaceViews.test.tsx; existing API regression suite",
-      "current_revision_status": "PENDING_CI",
+      "current_revision_status": "AUTOMATION_PASS",
       "human_signoff": "NOT_RUN"
     },
     {
@@ -267,7 +267,7 @@
       "expected_outcome": "An uncertain action blocks subsequent mutations until refresh. Known intake validation HTTP 400 permits correction and resubmission without losing fields.",
       "negative_recovery_case": "409, pending operations and 5xx must not use the intake-validation exception; duplicate clicks send one request.",
       "automation_mapping": "e2e/workspaces.spec.ts; src/workspaceModel.test.ts; src/WorkspaceViews.test.tsx; existing API regression suite",
-      "current_revision_status": "PENDING_CI",
+      "current_revision_status": "AUTOMATION_PASS",
       "human_signoff": "NOT_RUN"
     },
     {
@@ -284,7 +284,7 @@
       "expected_outcome": "Missing selection is visible, never silently replaced. Expired sandbox recovery preserves the requested route and requires an explicit selection.",
       "negative_recovery_case": "An invalidated or unclaimed pickup is never counted as confirmed; missing confirmation times are not fabricated.",
       "automation_mapping": "e2e/workspaces.spec.ts; src/workspaceModel.test.ts; src/WorkspaceViews.test.tsx; existing API regression suite",
-      "current_revision_status": "PENDING_CI",
+      "current_revision_status": "AUTOMATION_PASS",
       "human_signoff": "NOT_RUN"
     }
   ],
@@ -367,10 +367,22 @@
     "human_signoff": "NOT_RUN"
   },
   "current_revision": {
-    "status": "PENDING_CI",
-    "scope": "Dashboard / Workspace / Records / History redesign. Historical evidence below applies only to its named release and does not validate this revision.",
-    "acceptance_source": "GitHub Actions artifacts at the reviewed commit; deployed /release.json and exact-SHA pre/postflight for live acceptance.",
+    "status": "AUTOMATION_PASS",
+    "implementation_commit": "50db3aa8ba2fe77b22b7d5e7ee7837e0a06818fc",
+    "scope": "Automated checks passed for the named implementation commit only, on both push and PR runs. This documentation checkpoint does not claim a new AWS release or human acceptance. The earlier 75b3e1b push-only and historical release checkpoints remain separately scoped.",
+    "push_run_url": "https://github.com/upgradedev/merismos-aws/actions/runs/34359128867",
+    "pr_run_url": "https://github.com/upgradedev/merismos-aws/actions/runs/34359133727",
+    "core_ci_run_url": "https://github.com/upgradedev/merismos-aws/actions/runs/34359133718",
+    "observed_results": {
+      "python_passed": 737,
+      "python_coverage_percent": 93.81,
+      "vitest_passed": 110,
+      "vitest_files_passed": 9,
+      "desktop_mobile_journeys_passed": 18
+    },
+    "acceptance_source": "Immutable GitHub Actions reports and screenshots at the named implementation commit. Any later release requires its own exact-SHA pre/postflight and deployed release.json evidence.",
     "backend": "No backend change. Optional confirmed_at is already included in pickup API rows.",
+    "new_release_aws_acceptance": "NOT_RUN",
     "human_signoff": "NOT_RUN"
   }
 }
