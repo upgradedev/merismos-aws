@@ -1157,6 +1157,23 @@ def _capacities(
     return caps
 
 
+def _inert(value: Any) -> str:
+    """Untrusted text that cannot become markup in the published record.
+
+    A title typed into the intake form arrived in the record verbatim, so
+    ``<img src=x onerror=alert(1)>`` became a tag in a permanent public
+    document. Our own surfaces were never at risk and it is worth being precise
+    about that rather than calling this an XSS: the approval card and the record
+    screen both render the bytes escaped, and S3 serves the object as
+    ``text/markdown``, which a browser displays. Anything that renders the
+    markdown does render the tag, and the record is the artifact a funder opens.
+
+    ``&lt;`` is a literal ``<`` in markdown, so a value that genuinely contains
+    an angle bracket still reads correctly and stops being a tag.
+    """
+    return str(value if value is not None else "").replace("<", "&lt;").replace(">", "&gt;")
+
+
 def _render(
     offer: Mapping[str, Any],
     allocations: Sequence[Mapping[str, Any]],
@@ -1169,7 +1186,7 @@ def _render(
 ) -> str:
     """The published record, in the words a member of the network would use."""
     lines = [
-        f"# Allocation, {offer.get('id')}",
+        f"# Allocation, {_inert(offer.get('id'))}",
         "",
     ]
     if supersedes:
@@ -1184,7 +1201,7 @@ def _render(
             "",
         ]
     lines += [
-        f"**{offer.get('title')}** from {offer.get('donor')}.",
+        f"**{_inert(offer.get('title'))}** from {_inert(offer.get('donor'))}.",
         (
             f"{offer.get('quantity')} {unit}, category {offer.get('category')}, "
             f"collected {offer.get('collection_date')}."
@@ -1198,13 +1215,18 @@ def _render(
     for allocation in allocations:
         share = allocation.get("share_of_offer", "")
         lines.append(
-            f"| {allocation['org']} | {allocation['quantity']} {unit}"
-            f"{f' ({share})' if share else ''} | {allocation['reason']} |"
+            f"| {_inert(allocation['org'])} | {allocation['quantity']} {unit}"
+            f"{f' ({share})' if share else ''} | {_inert(allocation['reason'])} |"
         )
     if excluded:
         lines += ["", "## Not receiving a share, and the rule that decided it", ""]
         for name in excluded:
-            lines.append(f"- **{name}**: {(because or {}).get(name, 'excluded by policy')}")
+            # The reason can carry a model's own words, and an organisation name
+            # comes from a record the organisation edits. Both are outside text.
+            lines.append(
+                f"- **{_inert(name)}**: "
+                f"{_inert((because or {}).get(name, 'excluded by policy'))}"
+            )
     if solution is not None:
         lines += [
             "",
