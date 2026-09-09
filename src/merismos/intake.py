@@ -28,7 +28,15 @@ from collections.abc import Mapping
 from datetime import date
 from typing import Any
 
-from .gate import _BYPASS, _EMAIL, _INJECTION, _NATIONAL_ID, _PHONE, _STREET
+from .gate import (
+    _BYPASS,
+    _EMAIL,
+    _INJECTION,
+    _NAMED_HOUSEHOLD,
+    _NATIONAL_ID,
+    _PHONE,
+    _STREET,
+)
 
 MAX_TITLE = 120
 MAX_DONOR = 120
@@ -205,6 +213,13 @@ def _refuse_a_person(*fields: str) -> None:
     Refused at the door rather than at the gate. Both refuse it; only one of
     them refuses it while the person still has the message in front of them.
 
+    **The two lists have to stay the same list**, and they had drifted: the gate
+    grew a named household check and this did not, so a coordinator could type
+    one, be accepted, and have the run refused four minutes later for something
+    they could have been told about immediately. Every pattern here is imported
+    from ``gate`` rather than restated, which is what makes the drift visible
+    when it happens rather than only when somebody types the wrong thing.
+
     Each field is checked **on its own**. Joining them first would let the
     trailing digits of one run into the leading digits of the next and match the
     phone pattern, because that pattern allows a space between digits and a
@@ -221,6 +236,12 @@ def _refuse_a_person_in(text: str) -> None:
         (_PHONE, "what reads as a phone number"),
         (_STREET, "a street address"),
         (_NATIONAL_ID, "a national identifier"),
+        # Missing until 2026-09-09, so the form accepted "for the Papadopoulos
+        # family" and the gate refused the record built from it minutes later.
+        # The docstring above says both refuse it and only one does it while the
+        # person can still see what they typed, which was the claim rather than
+        # the behaviour.
+        (_NAMED_HOUSEHOLD, "a named household"),
     ):
         if pattern.search(text):
             raise Rejected(
