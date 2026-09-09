@@ -211,7 +211,21 @@ flowchart TB
 
 **The authority that publishes is `s3:PutObject` on the records bucket, held by the writer alone.**
 That is what `publish()` calls. `/identity` proves it by attempting the write and reporting what AWS
-said, from all three identities.
+said.
+
+**And it says so for all three, which it could not until 2026-09-09.** The evaluator and the writer
+sit behind Function URLs requiring AWS credentials, so the two identities whose refusals carry the
+argument were the two a reader could not check. The claim was true of the system and unverifiable by
+the person being asked to believe it. The reader already held `lambda:InvokeFunction` on both, so it
+now asks them and hands back what AWS told each one:
+
+```bash
+curl -s "https://efnt6e0kv7.execute-api.eu-west-1.amazonaws.com/identity?all=1"
+```
+
+An identity that does not answer is reported as unreached rather than as denied. Fabricating a
+refusal for a role that never replied would be inventing the evidence the endpoint exists to
+gather.
 
 **The writer holds one prefix of the filing too, and the reader still holds none.** A coordinator can
 add their own offer through a form on the public site, which is a write, and every write here happens

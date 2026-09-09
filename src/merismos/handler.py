@@ -150,7 +150,10 @@ def handler(event: Any, context: Any = None) -> dict[str, Any]:
         if html_reply is not None:
             return html_reply
         if path == "/identity":
-            return _reply(200, identity())
+            return _reply(
+                200,
+                identity(str(body.get("all", "")).strip().lower() in ("1", "yes", "true")),
+            )
         if path == "/catalog":
             return _reply(200, catalogue())
         if path == "/config":
@@ -173,7 +176,7 @@ def handler(event: Any, context: Any = None) -> dict[str, Any]:
     return _reply(404, {"detail": f"no route {method} {path} on the {me}"})
 
 
-def identity() -> dict[str, Any]:
+def identity(ask_the_others: bool = False) -> dict[str, Any]:
     """Who this process is, and what it is refused. Attempted, not configured.
 
     **Two probes, and the second one is the one that matters.**
@@ -192,7 +195,7 @@ def identity() -> dict[str, Any]:
     me = role()
     canary_reached, canary_said = _attempt_publish_credential()
     can_write, write_said = _attempt_publish_authority()
-    return {
+    answered: dict[str, Any] = {
         "role": me,
         "may_call": sorted(ROLE_TOOLS.get(me, frozenset())),
         "publish_authority": {
@@ -221,6 +224,18 @@ def identity() -> dict[str, Any]:
         "model": os.environ.get("MERISMOS_MODEL", "none, deterministic only"),
         "critic": os.environ.get("MERISMOS_CRITIC_MODEL", "none"),
     }
+    if not ask_the_others:
+        # Named so a reader finds it without reading the source. The claim this
+        # endpoint supports is about three identities and only one of them
+        # answers here.
+        answered["the_other_two"] = (
+            "add ?all=1 to ask the evaluator and the writer the same two "
+            "questions. They sit behind AWS_IAM Function URLs, so this is the "
+            "only way to check them without credentials of your own"
+        )
+        return answered
+    answered["others"] = _ask_the_other_identities()
+    return answered
 
 
 def _attempt_publish_authority() -> tuple[bool, str]:
@@ -256,6 +271,51 @@ def _aws_said(error: Exception) -> str:
         if code:
             return str(code)
     return type(error).__name__
+
+
+def _ask_the_other_identities() -> dict[str, Any]:
+    """Ask the evaluator and the writer what AWS tells each of them.
+
+    The reader holds ``lambda:InvokeFunction`` on both already, for delegating
+    the gate and for publishing. This spends that grant on the one thing a
+    stranger cannot do for themselves: the other two sit behind Function URLs
+    requiring AWS credentials, so their refusals, which are the ones carrying the
+    argument, were unverifiable by anybody being asked to believe them.
+
+    An identity that does not answer is reported as not having answered.
+    Fabricating a denial for a role that never replied would be inventing the
+    evidence this endpoint exists to gather.
+    """
+    import json as _json
+
+    out: dict[str, Any] = {}
+    for name in ("evaluator", "writer"):
+        function = f"{os.environ.get('MERISMOS_PROJECT', 'merismos')}-{name}"
+        try:
+            import boto3
+
+            answer = boto3.client("lambda").invoke(
+                FunctionName=function,
+                Payload=_json.dumps(
+                    {
+                        "requestContext": {"http": {"method": "GET", "path": "/identity"}},
+                        "headers": {"content-type": "application/json"},
+                        "body": "{}",
+                    }
+                ).encode("utf-8"),
+            )
+            reply = _json.loads(answer["Payload"].read())
+            out[name] = _json.loads(reply.get("body", "{}"))
+        except Exception as error:  # noqa: BLE001 - reported, never invented
+            out[name] = {
+                "reached": False,
+                "what_happened": type(error).__name__,
+                "note": (
+                    f"{function} did not answer, so nothing is claimed about what "
+                    f"AWS would tell it. An unreached identity is not a denied one"
+                ),
+            }
+    return out
 
 
 def _attempt_publish_credential() -> tuple[bool, str]:
