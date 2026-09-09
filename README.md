@@ -78,9 +78,10 @@ the persisted custody head. The Secrets Manager value is a boundary canary, not 
 
 New custody events advance a persisted per-run head atomically with a conditional transaction.
 Competing appends retry only rejected transactions; uncertain transport failures do not retry blindly.
-Old entries are not restamped or reparented. A hash verifies byte relationships, not source truth,
+Old entries are not restamped or reparented.
 If a pre-upgrade run has events but no persisted head, it is read-only and needs a fresh run.
-food safety, delivery or compliance. Conditional creation is not WORM: administrative deletion,
+A hash verifies byte relationships, not source truth, food safety, delivery or compliance.
+Conditional creation is not WORM: administrative deletion,
 delete markers, external writes and storage policy remain limitations.
 [Amazon S3 conditional-write semantics](https://docs.aws.amazon.com/AmazonS3/latest/userguide/conditional-writes.html).
 
@@ -125,6 +126,12 @@ state. No route mocking replaces that HTTP acceptance boundary. Relevant artifac
 
 Main-branch frontend deployment still runs verification → CloudFront release → real AWS Playwright,
 checking the exact frontend SHA before and after. Backend deployment is separate and manual.
+The layer migration forgets `aws_lambda_layer_version.deps` with `destroy = false`
+and creates `deps_retained` under the same AWS layer name with `skip_destroy = true`.
+The previous version 8 is intended to remain available, unmanaged, for rollback; it is not deleted.
+The reviewed plan must show **forget**, not destroy, for the old address before any apply.
+This avoids replacement using the previous provider-state deletion flag. It is not an instruction
+to delete old versions later.
 For the backend, first dispatch `deploy.yml` with `dry_run=yes`, the current Opus 5 model and
 `keep=yes`. Review its exact-source Terraform plan, resource addresses and bounded IAM changes
 before an authorized apply. Public mutation probes must return 403. Any live model proof uses the

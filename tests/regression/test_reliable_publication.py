@@ -333,6 +333,40 @@ def test_same_category_lane_holds_unknown_attempt_until_proven_recovery(writer, 
     assert approvals.acquire_lane(second)
 
 
+def test_lane_uses_the_same_case_insensitive_category_as_fairness(writer):
+    from dataclasses import replace
+
+    prepare, _, _, _, _, _ = writer
+    first, _ = prepare()
+    store = handler.ApprovalStore()
+    alternate = replace(first, nonce="other-nonce", category=first.category.upper())
+    distinct = replace(alternate, category="produce")
+    assert store.acquire_lane(first)
+    assert not store.acquire_lane(alternate)
+    assert store.acquire_lane(distinct)
+    store.release_lane(alternate)
+    assert not store.acquire_lane(alternate)
+    store.release_lane(first)
+    assert store.acquire_lane(alternate)
+
+
+def test_prewrite_evidence_failure_is_retryable_without_spending_or_writing(writer, monkeypatch):
+    prepare, storage, _, _, corpus, _ = writer
+    approval, payload = prepare()
+    monkeypatch.setattr(handler, "corpus_from_env", lambda: (_ for _ in ()).throw(
+        ClientError({"Error": {"Code": "AccessDenied"}}, "ListObjectsV2")))
+    answer = handler.publish(payload)
+    assert answer["statusCode"] == 503
+    assert json.loads(answer["body"])["write_state"] == "not_written"
+    assert storage.writes == 0
+    store = handler.ApprovalStore()
+    assert store.acquire_lane(approval), "known prewrite failure kept the lane"
+    store.release_lane(approval)
+    monkeypatch.setattr(handler, "corpus_from_env", lambda: corpus)
+    assert handler.publish(payload)["statusCode"] == 200
+    assert storage.writes == 1
+
+
 @pytest.mark.parametrize("unknown", [False, True])
 def test_live_run_dispatch_distinguishes_known_failure_from_unknown(client, monkeypatch, unknown):
     context = {"authorizer": {"lambda": {"network": handler.NETWORK,

@@ -39,9 +39,14 @@ def offline(monkeypatch):
 
 def _served() -> list[dict]:
     """Every document the pipeline pulls a field out of."""
+    from botocore.session import get_session
+
     from merismos import handler
 
-    return [handler.identity(), handler.config()]
+    # The IAM-only runner dispatch reads AWS Invoke's response, not handler JSON.
+    # Resolve that contract from the installed SDK model, so typos still fail.
+    shape = get_session().get_service_model("lambda").operation_model("Invoke").output_shape
+    return [handler.identity(), handler.config(), dict.fromkeys(shape.members)]
 
 
 def _resolve(document: dict, dotted: str) -> bool:
@@ -51,6 +56,13 @@ def _resolve(document: dict, dotted: str) -> bool:
             return False
         cursor = cursor[part]
     return True
+
+
+def test_the_invoke_contract_rejects_wrong_case_and_unknown_fields():
+    documents = _served()
+    assert any(_resolve(d, "StatusCode") for d in documents)
+    for typo in ("statusCode", "StatusCodes", "StatusCode.value"):
+        assert not any(_resolve(d, typo) for d in documents)
 
 
 #: Fields that come from a run result rather than from identity or config.

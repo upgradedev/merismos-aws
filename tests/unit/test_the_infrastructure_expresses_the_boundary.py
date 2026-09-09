@@ -55,6 +55,24 @@ def test_every_terraform_file_is_present():
         assert (INFRA / name).is_file(), f"infra/{name} is missing"
 
 
+def _retains_old_layer(document):
+    return bool(re.search(
+        r"removed\s*\{\s*from\s*=\s*aws_lambda_layer_version\.deps\s*"
+        r"lifecycle\s*\{\s*destroy\s*=\s*false\s*\}\s*\}", document))
+
+
+def test_layer_migration_forgets_the_old_version_without_deleting_it(main):
+    assert _retains_old_layer(main)
+    assert not _retains_old_layer(main.replace("destroy = false", "destroy = true"))
+    assert not _retains_old_layer(main.replace("from = aws_lambda_layer_version.deps", "from = other"))
+    assert 'resource "aws_lambda_layer_version" "deps" {' not in main
+    assert 'resource "aws_lambda_layer_version" "deps_retained" {' in main
+    assert "layers = [aws_lambda_layer_version.deps_retained.arn]" in main
+    retained = main.split('resource "aws_lambda_layer_version" "deps_retained" {')[1]
+    assert re.search(r"skip_destroy\s*=\s*true", retained)
+    assert 'layer_name          = "${var.project}-deps"' in retained
+
+
 @pytest.mark.parametrize("who", ["reader", "evaluator"])
 def test_only_the_writer_is_granted_the_publish_credential(iam, who):
     """The grant. Absence is the primary control."""

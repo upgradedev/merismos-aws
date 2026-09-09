@@ -177,6 +177,7 @@ jobs:
           jq -r '.body' writer-reads.json | jq -e '
             .role == "writer" and .read_only == true and
             .checks.corpus_freshness_read.allowed == true and
+            .checks.corpus_freshness_read.backend == "s3" and
             .checks.custody_head_read.allowed == true'
           echo 'Writer read-only permission checks passed; this is not a publication drill.' >> "$GITHUB_STEP_SUMMARY"
 

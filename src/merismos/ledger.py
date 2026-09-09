@@ -175,7 +175,7 @@ class Ledger(Protocol):
 
     def thread(self, run_id: str) -> list[Entry]: ...
 
-    def recall(self, subject: str, kind: str, limit: int = 20) -> list[Entry]: ...
+    def recall(self, subject: str, kind: str, limit: int | None = 20) -> list[Entry]: ...
 
     def open_deferrals(self, subject: str = "") -> list[Entry]: ...
 
@@ -316,7 +316,8 @@ class DynamoDbLedger:
             head = self.client.get_item(TableName=self.table_name, Key=key,
                                         ConsistentRead=True).get("Item")
             if not head and self.thread(entry.run_id):
-                raise ValueError("Legacy run has no persisted custody head. Read only; start a new run.")
+                raise ValueError(
+                    "Legacy run has no persisted custody head. Read only; start a new run.")
             parent = head["last_id"]["S"] if head else ""
             moment = max(entry.at, float(head["at"]["N"]) + 0.000001) if head else entry.at
             linked = replace(entry, parent_id=parent, at=moment).stamped()

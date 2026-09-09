@@ -269,7 +269,7 @@ class ApprovalStore:
         try:
             self.client.update_item(
                 TableName=self.table_name,
-                Key={"nonce": {"S": f"lane:{approval.network}:{approval.category}"}},
+                Key={"nonce": {"S": f"lane:{approval.network}:{approval.category.lower()}"}},
                 UpdateExpression="SET holder = :n",
                 ConditionExpression="attribute_not_exists(holder)",
                 ExpressionAttributeValues={":n": {"S": approval.nonce}})
@@ -285,7 +285,7 @@ class ApprovalStore:
         try:
             self.client.update_item(
                 TableName=self.table_name,
-                Key={"nonce": {"S": f"lane:{approval.network}:{approval.category}"}},
+                Key={"nonce": {"S": f"lane:{approval.network}:{approval.category.lower()}"}},
                 UpdateExpression="REMOVE holder",
                 ConditionExpression="holder = :n",
                 ExpressionAttributeValues={":n": {"S": approval.nonce}})
@@ -325,7 +325,7 @@ class InMemoryApprovalStore:
 
     def acquire_lane(self, approval: Approval) -> bool:
         with self._lock:
-            key = (approval.network, approval.category)
+            key = (approval.network, approval.category.lower())
             if key in self._lanes:
                 return False
             self._lanes[key] = approval.nonce
@@ -333,7 +333,7 @@ class InMemoryApprovalStore:
 
     def release_lane(self, approval: Approval) -> None:
         with self._lock:
-            key = (approval.network, approval.category)
+            key = (approval.network, approval.category.lower())
             if self._lanes.get(key) == approval.nonce:
                 del self._lanes[key]
 

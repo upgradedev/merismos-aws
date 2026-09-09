@@ -81,13 +81,12 @@ def evidence_digest(corpus, offer: dict, history=()) -> str:
 
 def fairness_history(state, network, offer):
     if state["mode"] == "sandbox":
-        records = state["records"]
+        records = reversed(state["records"])
     else:
         records = [entry.body for entry in published_history(
             ledger_from_env(), network, [offer], category=offer.get("category", ""))]
     # Store only semantics used by fairness. Transport timestamps/digests are not
     # verdict facts; order and distinct donation identity are.
-    records = sorted(records, key=lambda record: record.get("published_at", 0), reverse=True)
     same, seen = [], set()
     for record in records:
         if record.get("category", "").lower() != offer.get("category", "").lower():
@@ -430,7 +429,8 @@ def _mutate(state, corpus, network, offer, action, body, principal, store, ident
         ):
             raise ApiError(409, "Evidence changed or predates this API. Run the fleet again.")
         if action == "pickup" and run.get("source_digest") != evidence_digest(corpus, offer):
-            raise ApiError(409, "Evidence changed. Review the current allocation before collection.")
+            raise ApiError(
+                409, "Evidence changed. Review the current allocation before collection.")
         if action == "approve" and mode == "live" and str(
             offer.get("collection_date", "")
         ) < date.today().isoformat():
@@ -486,7 +486,8 @@ def _mutate(state, corpus, network, offer, action, body, principal, store, ident
             try:
                 background.start(offer_id, run_id, network)
             except background.NotDispatched:
-                thread.append("run.failed", detail="The runner was not dispatched. Review and retry.",
+                thread.append("run.failed",
+                              detail="The runner was not dispatched. Review and retry.",
                               dispatch_outcome="not_dispatched")
                 raise
     elif action == "approve":
@@ -555,13 +556,15 @@ def update_pickup(state, offer, run, plan, body):
             raise ApiError(400, "Confirm that this handoff report was actually observed.")
         if code == "no_show" and (not claim.agreed_at or
                                  datetime.fromisoformat(claim.agreed_at).timestamp() > time.time()):
-            raise ApiError(409, "A no-show report requires a scheduled collection time that passed.")
+            raise ApiError(
+                409, "A no-show report requires a scheduled collection time that passed.")
         feedback = tuple(claim.feedback)
         if len(feedback) >= 10:
             raise ApiError(409, "Handoff report limit reached. Ask the coordinator to review.")
         if feedback and feedback[-1]["code"] == code and feedback[-1]["role"] == role:
             raise ApiError(409, "This handoff report is already recorded.")
-        claim = replace(claim, feedback=(*feedback, {"code": code, "role": role, "at": time.time()}))
+        claim = replace(
+            claim, feedback=(*feedback, {"code": code, "role": role, "at": time.time()}))
     elif action == "confirm":
         if body.get("consent") is not True:
             raise ApiError(400, "Confirm that this collection actually happened.")
@@ -592,6 +595,8 @@ def invoke_writer(payload: dict, path: str = "/publish") -> dict:
 
 def reconcile(state, store, identifier, offer_id, operation_id):
     """Inspect only reserved operations; never issue a second publication."""
+    if not isinstance(operation_id, str):
+        raise ApiError(400, "Name the reserved operation to reconcile.")
     operation = state["operations"].get(operation_id)
     if not operation or operation.get("offer_id") != offer_id:
         raise ApiError(404, "No reserved attempt for this offer.")

@@ -453,7 +453,6 @@ def publish(body: dict) -> dict[str, Any]:
 
     nonce = str(body.get("nonce", ""))
     key = str(body.get("key", ""))
-    content = str(body.get("body", ""))
     store = ApprovalStore()
     candidate = store.get(nonce)
     if candidate is None:
@@ -467,9 +466,11 @@ def publish(body: dict) -> dict[str, Any]:
     attempt = {"write_attempted": False}
     try:
         response = _publish_locked(body, store, candidate, attempt)
-    except Exception:
+    except Exception as error:
         if not attempt["write_attempted"]:
             store.release_lane(candidate)
+            return _reply(503, {"detail": f"Writer failed before publication: {type(error).__name__}.",
+                                "write_state": "not_written"})
         raise
     if response["statusCode"] == 200 or json.loads(response["body"]).get(
         "write_state"
@@ -482,7 +483,8 @@ def _publish_locked(body, store, candidate, attempt):
     from .api import evidence_digest, fairness_history
     from .background import completed_result
 
-    nonce, key, content = str(body.get("nonce", "")), str(body.get("key", "")), str(body.get("body", ""))
+    nonce, key = str(body.get("nonce", "")), str(body.get("key", ""))
+    content = str(body.get("body", ""))
     corpus = corpus_from_env()
     offer = _offer(candidate.offer_id) if candidate.offer_id else None
     result = completed_result(ledger_from_env().thread(candidate.run_id)) or {}
@@ -695,7 +697,8 @@ def publication_capabilities() -> dict[str, Any]:
         if not available:
             raise ValueError("No offer available for the evidence read")
         evidence_digest(corpus, available[0])
-        checks["corpus_freshness_read"] = {"allowed": True}
+        checks["corpus_freshness_read"] = {
+            "allowed": True, "backend": os.environ.get("MERISMOS_CORPUS", "local")}
     except Exception as error:
         checks["corpus_freshness_read"] = {"allowed": False, "detail": _aws_said(error)}
     try:
@@ -707,7 +710,7 @@ def publication_capabilities() -> dict[str, Any]:
     except Exception as error:
         checks["custody_head_read"] = {"allowed": False, "detail": _aws_said(error)}
     return _reply(200, {"role": "writer", "read_only": True, "checks": checks,
-                        "limits": "Permission evidence only; not publication or chain verification."})
+                        "limits": "Permission evidence only; not publication or chain proof."})
 
 
 def thread_of(run_id: str) -> dict[str, Any]:
