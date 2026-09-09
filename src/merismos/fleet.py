@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import datetime as dt
 import json
+import re
 import uuid
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field, replace
@@ -546,10 +547,38 @@ def premises(
 #: extended to cover every case, because a rule per case is the rules engine this
 #: project argues is insufficient, and pretending otherwise would make the
 #: README's comparison dishonest.
+#:
+#: **Matched on word boundaries since 2026-09-09.** It was a substring match, and
+#: "ham" is inside "hamper", so every manifest mentioning a gift hamper was
+#: flagged as pork. offer-4483, the example this project uses to argue that rules
+#: alone are not enough, is about seasonal gift hampers: its real pork salami
+#: masked the false positive by firing for the right organisation for the wrong
+#: reason.
+#:
+#: **The bare category words are deliberately absent, and that is a known gap.**
+#: A manifest saying "contains alcohol" in as many words blocks nobody here.
+#: Adding "alcohol" to its own list was tried and reverted the same hour:
+#: offer-4471's manifest reads "nothing here is alcohol", and a bare category
+#: word matches the sentence that denies it, which excluded a member from an
+#: offer it was one of two allowed to receive. Prose about a category is mostly
+#: prose denying it, and the specific tokens below do not have that problem
+#: because nobody writes "no hazelnut" as a matter of course.
+#:
+#: Negation handling would close it and is the beginning of the rules engine this
+#: list exists not to be. Reading "nothing here is alcohol" correctly is the
+#: model's job, and saying the floor does that would be claiming the comparison
+#: this project's README makes is unnecessary.
 _MANIFEST_TOKENS = {
     "alcohol": ("wine", "beer", "spirits", "vodka", "whisky", "ouzo", "liqueur"),
     "pork": ("pork", "salami", "bacon", "ham", "gelatin"),
     "nut": ("hazelnut", "almond", "walnut", "peanut", "pistachio"),
+}
+
+#: One compiled matcher per category. ``\b(?:a|b)s?\b`` so that "nuts",
+#: "wines" and "almonds" match and "hamper" does not.
+_MANIFEST_PATTERNS = {
+    category: re.compile(r"\b(?:" + "|".join(words) + r")s?\b", re.IGNORECASE)
+    for category, words in _MANIFEST_TOKENS.items()
 }
 
 
@@ -570,8 +599,9 @@ def _manifest_contradicts_declaration(
     lowered = manifest_text.lower()
     findings: list[Finding] = []
     excluded: list[str] = []
-    for token, words in _MANIFEST_TOKENS.items():
-        hit = next((w for w in words if w in lowered), "")
+    for token, pattern in _MANIFEST_PATTERNS.items():
+        found = pattern.search(lowered)
+        hit = found.group(0) if found else ""
         if not hit or token in declared:
             continue
         affected = [
