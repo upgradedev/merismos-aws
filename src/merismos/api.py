@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import re
 import secrets
 import time
@@ -113,7 +114,28 @@ def public_result(result: dict) -> dict:
         return {"outcome": "refused_by_gate", "note": "Personal-data check refused this output.",
                 "draft_allocations": [], "draft_barred_because": {}, "draft_body": "",
                 "run_id": result.get("run_id", ""), "envelopes": []}
-    return {**public, "run_id": result.get("run_id", "")}
+    return {**public, "run_id": result.get("run_id", ""),
+            "fairness_cap": fairness_cap(result)}
+
+
+def fairness_cap(result: dict) -> dict | None:
+    """Exact applied equity limit, never inferred from rounded record prose.
+
+    Old saved results may have no metadata. Only the two source labels emitted
+    by fleet.ceiling_share are public; arbitrary model metadata stays private.
+    """
+    equity = [e for e in result.get("envelopes", []) if e.get("specialist") == "equity"]
+    if len(equity) != 1 or not isinstance(equity[0].get("meta"), dict):
+        return None
+    meta = equity[0]["meta"]
+    share, source = meta.get("ceiling_share"), meta.get("ceiling_from")
+    allowed = ("registers/allocation-policy.md",
+               "the default, because this filing states no ceiling")
+    if type(share) not in (int, float) or not 0 < share <= 1 or not math.isfinite(share):
+        return None
+    if not isinstance(source, str) or source not in allowed:
+        return None
+    return {"share": share, "source": source}
 
 
 def live_result(offer: dict, saved: dict, network: str) -> dict:

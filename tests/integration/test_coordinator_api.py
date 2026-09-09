@@ -263,6 +263,19 @@ def test_an_unrelated_offer_does_not_invalidate_an_approved_pickup(client):
                              "action": "confirm", "consent": True})
 
 
+@pytest.mark.parametrize("percentage", [25, 12.5])
+def test_api_projects_the_applied_network_ceiling_without_rounding(client, percentage):
+    key = api.fingerprint(client.handle)
+    state = client.store.get(key)
+    path = "registers/allocation-policy.md"
+    state["files"][path] = state["files"][path].replace("**40%**", f"**{percentage}%**")
+    client.store.save(key, state, state["version"])
+    response, _ = post(client, "run")
+    row = next(o for o in response["offers"] if o["offer"]["id"] == "offer-4471")
+    assert row["result"]["fairness_cap"] == {"share": percentage / 100, "source": path}
+    assert all("meta" not in e for e in row["result"]["envelopes"])
+
+
 def test_live_authorized_journey_uses_the_separate_writer_and_never_overwrites(client, monkeypatch):
     """Real handler on both sides of a local Lambda transport, no live AWS call."""
     import io

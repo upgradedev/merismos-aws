@@ -1,0 +1,128 @@
+import { act, render, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { expect, it, vi } from 'vitest';
+import { AllocationBars } from './AllocationBars';
+import { ClockBasis, DateCue, DigestCustody } from './DispatchEvidence';
+import { OfferDetail } from './OfferDetail';
+import { Pickups } from './Pickups';
+import { row, workspace } from './test/fixtures';
+import type { FairnessCap } from './types';
+
+const allocation = { org: 'Elpida Shelter', quantity: 20, reason: 'Transport capacity is 20 kg.', share_of_offer: 20 / 240 };
+const source = 'registers/allocation-policy.md';
+
+it.each([[0.4, 96], [0.25, 60], [0.125, 30], [0.3333333333333333, 80]])('scales actual amount and %s cap against all 240 kg, never recipient capacity', (share, ceiling) => {
+  render(<AllocationBars allocation={allocation} offer={row.offer} cap={{share, source}}/>);
+  const actual = screen.getByRole('meter', {name: 'Elpida Shelter: allocated share'});
+  const cap = screen.getByRole('meter', {name: 'Elpida Shelter: policy ceiling'});
+  expect(actual).toHaveAttribute('aria-valuenow', '20');
+  expect(actual).toHaveAttribute('aria-valuemax', '240');
+  expect(actual).toHaveAttribute('aria-valuetext', '20 kg allocated out of 240 kg offered');
+  expect(cap).toHaveAttribute('aria-valuenow', String(ceiling));
+  expect(cap).toHaveAttribute('aria-valuemax', '240');
+  expect(cap.firstElementChild).toHaveStyle({width: `${share * 100}%`});
+  expect(screen.queryByText(/exceeds/)).not.toBeInTheDocument();
+});
+it.each([undefined, null, {share: 0, source}, {share: 2, source}, {share: NaN, source}, {share: 0.4, source: ''}, {share: true, source}, {share: 0.4, source: null}])('does not fabricate absent or malformed caps: %s', cap => {
+  render(<AllocationBars allocation={allocation} offer={row.offer} cap={cap as FairnessCap | null}/>);
+  expect(screen.getAllByRole('meter')).toHaveLength(1);
+  expect(screen.getByText(/No default is assumed/)).toBeVisible();
+});
+it.each([[0, 20], [NaN, 20], [240, -1], [240, Infinity]])('avoids invalid percentage arithmetic for total %s, amount %s', (quantity, amount) => {
+  render(<AllocationBars allocation={{...allocation, quantity: amount}} offer={{...row.offer, quantity}} cap={{share: 0.4, source}}/>);
+  expect(screen.queryByRole('meter')).not.toBeInTheDocument();
+  expect(screen.getByText(/No percentage is inferred/)).toBeVisible();
+});
+it('shows zero and out-of-range reported allocations without concealing the numbers or assuming kg', () => {
+  const {rerender} = render(<AllocationBars allocation={{...allocation, quantity: 0}} offer={{...row.offer, unit: 'portions'}} cap={{share: 0.4, source}}/>);
+  expect(screen.getByRole('meter', {name: /allocated/})).toHaveAttribute('aria-valuenow', '0');
+  expect(screen.getByText('40% · 96 portions')).toBeVisible();
+  rerender(<AllocationBars allocation={{...allocation, quantity: 300}} offer={row.offer} cap={{share: 0.4, source}}/>);
+  expect(screen.getByRole('meter', {name: /allocated/})).toHaveAttribute('aria-valuetext', '300 kg allocated out of 240 kg offered');
+  expect(screen.getByRole('meter', {name: /allocated/})).toHaveAttribute('aria-valuenow', '240');
+  expect(screen.getByText(/exceeds the supplied policy ceiling/)).toBeVisible();
+});
+it('preserves allocation reasons and source, with an honest old-result and no-plan fallback', () => {
+  const detail = {...row, result: {...row.result, fairness_cap: {share: 0.125, source}, draft_allocations: [allocation]}};
+  const {rerender} = render(<OfferDetail row={detail} data={workspace()} busy={false} mutate={vi.fn()}/>);
+  expect(screen.getByText(allocation.reason)).toBeVisible();
+  expect(screen.getByText(/not recipient transport or storage capacity/)).toHaveTextContent(source);
+  expect(screen.getByRole('meter', {name: /policy ceiling/})).toHaveAttribute('aria-valuenow', '30');
+  rerender(<OfferDetail row={{...detail, plan: null}} data={workspace()} busy={false} mutate={vi.fn()}/>);
+  expect(screen.queryByRole('meter', {name: /policy ceiling/})).not.toBeInTheDocument();
+  expect(screen.queryByText(/Policy source:/)).not.toBeInTheDocument();
+  rerender(<OfferDetail row={row} data={workspace()} busy={false} mutate={vi.fn()}/>);
+  expect(screen.getByText(/Fairness cap unavailable/)).toBeVisible();
+});
+it('renders exact dates, missing dates and an explicit browser clock basis', () => {
+  const {rerender} = render(<DateCue offer={row.offer} today="2026-09-09"/>);
+  expect(screen.getByText('Tomorrow')).toBeVisible();
+  expect(screen.getByText('2026-09-10')).toHaveAttribute('datetime', '2026-09-10');
+  expect(screen.getByText('2026-09-11')).toBeVisible();
+  rerender(<DateCue offer={{...row.offer, use_by: '2026-09-08'}} today="2026-09-09"/>);
+  expect(screen.getByText('Date passed')).toBeVisible();
+  expect(screen.getByText('2026-09-10')).toBeVisible();
+  rerender(<DateCue offer={{...row.offer, use_by: row.offer.collection_date}} today="2026-09-09"/>);
+  expect(screen.getAllByText('2026-09-10')).toHaveLength(1);
+  rerender(<DateCue today="2026-09-09"/>);
+  expect(screen.getByText('Date unavailable')).toBeVisible();
+  rerender(<ClockBasis today="2026-09-09"/>);
+  expect(screen.getByText(/browser-local date at view opening/)).toHaveTextContent('2026-09-09');
+  expect(screen.getByText(/Reload to update/)).toHaveTextContent('Dates alone do not establish food safety');
+});
+it('keeps server-recorded pickup status separate from dates, including missing source offers', async () => {
+  const data = workspace();
+  data.pickups = [{offer_id: 'offer-4471', title: 'Bread', org: 'Kitchen', quantity: 96, unit: 'kg', role: 'duty manager', state: 'confirmed', agreed_at: '', plan_digest: 'd', run_id: 'r'}];
+  const user = userEvent.setup();
+  const {rerender} = render(<Pickups data={data} busy={false} mutate={vi.fn()}/>);
+  await user.selectOptions(screen.getByLabelText('Show'), 'all');
+  expect(within(screen.getByRole('article')).getByText('Confirmed collected')).toBeVisible();
+  expect(screen.getByText('Recorded date')).toBeVisible();
+  data.offers = [];
+  rerender(<Pickups data={data} busy={false} mutate={vi.fn()}/>);
+  expect(screen.getByText('Date unavailable')).toBeVisible();
+  expect(screen.getByText('Confirmed collected')).toBeVisible();
+});
+it('copies the exact digest once while pending, without elevating draft custody', async () => {
+  const user = userEvent.setup();
+  let resolve!: () => void;
+  const write = vi.fn(() => new Promise<void>(done => { resolve = done; }));
+  Object.defineProperty(navigator, 'clipboard', {value: {writeText: write}, configurable: true});
+  render(<DigestCustody plan={row.plan!} mode="sandbox"/>);
+  await user.click(screen.getByRole('button', {name: 'Copy digest'}));
+  expect(screen.getByRole('button', {name: 'Copying digest…'})).toBeDisabled();
+  expect(write).toHaveBeenCalledExactlyOnceWith(row.plan!.digest);
+  await act(async () => resolve());
+  expect(screen.getByRole('status')).toHaveTextContent('Record status is unchanged');
+  expect(screen.getByText('Draft · approval still required')).toBeVisible();
+  expect(screen.queryByText('Sandbox record · server reported')).not.toBeInTheDocument();
+});
+it('recovers clipboard denial with a selectable field and reports only server-recorded state', async () => {
+  const user = userEvent.setup();
+  Object.defineProperty(navigator, 'clipboard', {value: undefined, configurable: true});
+  const {rerender} = render(<DigestCustody plan={{...row.plan!, recorded: true}} mode="sandbox"/>);
+  await user.click(screen.getByRole('button', {name: 'Copy digest'}));
+  expect(screen.getByRole('status')).toHaveTextContent('Select and copy');
+  expect(screen.getByRole('textbox', {name: 'Approval content digest'})).toHaveValue(row.plan!.digest);
+  expect(screen.getByRole('textbox')).toHaveAttribute('readonly');
+  expect(screen.getByText('Sandbox record · server reported')).toBeVisible();
+  expect(screen.getByText(/Not a Merkle proof or independently verified custody/)).toBeVisible();
+  rerender(<DigestCustody plan={{...row.plan!, recorded: true}} mode="live"/>);
+  expect(screen.getByText('Published record · server reported')).toBeVisible();
+  rerender(<DigestCustody plan={{...row.plan!, digest: ''}} mode="live"/>);
+  expect(screen.getByRole('button', {name: 'Copy digest'})).toBeDisabled();
+  expect(screen.getByText(/has not supplied a digest/)).toBeVisible();
+});
+it('clears clipboard feedback when server plan state changes, without altering approval consent', async () => {
+  const user = userEvent.setup();
+  Object.defineProperty(navigator, 'clipboard', {value: {writeText: vi.fn().mockResolvedValue(undefined)}, configurable: true});
+  const mutate = vi.fn();
+  const {rerender} = render(<OfferDetail row={row} data={workspace()} busy={false} mutate={mutate}/>);
+  await user.click(screen.getByRole('button', {name: 'Copy digest'}));
+  expect(screen.getByText(/Digest copied/)).toBeVisible();
+  expect(screen.getByRole('checkbox')).not.toBeChecked();
+  expect(mutate).not.toHaveBeenCalled();
+  rerender(<OfferDetail row={{...row, plan: {...row.plan!, recorded: true}}} data={workspace()} busy={false} mutate={mutate}/>);
+  expect(screen.queryByText(/Digest copied/)).not.toBeInTheDocument();
+  expect(screen.getByText('Sandbox record · server reported')).toBeVisible();
+});
