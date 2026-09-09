@@ -4,12 +4,56 @@ on:
     branches: [main, 'codex/**']
   pull_request:
   workflow_dispatch:
+    inputs:
+      archive_previous_acceptance:
+        description: Preserve the fixed previous accepted AWS artifact bytes once
+        type: boolean
+        default: false
   workflow_call:
 
 permissions:
   contents: read
 
 jobs:
+  archive-accepted-evidence:
+    if: github.event_name == 'workflow_dispatch' && inputs.archive_previous_acceptance
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - name: Archive only the fixed accepted source artifact without executing it
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p accepted-evidence
+          gh api repos/upgradedev/merismos-aws/actions/artifacts/10107806322 > accepted-evidence/source.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          source = json.loads(Path('accepted-evidence/source.json').read_text())
+          assert source['id'] == 10107806322
+          assert source['workflow_run']['id'] == 34360378251
+          assert not source['expired'], 'The source has expired; no archive can be claimed'
+          PY
+          gh api repos/upgradedev/merismos-aws/actions/artifacts/10107806322/zip > accepted-evidence/original.zip
+          python - <<'PY'
+          import hashlib, json
+          from pathlib import Path
+          root = Path('accepted-evidence')
+          source = json.loads((root / 'source.json').read_text())
+          manifest = {'source_run_id': 34360378251, 'source_artifact_id': 10107806322,
+                      'source_commit': source['workflow_run']['head_sha'],
+                      'source_name': source['name'], 'executed': False,
+                      'sha256': hashlib.sha256((root / 'original.zip').read_bytes()).hexdigest()}
+          (root / 'manifest.json').write_text(json.dumps(manifest, indent=2) + '\n')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: accepted-34360378251-source-10107806322-${{ github.run_id }}
+          path: accepted-evidence/
+          retention-days: 90
+          if-no-files-found: error
   verify:
     runs-on: ubuntu-latest
     timeout-minutes: 25
@@ -108,12 +152,12 @@ jobs:
             frontend/coverage/
             frontend/coverage-python.xml
             frontend/UAT.testbook.*
-          retention-days: 10
+          retention-days: 90
       - name: Upload compact UI screenshots for review
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: ui-screenshots-${{ github.sha }}
           path: frontend/test-results/**/*.png
-          retention-days: 10
+          retention-days: 90
           if-no-files-found: warn

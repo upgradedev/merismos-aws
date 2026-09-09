@@ -91,10 +91,19 @@ class S3Corpus:
         return self._client
 
     def list_paths(self) -> list[str]:
+        # The writer can list only the source families used by the freshness
+        # check; it never needs to enumerate unrelated objects in the bucket.
+        if os.environ.get("MERISMOS_ROLE") == "writer":
+            return sorted(path for family in ("offers/", "orgs/", "registers/")
+                          for path in self._list_prefix(family))
+        return self._list_prefix("")
+
+    def _list_prefix(self, family: str) -> list[str]:
         paths: list[str] = []
         token: str | None = None
         while True:
-            kwargs: dict[str, Any] = {"Bucket": self.bucket, "Prefix": self.prefix}
+            prefix = f"{self.prefix.rstrip('/')}/{family}".lstrip("/") if family else self.prefix
+            kwargs: dict[str, Any] = {"Bucket": self.bucket, "Prefix": prefix}
             if token:
                 kwargs["ContinuationToken"] = token
             response = self.client.list_objects_v2(**kwargs)

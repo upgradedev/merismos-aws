@@ -27,6 +27,7 @@ import json
 import os
 import time
 import uuid
+from threading import RLock
 from collections.abc import Iterable, Iterator, Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from typing import Any, Protocol
@@ -223,6 +224,17 @@ class InMemoryLedger:
 
     def __init__(self) -> None:
         self._entries: list[Entry] = []
+        self._lock = RLock()
+
+    def append_linked(self, entry: Entry) -> Entry:
+        with self._lock:
+            prior = self.thread(entry.run_id)
+            existing = next((e for e in prior if e.entry_id == entry.entry_id), None)
+            if existing:
+                return existing
+            entry = replace(entry, parent_id=prior[-1].entry_id if prior else "",
+                            at=max(entry.at, prior[-1].at + 0.000001) if prior else entry.at)
+            return self.append(entry.stamped())
 
     def append(self, entry: Entry) -> Entry:
         self._entries.append(entry)
@@ -291,6 +303,46 @@ class DynamoDbLedger:
             ConditionExpression="attribute_not_exists(entry_id)",
         )
         return entry
+
+    def append_linked(self, entry: Entry) -> Entry:
+        """Atomically append and advance a persisted head for new run traffic.
+
+        The head is outside the event indexes. Historic entries are never
+        restamped or reparented. Concurrent writers retry only a rejected
+        transaction; a transport failure remains unknown and is not retried.
+        """
+        key = {"subject": {"S": f"custody:{entry.run_id}"}, "entry_id": {"S": "head"}}
+        for _ in range(3):
+            head = self.client.get_item(TableName=self.table_name, Key=key,
+                                        ConsistentRead=True).get("Item")
+            parent = head["last_id"]["S"] if head else ""
+            moment = max(entry.at, float(head["at"]["N"]) + 0.000001) if head else entry.at
+            linked = replace(entry, parent_id=parent, at=moment).stamped()
+            advance = {"TableName": self.table_name,
+                       "Item": {**key, "last_id": {"S": linked.entry_id}, "at": {"N": repr(moment)}},
+                       "ConditionExpression": "last_id = :last" if head else
+                                              "attribute_not_exists(entry_id)"}
+            if head:
+                advance["ExpressionAttributeValues"] = {":last": {"S": parent}}
+            try:
+                self.client.transact_write_items(TransactItems=[
+                    {"Put": {"TableName": self.table_name, "Item": _to_item(linked),
+                             "ConditionExpression": "attribute_not_exists(entry_id)"}},
+                    {"Put": advance},
+                ])
+                return linked
+            except Exception as error:
+                reasons = getattr(error, "response", {}).get("CancellationReasons", [])
+                if not reasons or any(reason.get("Code") not in (
+                    "None", "ConditionalCheckFailed") for reason in reasons):
+                    raise
+                existing = self.client.get_item(
+                    TableName=self.table_name,
+                    Key={"subject": {"S": entry.subject}, "entry_id": {"S": entry.entry_id}},
+                    ConsistentRead=True).get("Item")
+                if existing:
+                    return _from_item(existing)
+        raise ValueError("The custody head changed concurrently. Refresh before continuing.")
 
     def thread(self, run_id: str) -> list[Entry]:
         response = self.client.query(
@@ -404,7 +456,7 @@ class Thread:
         # Doing it in ``Entry.__post_init__`` would also stamp a row read back
         # from the store, computing the digest from whatever that row currently
         # says and certifying an edited one as intact.
-        entry = self.ledger.append(
+        entry = self.ledger.append_linked(
             Entry(
                 kind=kind,
                 subject=self.subject,

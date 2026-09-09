@@ -31,9 +31,11 @@ from . import bedrock
 from .approval import (
     ApprovalRefused,
     ApprovalStore,
+    digest,
     Receipt,
     authorise,
     grant,
+    published_history,
 )
 from .corpus import corpus_from_env
 from .corpus import offers as read_offers
@@ -150,6 +152,21 @@ def handler(event: Any, context: Any = None) -> dict[str, Any]:
             from .api import route as api_route
 
             return api_route(event, method, path, body)
+        if method == "POST" and (path.startswith("/approve/") or path == "/offers/new"):
+            from .api import route as api_route
+
+            # Legacy aliases use the very same identity, fresh plan, consent,
+            # revision and idempotency boundary. A typed name confers no authority.
+            target = "/api/offers/new" if path == "/offers/new" else (
+                f"/api/offers/{path.rsplit('/', 1)[-1]}/approve")
+            return api_route(event, method, target, {**body, "mode": "live"})
+        if method == "POST" and (path == "/run" or path.startswith("/offer/")):
+            from .api import ApiError, coordinator
+
+            try:
+                coordinator(event, NETWORK)
+            except ApiError as error:
+                return _reply(error.status, {"detail": str(error)})
         html_reply = _screens(method, path, body)
         if html_reply is not None:
             return html_reply
@@ -170,6 +187,8 @@ def handler(event: Any, context: Any = None) -> dict[str, Any]:
             return _reply(200, run(body))
         if path == "/publish" and method == "POST":
             return publish(body)
+        if path == "/publication-status" and method == "POST":
+            return publication_status(body)
         if path == "/intake" and method == "POST":
             return take_offer(body)
     except ApprovalRefused as refusal:
@@ -433,43 +452,102 @@ def publish(body: dict) -> dict[str, Any]:
     nonce = str(body.get("nonce", ""))
     key = str(body.get("key", ""))
     content = str(body.get("body", ""))
-    if "api_evidence_digest" in body:
-        from .api import evidence_digest
-
-        offer = _offer(str(body.get("offer_id", "")))
-        if offer is None or body["api_evidence_digest"] != evidence_digest(
-            corpus_from_env(), offer
-        ):
-            return _reply(409, {"detail": "Evidence changed before the writer could publish."})
     store = ApprovalStore()
+    candidate = store.get(nonce)
+    if candidate is None:
+        return _reply(403, {"detail": "No approval on file."})
+    if not re.fullmatch(r"records/offer-[0-9]+(?:-c[2-9][0-9]*|-c1[0-9]+)?\.md", key):
+        return _reply(400, {"detail": "An approval must name an immutable record address.",
+                            "write_state": "not_written"})
+    from .api import evidence_digest
+    from .background import completed_result
 
+    corpus = corpus_from_env()
+    offer = _offer(candidate.offer_id) if candidate.offer_id else None
+    result = completed_result(ledger_from_env().thread(candidate.run_id)) or {}
+    if (not offer or not candidate.evidence_digest
+            or result.get("outcome") not in ("awaiting_approval", "approved")
+            or (result.get("verdict") or {}).get("passed") is not True
+            or result.get("offer_id") != candidate.offer_id
+            or result.get("draft_body") != content
+            or candidate.evidence_digest != evidence_digest(corpus, offer)):
+        return _reply(409, {"detail": "A fresh passing plan and exact approval are required.",
+                            "write_state": "not_written"})
+    from datetime import date
+
+    if str(offer.get("collection_date", "")) < date.today().isoformat():
+        return _reply(409, {"detail": "This collection date has passed.",
+                            "write_state": "not_written"})
     approval = authorise(store, nonce, NETWORK, key, content)
 
     import boto3
 
     bucket = os.environ["MERISMOS_RECORDS_BUCKET"]
-    boto3.client("s3").put_object(
-        Bucket=bucket,
-        Key=key,
-        Body=content.encode("utf-8"),
-        ContentType="text/markdown; charset=utf-8",
-        **({"IfNoneMatch": "*"} if "api_evidence_digest" in body else {}),
-    )
-    receipt = Receipt(
+    try:
+        boto3.client("s3").put_object(
+            Bucket=bucket, Key=key, Body=content.encode("utf-8"),
+            ContentType="text/markdown; charset=utf-8", IfNoneMatch="*",
+            Metadata={"approval-nonce": approval.nonce, "run-id": approval.run_id,
+                      "content-digest": approval.content_digest},
+        )
+    except Exception as error:
+        code = getattr(error, "response", {}).get("Error", {}).get("Code", "")
+        if code in ("AccessDenied", "AccessDeniedException", "PreconditionFailed",
+                    "ConditionalRequestConflict"):
+            return _reply(409 if _already_there(error) else 503,
+                          {"detail": "Storage refused this publication. Review before retrying.",
+                           "write_state": "not_written"})
+        raise
+    receipt = _publication_receipt(approval, bucket, time.time())
+    _append_receipt(receipt)
+    return _reply(200, receipt.as_dict())
+
+
+def _publication_receipt(approval, bucket, published_at):
+    return Receipt(
         nonce=approval.nonce,
         network=approval.network,
         key=approval.key,
         content_digest=approval.content_digest,
         approved_by=approval.approved_by,
         run_id=approval.run_id,
-        published_url=f"https://{bucket}.s3.amazonaws.com/{key}",
-        published_at=time.time(),
+        published_url=f"https://{bucket}.s3.amazonaws.com/{approval.key}",
+        published_at=published_at,
+        offer_id=approval.offer_id, category=approval.category, orgs=approval.orgs,
     )
-    thread = Thread(
-        ledger=ledger_from_env(), subject=NETWORK, run_id=approval.run_id
-    )
-    thread.append("record.published", **receipt.as_dict())
-    return _reply(200, receipt.as_dict())
+
+
+def _append_receipt(receipt):
+    from .ledger import Entry
+
+    # A recovered writer completion names the same event. Storage rejects a
+    # duplicate event instead of appending another publication to the history.
+    ledger_from_env().append_linked(Entry(
+        kind="record.published", subject=NETWORK, run_id=receipt.run_id,
+        entry_id=f"receipt-{receipt.nonce}", body=receipt.as_dict()))
+
+
+def publication_status(body):
+    """Recover only a new approval's proven object; never rewrite record bytes."""
+    if role() != "writer":
+        return _reply(403, {"detail": "Publication recovery belongs to the writer."})
+    approval = ApprovalStore().get(str(body.get("nonce", "")))
+    if not approval or not approval.evidence_digest:
+        return _reply(409, {"detail": "This approval cannot be reconciled automatically."})
+    import boto3
+
+    bucket = os.environ["MERISMOS_RECORDS_BUCKET"]
+    try:
+        saved = boto3.client("s3").get_object(Bucket=bucket, Key=approval.key)
+    except Exception:
+        return _reply(200, {"state": "unknown", "detail": "The saved object is not confirmed."})
+    content = saved["Body"].read().decode("utf-8")
+    if (saved.get("Metadata", {}).get("approval-nonce") != approval.nonce
+            or digest(NETWORK, approval.key, content) != approval.content_digest):
+        return _reply(200, {"state": "unknown", "detail": "The object does not match this approval."})
+    receipt = _publication_receipt(approval, bucket, saved["LastModified"].timestamp())
+    _append_receipt(receipt)
+    return _reply(200, {"state": "recorded", "receipt": receipt.as_dict()})
 
 
 def take_offer(body: dict) -> dict[str, Any]:
@@ -743,12 +821,7 @@ def _screens(method: str, path: str, body: dict) -> dict[str, Any] | None:
         # acted on, which is what this feature exists to prevent. So the card is
         # not assembled, and the page says which of the two it is.
         try:
-            published = [
-                e.body
-                for e in ledger_from_env().recall(
-                    subject_for_offer(NETWORK, offer), "record.published", limit=8
-                )
-            ]
+            published = [e.body for e in published_history(ledger_from_env(), NETWORK, [offer])]
         except Exception as error:  # noqa: BLE001 - reported, never guessed past
             return _html(
                 503,
@@ -775,11 +848,7 @@ def _screens(method: str, path: str, body: dict) -> dict[str, Any] | None:
                 return _html(200, web.decision(result, offer, NETWORK))
             return _html(200, web.approval_card(result, offer, NETWORK, key))
 
-        # POST. A person named themselves, so an approval may now be minted.
-        approver = str(body.get("approved_by", "")).strip()
-        if not approver or result.draft is None:
-            return _html(400, web.page("Name required", "<h1>An approval names a person</h1>"))
-        return _publish_approved(result, offer_id, key, approver)
+        return _reply(405, {"detail": "Use the authenticated coordinator API with exact consent."})
 
     if path == "/offers/new":
         from . import intake
@@ -814,9 +883,9 @@ def _screens(method: str, path: str, body: dict) -> dict[str, Any] | None:
             return _html(404, web.page("Not found", "<h1>No such offer</h1>"))
         from . import custody
 
-        entries = ledger_from_env().recall(
-            subject_for_offer(NETWORK, offer), "record.published", limit=1
-        )
+        entries = [e for e in published_history(ledger_from_env(), NETWORK, [offer])
+                   if e.body.get("key", "").startswith(f"records/{offer_id}.")
+                   or e.body.get("key", "").startswith(f"records/{offer_id}-c")]
         run = entries[0].run_id if entries else str(body.get("run", ""))
         thread = ledger_from_env().thread(run) if run else []
         return _html(200, web.custody_chain(offer, custody.summary(offer_id, thread)))
@@ -961,9 +1030,7 @@ def _one_record(slug: str) -> dict[str, Any]:
         return _html(404, web.page("Not found", "<h1>No such offer</h1>"))
 
     try:
-        entries = ledger_from_env().recall(
-            subject_for_offer(NETWORK, offer), "record.published", limit=8
-        )
+        entries = published_history(ledger_from_env(), NETWORK, [offer])
     except Exception:  # noqa: BLE001 - an unreadable thread is not a missing record
         return _html(
             503,

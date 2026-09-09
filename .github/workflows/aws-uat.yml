@@ -73,5 +73,5 @@ jobs:
             frontend/artifacts/browser-junit.xml
             frontend/playwright-report/
             frontend/UAT.testbook.*
-          retention-days: 14
+          retention-days: 90
           if-no-files-found: error

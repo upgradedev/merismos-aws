@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main, "feat/**"]
+    branches: [main, "feat/**", "codex/**"]
   pull_request:
   workflow_dispatch:
 
@@ -159,7 +159,7 @@ jobs:
         with:
           name: deps-layer
           path: infra/.build/deps.zip
-          retention-days: 5
+          retention-days: 90
           if-no-files-found: error
 
       # The boundary this entry argues for lives in iam.tf, so it is linted as

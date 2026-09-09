@@ -210,8 +210,35 @@ data "aws_iam_policy_document" "writer" {
 
   statement {
     sid       = "RecordThePublish"
-    actions   = ["dynamodb:PutItem"]
-    resources = [aws_dynamodb_table.thread.arn]
+    actions   = ["dynamodb:PutItem", "dynamodb:GetItem", "dynamodb:Query"]
+    resources = [aws_dynamodb_table.thread.arn, "${aws_dynamodb_table.thread.arn}/index/*"]
+  }
+
+  statement {
+    sid       = "ListApprovalEvidence"
+    actions   = ["s3:ListBucket"]
+    resources = [aws_s3_bucket.corpus.arn]
+    condition {
+      test     = "StringLike"
+      variable = "s3:prefix"
+      values   = ["offers/*", "orgs/*", "registers/*"]
+    }
+  }
+
+  statement {
+    sid     = "ReadApprovalEvidence"
+    actions = ["s3:GetObject"]
+    resources = [
+      "${aws_s3_bucket.corpus.arn}/offers/*",
+      "${aws_s3_bucket.corpus.arn}/orgs/*",
+      "${aws_s3_bucket.corpus.arn}/registers/*",
+    ]
+  }
+
+  statement {
+    sid       = "ReconcileExactPublication"
+    actions   = ["s3:GetObject"]
+    resources = ["${aws_s3_bucket.records.arn}/records/*"]
   }
 
   # THE PUBLISH AUTHORITY. This one statement is what lets a record be

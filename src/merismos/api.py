@@ -19,7 +19,8 @@ from datetime import date, datetime, timezone
 from importlib.resources import files
 
 from . import background, bedrock, gate, intake, pickup
-from .approval import ApprovalStore, InMemoryApprovalStore, authorise, digest, grant
+from .approval import (ApprovalStore, InMemoryApprovalStore, authorise, digest, grant,
+                       published_history)
 from .corpus import corpus_from_env, offers
 from .fleet import new_run_id, record_key, run_chore, subject_for_offer
 from .ledger import InMemoryLedger, Thread, ledger_from_env
@@ -27,9 +28,10 @@ from .workspace_store import Conflict, WorkspaceStore
 
 
 class ApiError(ValueError):
-    def __init__(self, status: int, detail: str):
+    def __init__(self, status: int, detail: str, write_state: str = "unknown"):
         super().__init__(detail)
         self.status = status
+        self.write_state = write_state
 
 
 def fingerprint(value) -> str:
@@ -162,9 +164,7 @@ def live_result(offer: dict, saved: dict, network: str) -> dict:
 def live_records(current_offers: list, network: str) -> list:
     ledger = ledger_from_env()
     # Legacy writer stored receipts at network scope; fleet recalls offer scope.
-    found = list(ledger.recall(network, "record.published", limit=200))
-    for offer in current_offers:
-        found.extend(ledger.recall(subject_for_offer(network, offer), "record.published", 200))
+    found = published_history(ledger, network, current_offers)
     unique = {e.body["key"]: dict(e.body) for e in sorted(found, key=lambda e: e.at)
               if "key" in e.body}
     return [{"key": r["key"], "run_id": r.get("run_id", ""),
@@ -176,7 +176,9 @@ def live_records(current_offers: list, network: str) -> list:
 
 def plan_for(offer: dict, run: dict, records: list, network: str) -> dict | None:
     result = run.get("result") or {}
-    if result.get("outcome") not in ("awaiting_approval", "approved"):
+    if result.get("outcome") not in ("awaiting_approval", "approved") or (
+        (result.get("verdict") or {}).get("passed") is not True
+    ):
         return None
     mine = next((r for r in records if r["run_id"] == run.get("run_id")), None)
     key = mine["key"] if mine else record_key(offer["id"], records)
@@ -266,6 +268,8 @@ def route(event: dict, method: str, path: str, body: dict) -> dict:
     try:
         if role() != "reader":
             raise ApiError(403, "The coordinator API is served only by the reader identity.")
+        if method == "POST" and path != "/api/sessions" and body.get("mode", "live") == "live":
+            coordinator(event, NETWORK)
         store = WorkspaceStore()
         if path == "/api/sessions" and method == "POST":
             handle = secrets.token_urlsafe(32)
@@ -291,6 +295,7 @@ def route(event: dict, method: str, path: str, body: dict) -> dict:
             state = store.get(identifier) or initial_state("live")
             corpus = corpus_from_env()
         if method == "GET" and path == "/api/workspace":
+            state = reconcile(state, store, identifier)
             return _reply(200, view(state, corpus, NETWORK, event))
         match = re.fullmatch(r"/api/offers/(offer-[0-9]+)(?:/(run|approve|pickup))?", path)
         if not match and path != "/api/offers/new":
@@ -315,13 +320,17 @@ def route(event: dict, method: str, path: str, body: dict) -> dict:
         if previous:
             if previous["signature"] != signature:
                 raise ApiError(409, "This request id belongs to different inputs.")
+            if previous["status"] == "failed":
+                raise ApiError(409, "The earlier action failed before a write. Refresh, review "
+                               "and submit a new request.")
             if previous["status"] != "complete":
                 raise ApiError(409, "Action pending or outcome unknown. Refresh to inspect the "
                                "record before any new request; this request will not run twice.")
             return _reply(200, view(state, corpus, NETWORK, event))
         if body.get("version") != state["version"]:
             raise ApiError(409, "Workspace changed. Refresh and review the current plan.")
-        if any(op.get("status") == "pending" for op in state["operations"].values()):
+        if any(op.get("status") == "pending" and op.get("offer_id", offer_id) == offer_id
+               for op in state["operations"].values()):
             raise ApiError(409, "An earlier action is pending or its outcome is unknown. "
                            "Refresh the history before making another change.")
         if len(state["operations"]) >= 100:
@@ -336,6 +345,22 @@ def route(event: dict, method: str, path: str, body: dict) -> dict:
 
 
 def mutate(state, corpus, network, offer, action, body, principal, store, identifier, signature):
+    try:
+        return _mutate(state, corpus, network, offer, action, body, principal,
+                       store, identifier, signature)
+    except Exception as error:
+        saved = store.get(identifier)
+        operation = (saved or {}).get("operations", {}).get(body["request_id"])
+        if operation and operation.get("status") == "pending" and (
+            not operation.get("external") or isinstance(error, ApiError)
+            and error.write_state == "not_written"
+        ):
+            operation.update(status="failed", detail="No write completed. Review before retrying.")
+            store.save(identifier, saved, saved["version"])
+        raise
+
+
+def _mutate(state, corpus, network, offer, action, body, principal, store, identifier, signature):
     mode, offer_id = state["mode"], offer.get("id", "")
     request_id = body["request_id"]
     records = state["records"] if mode == "sandbox" else live_records(offers(corpus), network)
@@ -378,7 +403,9 @@ def mutate(state, corpus, network, offer, action, body, principal, store, identi
         update_pickup(state, offer, run, plan, body)
     # Reserve before any model invocation or writer call. An uncertain outcome
     # remains pending and cannot cause a second external write on retry.
-    state["operations"][request_id] = {"signature": signature, "status": "pending"}
+    state["operations"][request_id] = {"signature": signature, "status": "pending",
+                                       "action": action, "offer_id": offer_id,
+                                       "started_at": time.time(), "external": mode == "live"}
     state = store.save(identifier, state, state["version"])
     if action == "add":
         if mode == "sandbox":
@@ -389,13 +416,16 @@ def mutate(state, corpus, network, offer, action, body, principal, store, identi
 
             status, detail = _ask_the_writer_to_file(offer_id, body["form"])
             if status != 200:
-                raise ApiError(status, detail)
+                raise ApiError(status, detail, "not_written" if status in (400, 409) else "unknown")
     elif action == "run":
         run_id = new_run_id()
         run = {"run_id": run_id, "evidence_digest": evidence_digest(corpus, offer)}
         state["runs"][offer_id] = run
         if mode == "sandbox":
             ledger = InMemoryLedger()
+            for receipt in records:
+                Thread(ledger, network, receipt["run_id"], scope="sandbox").append(
+                    "record.published", **receipt)
             thread = Thread(ledger, subject_for_offer(network, offer), run_id, scope="sandbox")
             result = run_chore(corpus, offer, thread, analyst=bedrock.scripted_analyst(),
                                network=network)
@@ -414,16 +444,23 @@ def mutate(state, corpus, network, offer, action, body, principal, store, identi
                 thread.append("run.failed", detail="The runner could not be started. Retry later.")
                 raise
     elif action == "approve":
-        approval = grant(network, plan["key"], plan["body"], principal, run["run_id"])
+        approval = grant(network, plan["key"], plan["body"], principal, run["run_id"],
+                         evidence_digest=run["evidence_digest"], offer_id=offer_id,
+                         category=offer["category"], orgs=tuple(
+                             a["org"] for a in run["result"]["draft_allocations"]))
         if mode == "sandbox":
             approvals = InMemoryApprovalStore()
             approvals.put(approval)
             authorise(approvals, approval.nonce, network, plan["key"], plan["body"])
             state["records"].append({"key": plan["key"], "content_digest": plan["digest"],
                                      "run_id": run["run_id"], "offer_id": offer_id,
+                                     "category": offer["category"], "orgs": list(approval.orgs),
                                      "published_at": time.time(), "mode": "sandbox"})
         else:
             ApprovalStore().put(approval)
+            state["operations"][request_id].update(nonce=approval.nonce, key=plan["key"],
+                                                   digest=plan["digest"])
+            state = store.save(identifier, state, state["version"])
             invoke_writer({"nonce": approval.nonce, "key": plan["key"], "body": plan["body"],
                            "api_evidence_digest": run["evidence_digest"], "offer_id": offer_id})
     state["operations"][request_id]["status"] = "complete"
@@ -473,17 +510,43 @@ def update_pickup(state, offer, run, plan, body):
     state["claims"][state["claims"].index(existing)] = claim.as_dict()
 
 
-def invoke_writer(payload: dict) -> None:
+def invoke_writer(payload: dict, path: str = "/publish") -> dict:
     import os
 
     import boto3
 
     answer = boto3.client("lambda").invoke(
         FunctionName=os.environ["MERISMOS_WRITER_FUNCTION"],
-        Payload=json.dumps({"requestContext": {"http": {"method": "POST", "path": "/publish"}},
+        Payload=json.dumps({"requestContext": {"http": {"method": "POST", "path": path}},
                             "body": json.dumps(payload)}),
     )
     response = json.loads(answer["Payload"].read())
+    result = json.loads(response.get("body") or "{}")
     if response.get("statusCode") != 200:
         raise ApiError(502, "The writer did not confirm publication. Refresh the history; "
-                       "do not issue another approval until the outcome is known.")
+                       "do not issue another approval until the outcome is known.",
+                       result.get("write_state", "unknown"))
+    return result
+
+
+def reconcile(state, store, identifier):
+    """Inspect only reserved operations; never issue a second publication."""
+    changed = False
+    for operation in state["operations"].values():
+        if operation.get("status") != "pending":
+            continue
+        if operation.get("action") == "approve" and operation.get("nonce"):
+            try:
+                result = invoke_writer({"nonce": operation["nonce"]}, "/publication-status")
+            except Exception:
+                continue
+            if result.get("state") == "recorded":
+                operation["status"] = "complete"
+                changed = True
+        elif operation.get("action") == "run":
+            run = state["runs"].get(operation["offer_id"], {})
+            entries = ledger_from_env().thread(run.get("run_id", ""))
+            if background.completed_result(entries):
+                operation["status"] = "complete"
+                changed = True
+    return store.save(identifier, state, state["version"]) if changed else state
