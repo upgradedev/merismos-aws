@@ -22,12 +22,13 @@ scoped key return identical rows, so a whole test suite agrees with it.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import time
 import uuid
 from collections.abc import Iterable, Iterator, Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any, Protocol
 
 #: The kinds an entry may carry. Named rather than free text so that a typo is a
@@ -84,6 +85,12 @@ class Entry:
     parent_id: str = ""
     at: float = 0.0
     scope: str = "live"
+    #: sha256 over the fields that make this entry what it is, written when it is
+    #: written. Empty on any entry stored before 2026-09-09, which verification
+    #: reports as not checkable rather than as intact: a row that predates the
+    #: digest is not evidence of tampering, and it is not evidence of anything
+    #: else either.
+    body_sha: str = ""
 
     def __post_init__(self) -> None:
         if self.kind not in KINDS:
@@ -97,6 +104,44 @@ class Entry:
             raise ValueError("an entry names the run that produced it")
         object.__setattr__(self, "entry_id", self.entry_id or uuid.uuid4().hex)
         object.__setattr__(self, "at", self.at or time.time())
+        # **Not filled in here.** ``_from_item`` reconstructs an entry read back
+        # from the store, and computing the digest at construction would compute
+        # it from whatever the row currently says, certifying an edited row as
+        # intact. That is worse than having no digest, because it turns unknown
+        # into verified. It is stamped once, by ``stamped()``, on the way in.
+
+    def stamped(self) -> Entry:
+        """This entry with its digest written, for the one moment it is appended.
+
+        Separate from construction so that reading a row back never invents the
+        thing that is supposed to prove the row was not touched.
+        """
+        if self.body_sha:
+            return self
+        copy = replace(self, body_sha=self.digest())
+        return copy
+
+    def digest(self) -> str:
+        """What this entry says, hashed, so a later edit is detectable.
+
+        Deliberately over the content rather than over the whole row: ``scope``
+        moves when a run is archived and that is a legitimate change made by this
+        code, while ``kind``, ``body``, ``run_id`` and the parent link are what
+        the entry asserts and must not move at all.
+        """
+        payload = json.dumps(
+            {
+                "kind": self.kind,
+                "subject": self.subject,
+                "run_id": self.run_id,
+                "parent_id": self.parent_id,
+                "at": self.at,
+                "body": dict(self.body),
+            },
+            sort_keys=True,
+            default=str,
+        )
+        return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -107,6 +152,7 @@ class Entry:
             "run_id": self.run_id,
             "at": self.at,
             "scope": self.scope,
+            "body_sha": self.body_sha,
             "body": dict(self.body),
         }
 
@@ -314,6 +360,7 @@ def _to_item(entry: Entry) -> dict[str, Any]:
         "run_id": {"S": entry.run_id},
         "at": {"N": repr(entry.at)},
         "scope": {"S": entry.scope},
+        "body_sha": {"S": entry.body_sha},
         "body": {"S": json.dumps(dict(entry.body), sort_keys=True, default=str)},
     }
 
@@ -329,6 +376,10 @@ def _from_item(item: Mapping[str, Any]) -> Entry:
         parent_id="" if parent == "-" else parent,
         at=float(item["at"]["N"]),
         scope=item.get("scope", {}).get("S", "live"),
+        # Absent on rows written before the digest existed. Read as empty rather
+        # than recomputed, because recomputing it here would certify whatever the
+        # row currently says, which turns "unknown" into "verified".
+        body_sha=item.get("body_sha", {}).get("S", ""),
     )
 
 
@@ -349,6 +400,10 @@ class Thread:
     last_id: str = ""
 
     def append(self, kind: str, **body: Any) -> Entry:
+        # Stamped here, which is the one moment the entry is known to be new.
+        # Doing it in ``Entry.__post_init__`` would also stamp a row read back
+        # from the store, computing the digest from whatever that row currently
+        # says and certifying an edited one as intact.
         entry = self.ledger.append(
             Entry(
                 kind=kind,
@@ -357,7 +412,7 @@ class Thread:
                 body=body,
                 parent_id=self.last_id,
                 scope=self.scope,
-            )
+            ).stamped()
         )
         self.last_id = entry.entry_id
         return entry

@@ -10,9 +10,17 @@ and hashes it, so what a funder gets is not "trust the list" but a chain where
 altering any earlier stage changes every hash after it.
 
 The distinction worth keeping honest: the ledger is **append only by
-interface**, which is a property of this code and not of the storage. A hash
-chain is what closes some of that gap, because a row edited from outside our
-code no longer verifies. It does not make the row immutable and this module
+interface**, which is a property of this code and not of the storage.
+
+**What this chain can and cannot see, corrected on 2026-09-09 after it was
+probed.** It reads the ``parent_id`` every entry already stores, so a deleted
+entry and a reordered pair both break the linkage and are reported. It cannot see
+an edited body, because no content hash is stored anywhere to compare one
+against: the chain is rebuilt from the entries it is handed, so a tampered thread
+produces a different chain rather than a failing one.
+
+Until it was probed this module said "a row edited from outside our code no
+longer verifies", and that was false in all three ways at once. It does not
 does not claim it does.
 """
 
@@ -85,10 +93,50 @@ def _actor(stage: LineageStage, entry: Any) -> str:
     return ACTOR_OF.get(stage, "the fleet")
 
 
+def linkage_break(entries: Sequence[Any]) -> str:
+    """Where the stored ``parent_id`` chain stops joining up, or an empty string.
+
+    Every entry carries the id of the one before it and that value is written to
+    the store on append. Nothing read it until 2026-09-09, so a thread with an
+    entry removed from the middle, or two swapped, verified happily.
+
+    The first entry of a run has no parent and that is not a break.
+    """
+    seen: list[Any] = list(entries)
+    for position, entry in enumerate(seen):
+        stored = str(getattr(entry, "body_sha", "") or "")
+        if stored and hasattr(entry, "digest") and entry.digest() != stored:
+            return (
+                f"entry {position} ({getattr(entry, 'kind', '?')}) does not match "
+                f"the digest written with it. Its contents changed after it was "
+                f"appended"
+            )
+        parent = str(getattr(entry, "parent_id", "") or "")
+        if position == 0:
+            continue
+        expected = str(getattr(seen[position - 1], "entry_id", "") or "")
+        if parent != expected:
+            return (
+                f"entry {position} ({getattr(entry, 'kind', '?')}) names "
+                f"{parent or 'no parent'} as the entry before it, and the entry "
+                f"before it is {expected or 'unidentified'}. Something was "
+                f"removed, reordered or inserted"
+            )
+    return ""
+
+
 def summary(offer_id: str, entries: Sequence[Any]) -> dict[str, Any]:
     """What a page shows: the chain, whether it verifies, and why that matters."""
     chain = chain_for(offer_id, entries)
+    broken = linkage_break(entries)
     verified, detail = chain.verify_integrity()
+    if broken:
+        # The linkage is the half that can actually catch something. The hash
+        # check compares a rebuilt chain against itself and cannot fail on a
+        # tampered thread, so a verified chain with a broken linkage is not
+        # verified.
+        verified = False
+        detail = broken
     dag = chain.export_dag()
     return {
         "offer_id": offer_id,
@@ -96,5 +144,14 @@ def summary(offer_id: str, entries: Sequence[Any]) -> dict[str, Any]:
         "head_hash": dag.get("head_hash", ""),
         "verified": verified,
         "detail": detail,
+        "what_this_cannot_see": (
+            "an entry stored before 2026-09-09, which carries no digest. Those "
+            "are reported as not checkable rather than as intact: a row written "
+            "before the digest existed is not evidence of tampering and is not "
+            "evidence of anything else"
+        ),
+        "unchecked_entries": sum(
+            1 for e in entries if not str(getattr(e, "body_sha", "") or "")
+        ),
         "nodes": dag.get("nodes", []),
     }

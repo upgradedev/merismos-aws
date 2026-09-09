@@ -246,6 +246,18 @@ now probed and reported separately, and `can_write` is named as the one that dec
 The refusal is still AWS's rather than ours in both cases. No code here decides it, which is why it
 is worth more than a policy document saying the same thing.
 
+**What the custody chain can and cannot see.** It reads the `parent_id` every
+entry stores, so a deleted entry or a reordered pair breaks the linkage and is
+reported, and every entry written since 2026-09-09 carries a digest, so an edited
+body is reported too. An entry written before that carries none and is counted as
+**unchecked** rather than as intact: a row that predates the digest is not
+evidence of tampering and is not evidence of anything else.
+
+Until it was probed, this chain verified a thread that had been edited, reordered
+and cut, all three, because it rebuilt itself from whatever rows it was handed and
+then checked those rows against each other. It said so in its own docstring, that
+"a row edited from outside our code no longer verifies", and that was false.
+
 **This has been deployed, torn down, and deployed again.** The first pass on 2026-09-02 applied 61
 resources and then destroyed them; what it found is in
 [`docs/deploy-2026-09-02.md`](docs/deploy-2026-09-02.md), including two defects that every green plan
