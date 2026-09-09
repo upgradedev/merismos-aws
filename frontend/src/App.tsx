@@ -59,7 +59,7 @@ export function App() {
     }
   }, [route.page]);
   const running = data?.offers.some(o => o.status === 'running');
-  useEffect(() => { if (!running || busy || error) return; const timer = setInterval(() => void refresh(), 5000); return () => clearInterval(timer); }, [running, busy, error, refresh]);
+  useEffect(() => { if (!running || busy || error || loading) return; const timer = setTimeout(() => void refresh(), 5000); return () => clearTimeout(timer); }, [running, busy, error, loading, refresh]);
   async function mutate(offer: string, kind: string, payload: Record<string, unknown> = {}) {
     if (!data || mutationLock.current || loading || expired || actionBlocked || (error && kind !== 'add') || !data.can_write) return false;
     const signature = JSON.stringify({ offer, kind, payload, mode });
