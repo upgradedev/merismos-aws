@@ -349,6 +349,23 @@
       "scope": "CloudFront, Lambda and DynamoDB. Real scripted Strands; synthetic isolated offers, approvals and pickup confirmations. Live-mode mutation was refused by API with HTTP 403. No historical public record overwritten; human signoff NOT_RUN."
     }
   },
+  "branch_checkpoint_75b3e1b": {
+    "source_commit": "75b3e1b262229628099aff9a69e35bab3e40d14b",
+    "status": "PASS_PUSH_ONLY_NOT_RELEASE_ACCEPTANCE",
+    "run_url": "https://github.com/upgradedev/merismos-aws/actions/runs/34358424691",
+    "observed_results": {
+      "python_passed": 737,
+      "python_coverage_percent": 93.81,
+      "vitest_passed": 110,
+      "vitest_files_passed": 9,
+      "desktop_mobile_journeys_passed": 18
+    },
+    "screenshots": "ui-screenshots-75b3e1b262229628099aff9a69e35bab3e40d14b and full frontend-evidence artifact",
+    "separate_pr_run": "https://github.com/upgradedev/merismos-aws/actions/runs/34358430987",
+    "separate_pr_outcome": "FAILED: 17 browser journeys passed; mobile legacy search operated on the outgoing workspace before the Offers page committed. This push-only checkpoint is not an all-checks-green revision.",
+    "scope": "Observed offline GitHub Actions evidence for this named commit only. Real Python HTTP API, SQLite and scripted Strands; no AWS release, live publication or human acceptance. Subsequent destination-readiness assertions require their own exact-head CI results.",
+    "human_signoff": "NOT_RUN"
+  },
   "current_revision": {
     "status": "PENDING_CI",
     "scope": "Dashboard / Workspace / Records / History redesign. Historical evidence below applies only to its named release and does not validate this revision.",

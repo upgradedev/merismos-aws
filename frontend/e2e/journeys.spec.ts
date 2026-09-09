@@ -23,6 +23,7 @@ test('ME01/02/03: exact sandbox approval, persistent claim, scheduled and confir
   await expect(page.locator('.sidebar nav a').first()).toHaveCSS('transition-duration', '0s');
   await page.screenshot({path: info.outputPath('dispatch-inbox.png'), fullPage: true});
   await page.getByText('End of day bread and vegetables', { exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'End of day bread and vegetables', exact: true })).toBeVisible();
   const runResponse = page.waitForResponse(response => response.url().endsWith('/api/offers/offer-4471/run') && response.request().method() === 'POST');
   await page.getByRole('button', { name: 'Work out the split' }).click();
   const response = await runResponse;
@@ -124,9 +125,13 @@ test('Safety refusal, empty filters, deep link and live read-only boundary', asy
   await expect(page.getByRole('heading', { name: 'Offers', exact: true })).toBeVisible();
   await page.getByRole('searchbox', { name: 'Search offers' }).fill('no such donation');
   await expect(page.getByRole('heading', { name: 'No offers match' })).toBeVisible();
+  const liveResponse = page.waitForResponse(response => response.url().endsWith('/api/workspace?mode=live') && response.request().method() === 'GET');
   await page.getByLabel('Workspace', { exact: true }).selectOption('live');
+  expect((await liveResponse).status()).toBe(200);
   await expect(page.getByRole('heading', { name: 'Offers', exact: true })).toBeVisible();
+  await expect(page.locator('.summary-card').getByText('A record does not confirm collection', { exact: true })).toBeVisible();
   await page.getByText('End of day bread and vegetables', { exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'End of day bread and vegetables', exact: true })).toBeVisible();
   // Live data already has runs and may already have a recorded plan. Assert
   // the authorization boundary, not the empty local fixture's initial label.
   const session = await page.evaluate(() => localStorage.getItem('merismos.session'));
