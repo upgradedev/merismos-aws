@@ -36,9 +36,9 @@ test('Human intake to split, exact approval and collection, with invalid field r
 test('Storage-blocked browser keeps a usable in-tab sandbox', async ({page}) => {
   await page.addInitScript(() => Object.defineProperty(window,'localStorage',{get(){throw new DOMException('Storage blocked');}}));
   await page.goto('/');
-  await expect(page.getByRole('heading',{name:'Offers',exact:true})).toBeVisible();
+  await expect(page.getByRole('heading',{name:'Dashboard',exact:true})).toBeVisible();
   await expect(page.getByText(/Browser storage is unavailable/)).toBeVisible();
-  await page.getByRole('link',{name:'End of day bread and vegetables',exact:true}).click();
+  await page.getByText('End of day bread and vegetables',{exact:true}).click();
   await page.getByRole('button',{name:'Work out the split'}).click();
   await expect(page.getByRole('heading',{name:'Approve this exact plan'})).toBeVisible();
 });

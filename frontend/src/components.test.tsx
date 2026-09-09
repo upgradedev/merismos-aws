@@ -85,7 +85,7 @@ it('shows empty pickups and live authorization instead of unusable controls', ()
 it('shows current and superseded history without rewriting old records', () => {
   const data=workspace(); const {rerender}=render(<History data={data}/>); expect(screen.getByText('No records yet')).toBeVisible();
   data.records=[{key:'records/offer-4471.md',offer_id:'offer-4471',run_id:'r',content_digest:'d',published_at:1,superseded_by:'records/offer-4471-c2.md',mode:'sandbox'}];
-  rerender(<History data={data}/>); expect(screen.getByText(/Superseded by/)).toBeVisible(); expect(screen.getByText('Simulation')).toBeVisible();
+  rerender(<History data={data}/>); expect(screen.getByText(/^Superseded by/)).toBeVisible(); expect(screen.getByText('Simulation')).toBeVisible();
   data.mode='live'; data.records[0].mode='live'; data.records[0].superseded_by=''; rerender(<History data={data}/>); expect(screen.getByText('Current record in this history')).toBeVisible(); expect(screen.getByText('Published',{exact:true})).toBeVisible();
 });
 it('submits an accessible intake form, retains fields, and asks cold-chain evidence', async () => {

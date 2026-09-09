@@ -10,7 +10,7 @@ test('ME01/02/03: exact sandbox approval, persistent claim, scheduled and confir
   await page.clock.setFixedTime(new Date('2026-09-07T12:00:00Z'));
   await page.emulateMedia({reducedMotion: 'no-preference'});
   await page.goto('/');
-  await expect(page.getByRole('heading', { name: 'Offers', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Dashboard', exact: true })).toBeVisible();
   await expect(page.getByText('Synthetic demo', { exact: true })).toBeVisible();
   await expect(page.getByText(/Calendar cues use your browser-local date at view opening/)).toBeVisible();
   const upcoming = page.locator('.date-cue-soon .date-cue-label').first();
@@ -22,7 +22,7 @@ test('ME01/02/03: exact sandbox approval, persistent claim, scheduled and confir
   await expect(upcoming).toHaveCSS('animation-name', 'none');
   await expect(page.locator('.sidebar nav a').first()).toHaveCSS('transition-duration', '0s');
   await page.screenshot({path: info.outputPath('dispatch-inbox.png'), fullPage: true});
-  await page.getByRole('link', { name: 'End of day bread and vegetables', exact: true }).click();
+  await page.getByText('End of day bread and vegetables', { exact: true }).click();
   const runResponse = page.waitForResponse(response => response.url().endsWith('/api/offers/offer-4471/run') && response.request().method() === 'POST');
   await page.getByRole('button', { name: 'Work out the split' }).click();
   const response = await runResponse;
@@ -68,6 +68,7 @@ test('ME01/02/03: exact sandbox approval, persistent claim, scheduled and confir
   await expect(page.getByRole('button', { name: 'Approve in sandbox' })).toBeDisabled();
   await page.getByText('Read the exact record text', { exact: true }).click();
   await expect(page.locator('pre')).toContainText('Elpida');
+  await page.getByText('Share allocation reasons', {exact: true}).click();
   await expect(page.getByLabel('Shareable reasons summary')).toContainText('DRAFT');
   await page.screenshot({ path: info.outputPath('approval.png'), fullPage: true });
   await page.getByLabel('I have reviewed this exact allocation and record address, and approve this plan.').check();
@@ -94,7 +95,7 @@ test('ME01/02/03: exact sandbox approval, persistent claim, scheduled and confir
   await expect(kitchen.getByText('Recorded date', {exact: true})).toBeVisible();
   await expect(kitchen.getByRole('button', { name: 'Claim this share' })).toHaveCount(0);
   await page.screenshot({ path: info.outputPath('confirmed-pickup.png'), fullPage: true });
-  await page.getByRole('link', { name: 'Published history', exact: true }).click();
+  await page.getByRole('link', { name: 'History', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Sandbox history' })).toBeVisible();
   await expect(page.getByRole('link', { name: 'records/offer-4471.md' })).toBeVisible();
   await page.reload();
@@ -115,7 +116,7 @@ test('Safety refusal, empty filters, deep link and live read-only boundary', asy
   await expect(page.getByRole('heading', { name: 'No offers match' })).toBeVisible();
   await page.getByLabel('Workspace', { exact: true }).selectOption('live');
   await expect(page.getByRole('heading', { name: 'Offers', exact: true })).toBeVisible();
-  await page.getByRole('link', { name: 'End of day bread and vegetables', exact: true }).click();
+  await page.getByText('End of day bread and vegetables', { exact: true }).click();
   // Live data already has runs and may already have a recorded plan. Assert
   // the authorization boundary, not the empty local fixture's initial label.
   const session = await page.evaluate(() => localStorage.getItem('merismos.session'));
