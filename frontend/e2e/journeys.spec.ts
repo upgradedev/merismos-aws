@@ -77,9 +77,18 @@ test('ME01/02/03: exact sandbox approval, persistent claim, scheduled and confir
   await expect(page.getByText('Sandbox record · server reported')).toBeVisible();
   await expect(page.getByText('Digest copied. Record status is unchanged.')).toHaveCount(0);
   await page.getByRole('link', { name: 'Open collection tasks →' }).click();
+  // Both pages contain PickupCard. Wait for the destination page so selection
+  // cannot land in the outgoing workspace card before hash navigation commits.
+  await expect(page.getByRole('heading', { name: 'Pickups', exact: true })).toBeVisible();
   const kitchen = page.getByRole('article').filter({has: page.getByRole('heading', {name: 'Omonoia Soup Kitchen'})});
   await kitchen.getByRole('combobox', { name: 'Collecting role', exact: true }).selectOption('kitchen lead');
+  await expect(kitchen.getByRole('combobox', { name: 'Collecting role', exact: true })).toHaveValue('kitchen lead');
+  const claimResponse = page.waitForResponse(response => response.url().endsWith('/api/offers/offer-4471/pickup') && response.request().method() === 'POST');
   await kitchen.getByRole('button', { name: 'Claim this share' }).click();
+  const claimed = await claimResponse;
+  expect(claimed.request().postDataJSON()).toMatchObject({ action: 'claim', org: 'Omonoia Soup Kitchen', role: 'kitchen lead' });
+  expect(claimed.status()).toBe(200);
+  expect((await claimed.json()).pickups.find((item: { org: string }) => item.org === 'Omonoia Soup Kitchen')).toMatchObject({ state: 'claimed', role: 'kitchen lead' });
   await expect(kitchen.getByText('Claimed', { exact: true })).toBeVisible();
   await page.reload();
   await expect(kitchen.getByText('Collecting role: kitchen lead')).toBeVisible();
