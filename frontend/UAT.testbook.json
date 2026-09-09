@@ -14,7 +14,7 @@
       "expected_outcome": "Sandbox names scripted-planner and a real Strands loop; live configuration is separately labelled",
       "negative_recovery_case": "Blocked storage keeps the tab usable and displays a recovery note",
       "automation_mapping": "e2e/journeys.spec.ts; src/storage.test.ts; src/App.test.tsx",
-      "observed_result_evidence": "PASS (automated): desktop/mobile sandbox and live labels; storage-blocked browser journey and storage recovery tests. Evidence: https://github.com/upgradedev/merismos-aws/actions/runs/34326379238 (frontend-evidence artifact: test-results/*.xml, coverage/, Playwright traces/screenshots).",
+      "observed_result_evidence": "PASS (automated): desktop/mobile sandbox and live labels; storage-blocked browser journey and storage recovery tests. Evidence: https://github.com/upgradedev/merismos-aws/actions/runs/34327011203 (frontend-evidence artifact: test-results/*.xml, coverage/, Playwright traces/screenshots).",
       "human_signoff": "NOT_RUN"
     },
     {
@@ -31,7 +31,7 @@
       "expected_outcome": "Backend validates typed fields; durable offer is reviewable and real Strands scripted run produces reasons",
       "negative_recovery_case": "Phone number or prompt instruction is refused with entered fields retained",
       "automation_mapping": "e2e/intake.spec.ts; tests/integration/test_coordinator_api.py::test_add_offer_uses_existing_validation_and_flows_to_the_fleet",
-      "observed_result_evidence": "PASS (automated): desktop/mobile human intake -> persisted offer after reload -> Strands split -> exact approval -> confirmed collection; invalid phone field retained and recoverable. Evidence: https://github.com/upgradedev/merismos-aws/actions/runs/34326379238 (frontend-evidence artifact: test-results/*.xml, coverage/, Playwright traces/screenshots).",
+      "observed_result_evidence": "PASS (automated): desktop/mobile human intake -> persisted offer after reload -> Strands split -> exact approval -> confirmed collection; invalid phone field retained and recoverable. Evidence: https://github.com/upgradedev/merismos-aws/actions/runs/34327011203 (frontend-evidence artifact: test-results/*.xml, coverage/, Playwright traces/screenshots).",
       "human_signoff": "NOT_RUN"
     },
     {
@@ -48,7 +48,7 @@
       "expected_outcome": "One synthetic record; public S3 is unchanged; collection remains unconfirmed",
       "negative_recovery_case": "Stale digest, missing consent, duplicate approval and changed relevant sources are refused",
       "automation_mapping": "e2e/journeys.spec.ts; tests/integration/test_coordinator_api.py",
-      "observed_result_evidence": "PASS (automated): desktop/mobile exact-plan approval; API rejects missing consent, stale digest, duplicate approval and relevant evidence changes. Offline writer transport test confirms exact bytes and no overwrite; no live publication exercised. Evidence: https://github.com/upgradedev/merismos-aws/actions/runs/34326379238 (frontend-evidence artifact: test-results/*.xml, coverage/, Playwright traces/screenshots).",
+      "observed_result_evidence": "PASS (automated): desktop/mobile exact-plan approval; API rejects missing consent, stale digest, duplicate approval and relevant evidence changes. Offline writer transport test confirms exact bytes and no overwrite; no live publication exercised. Evidence: https://github.com/upgradedev/merismos-aws/actions/runs/34327011203 (frontend-evidence artifact: test-results/*.xml, coverage/, Playwright traces/screenshots).",
       "human_signoff": "NOT_RUN"
     },
     {
@@ -66,7 +66,7 @@
       "expected_outcome": "Backend stores role and schedule; confirmation is explicit; refresh retains each stage",
       "negative_recovery_case": "Unallocated organisation, free-text role, invalid time, expired commitment and second confirmation are refused",
       "automation_mapping": "e2e/journeys.spec.ts; src/components.test.tsx; tests/integration/test_coordinator_api.py",
-      "observed_result_evidence": "PASS (automated): desktop/mobile claim, reload, future schedule and explicit confirmation; API rejects invalid roles/times and duplicate confirmation. Evidence: https://github.com/upgradedev/merismos-aws/actions/runs/34326379238 (frontend-evidence artifact: test-results/*.xml, coverage/, Playwright traces/screenshots).",
+      "observed_result_evidence": "PASS (automated): desktop/mobile claim, reload, future schedule and explicit confirmation; API rejects invalid roles/times and duplicate confirmation. Evidence: https://github.com/upgradedev/merismos-aws/actions/runs/34327011203 (frontend-evidence artifact: test-results/*.xml, coverage/, Playwright traces/screenshots).",
       "human_signoff": "NOT_RUN"
     },
     {
@@ -82,7 +82,7 @@
       "expected_outcome": "Old commitment shown invalidated; old record preserved and marked superseded",
       "negative_recovery_case": "Adding an unrelated offer must leave the original commitment valid",
       "automation_mapping": "tests/integration/test_coordinator_api.py::test_changed_evidence_and_recomputed_plan_invalidate_claims; tests/integration/test_coordinator_api.py::test_an_unrelated_offer_does_not_invalidate_an_approved_pickup",
-      "observed_result_evidence": "PASS (automated API regression): relevant source change rejects old commitment; rerun invalidates it and preserves superseded record. Adding an unrelated offer leaves original pickup usable. Evidence: https://github.com/upgradedev/merismos-aws/actions/runs/34326379238 (frontend-evidence artifact: test-results/*.xml, coverage/, Playwright traces/screenshots).",
+      "observed_result_evidence": "PASS (automated API regression): relevant source change rejects old commitment; rerun invalidates it and preserves superseded record. Adding an unrelated offer leaves original pickup usable. Evidence: https://github.com/upgradedev/merismos-aws/actions/runs/34327011203 (frontend-evidence artifact: test-results/*.xml, coverage/, Playwright traces/screenshots).",
       "human_signoff": "NOT_RUN"
     },
     {
@@ -98,7 +98,7 @@
       "expected_outcome": "Unconfirmed scheduled time in the past reads Overdue; allocated quantity never counts as collected",
       "negative_recovery_case": "Confirmed facts do not age into unclaimed collections after 14 days",
       "automation_mapping": "src/components.test.tsx; tests/integration/test_coordinator_api.py; tests/unit/test_a_share_becomes_a_collection.py",
-      "observed_result_evidence": "PASS (automated): component status/filter coverage and persisted API overdue/expired transitions; confirmed facts remain confirmed after 14 days. Time transitions were fixture-driven, not a real elapsed-time study. Evidence: https://github.com/upgradedev/merismos-aws/actions/runs/34326379238 (frontend-evidence artifact: test-results/*.xml, coverage/, Playwright traces/screenshots).",
+      "observed_result_evidence": "PASS (automated): component status/filter coverage and persisted API overdue/expired transitions; confirmed facts remain confirmed after 14 days. Time transitions were fixture-driven, not a real elapsed-time study. Evidence: https://github.com/upgradedev/merismos-aws/actions/runs/34327011203 (frontend-evidence artifact: test-results/*.xml, coverage/, Playwright traces/screenshots).",
       "human_signoff": "NOT_RUN"
     },
     {
@@ -113,7 +113,7 @@
       "expected_outcome": "Names organisation allocations and exclusion reasons; draft/publication state is explicit; no message sent",
       "negative_recovery_case": "Clipboard refusal leaves selectable text; personal-data output is withheld",
       "automation_mapping": "src/components.test.tsx; tests/integration/test_coordinator_api.py::test_public_text_refuses_pii_and_confirmed_history_does_not_expire",
-      "observed_result_evidence": "PASS (automated): summary content in real browser; clipboard success/refusal in component tests; exported personal data rejected by API. Actual sharing with another person NOT_RUN. Evidence: https://github.com/upgradedev/merismos-aws/actions/runs/34326379238 (frontend-evidence artifact: test-results/*.xml, coverage/, Playwright traces/screenshots).",
+      "observed_result_evidence": "PASS (automated): summary content in real browser; clipboard success/refusal in component tests; exported personal data rejected by API. Actual sharing with another person NOT_RUN. Evidence: https://github.com/upgradedev/merismos-aws/actions/runs/34327011203 (frontend-evidence artifact: test-results/*.xml, coverage/, Playwright traces/screenshots).",
       "human_signoff": "NOT_RUN"
     },
     {
@@ -129,7 +129,7 @@
       "expected_outcome": "Safety refusal and its reason; no approval action",
       "negative_recovery_case": "No model finding can clear the deterministic refusal",
       "automation_mapping": "e2e/journeys.spec.ts; existing tests/unit/test_the_model_cannot_clear_a_refusal.py",
-      "observed_result_evidence": "PASS (automated): desktop/mobile chilled-offer safety refusal, findings and absent approval action; existing model-cannot-clear-refusal regression suite passed. Evidence: https://github.com/upgradedev/merismos-aws/actions/runs/34326379238 (frontend-evidence artifact: test-results/*.xml, coverage/, Playwright traces/screenshots).",
+      "observed_result_evidence": "PASS (automated): desktop/mobile chilled-offer safety refusal, findings and absent approval action; existing model-cannot-clear-refusal regression suite passed. Evidence: https://github.com/upgradedev/merismos-aws/actions/runs/34327011203 (frontend-evidence artifact: test-results/*.xml, coverage/, Playwright traces/screenshots).",
       "human_signoff": "NOT_RUN"
     },
     {
@@ -147,7 +147,7 @@
       "expected_outcome": "Hash navigation survives reload; no-match and missing states offer recovery",
       "negative_recovery_case": "Expired session gives explicit new-session action rather than invented empty data",
       "automation_mapping": "e2e/journeys.spec.ts; src/App.test.tsx; src/components.test.tsx",
-      "observed_result_evidence": "PASS (automated): desktop/mobile deep links, reload, search and history; component missing-route and expired-session recovery. Legacy link URL/new-tab/noreferrer verified by component test, not followed to mutate live state. Evidence: https://github.com/upgradedev/merismos-aws/actions/runs/34326379238 (frontend-evidence artifact: test-results/*.xml, coverage/, Playwright traces/screenshots).",
+      "observed_result_evidence": "PASS (automated): desktop/mobile deep links, reload, search and history; component missing-route and expired-session recovery. Legacy link URL/new-tab/noreferrer verified by component test, not followed to mutate live state. Evidence: https://github.com/upgradedev/merismos-aws/actions/runs/34327011203 (frontend-evidence artifact: test-results/*.xml, coverage/, Playwright traces/screenshots).",
       "human_signoff": "NOT_RUN"
     },
     {
@@ -162,7 +162,7 @@
       "expected_outcome": "Live remains readable; changes require trusted network coordinator; sandbox remains separate",
       "negative_recovery_case": "Forged body/header identity grants no rights; writer role alone cannot serve coordinator API",
       "automation_mapping": "tests/integration/test_coordinator_api.py; e2e/journeys.spec.ts",
-      "observed_result_evidence": "PASS (automated): anonymous live read-only browser and API rejection of forged identity. Trusted-authorizer writer journey exercised through local handler transport only; deployed coordinator authentication NOT_RUN. Evidence: https://github.com/upgradedev/merismos-aws/actions/runs/34326379238 (frontend-evidence artifact: test-results/*.xml, coverage/, Playwright traces/screenshots).",
+      "observed_result_evidence": "PASS (automated): anonymous live read-only browser and API rejection of forged identity. Trusted-authorizer writer journey exercised through local handler transport only; deployed coordinator authentication NOT_RUN. Evidence: https://github.com/upgradedev/merismos-aws/actions/runs/34327011203 (frontend-evidence artifact: test-results/*.xml, coverage/, Playwright traces/screenshots).",
       "human_signoff": "NOT_RUN"
     },
     {
@@ -178,7 +178,7 @@
       "expected_outcome": "Error is actionable; form fields/consent retained; same request id is reused for same inputs",
       "negative_recovery_case": "35-second timeout reports unknown outcome; backend pending action cannot execute twice",
       "automation_mapping": "src/api.test.ts; src/App.test.tsx; tests/integration/test_coordinator_api.py",
-      "observed_result_evidence": "PASS (automated): timeout/cancellation and explicit retry request-id tests; failed consent/intake entries retained; persisted pending outcome rejects replay and new mutation. Evidence: https://github.com/upgradedev/merismos-aws/actions/runs/34326379238 (frontend-evidence artifact: test-results/*.xml, coverage/, Playwright traces/screenshots).",
+      "observed_result_evidence": "PASS (automated): timeout/cancellation and explicit retry request-id tests; failed consent/intake entries retained; persisted pending outcome rejects replay and new mutation. Evidence: https://github.com/upgradedev/merismos-aws/actions/runs/34327011203 (frontend-evidence artifact: test-results/*.xml, coverage/, Playwright traces/screenshots).",
       "human_signoff": "NOT_RUN"
     },
     {
@@ -193,26 +193,33 @@
       "expected_outcome": "Controls have accessible names, focus visibility and semantic navigation; mobile layout readable",
       "negative_recovery_case": "Horizontal table scrolling remains within its container; errors have alert semantics",
       "automation_mapping": "Playwright desktop/mobile screenshots plus manual keyboard/screen-reader review",
-      "observed_result_evidence": "PARTIAL: automated desktop/mobile journeys and captured screenshots passed; agent visually inspected approval and pickup captures. Human keyboard, screen-reader, zoom and contrast study NOT_RUN. Evidence: https://github.com/upgradedev/merismos-aws/actions/runs/34326379238 (frontend-evidence artifact: test-results/*.xml, coverage/, Playwright traces/screenshots).",
+      "observed_result_evidence": "PARTIAL: automated desktop/mobile journeys and captured screenshots passed; agent visually inspected approval and pickup captures. Human keyboard, screen-reader, zoom and contrast study NOT_RUN. Evidence: https://github.com/upgradedev/merismos-aws/actions/runs/34327011203 (frontend-evidence artifact: test-results/*.xml, coverage/, Playwright traces/screenshots).",
       "human_signoff": "NOT_RUN"
     }
   ],
   "verification": {
-    "source_commit": "8bdc8ad2ab8eafa9cb4cd004094f87de8e89403f",
-    "run_url": "https://github.com/upgradedev/merismos-aws/actions/runs/34326379238",
+    "source_commit": "d4911151536a9478e081f10d79b726c9f9784ef3",
+    "run_url": "https://github.com/upgradedev/merismos-aws/actions/runs/34327011203",
     "observed_at": "2026-09-09",
     "conclusion": "SUCCESS",
     "python_tests_passed": 702,
     "frontend_unit_tests_passed": 26,
     "playwright_tests_passed": 10,
     "frontend_coverage": {
-      "statements": 100,
-      "branches": 97.35,
+      "statements": 99.52,
+      "branches": 95.47,
       "functions": 100,
       "lines": 100
     },
     "python_coverage_percent": 93.78,
-    "evidence_artifact_url": "https://github.com/upgradedev/merismos-aws/actions/runs/34326379238/artifacts/10093976433",
-    "scope": "Offline GitHub Actions: real Python HTTP handler and SQLite, real scripted Strands loop. No live AWS/model/email/publication action and no human acceptance signoff."
+    "evidence_artifact_url": "https://github.com/upgradedev/merismos-aws/actions/runs/34327011203/artifacts/10094240832",
+    "scope": "Offline GitHub Actions: real Python HTTP handler and SQLite, real scripted Strands loop. No live AWS/model/email/publication action and no human acceptance signoff.",
+    "dependency_audit": {
+      "production_vulnerabilities": 0,
+      "full_vulnerabilities": 0,
+      "artifact_url": "https://github.com/upgradedev/merismos-aws/actions/runs/34327011203/artifacts/10094198323",
+      "resolver": "npm 11.19.1",
+      "generated_lock_sha256": "5bc84ad1cb764c8ae5900a29a043f4d562c4ce3898305e80182472b54b9bf0ac"
+    }
   }
 }
