@@ -189,6 +189,8 @@ def handler(event: Any, context: Any = None) -> dict[str, Any]:
             return publish(body)
         if path == "/publication-status" and method == "POST":
             return publication_status(body)
+        if path == "/publication-capabilities" and method == "GET":
+            return publication_capabilities()
         if path == "/intake" and method == "POST":
             return take_offer(body)
     except ApprovalRefused as refusal:
@@ -459,9 +461,28 @@ def publish(body: dict) -> dict[str, Any]:
     if not re.fullmatch(r"records/offer-[0-9]+(?:-c[2-9][0-9]*|-c1[0-9]+)?\.md", key):
         return _reply(400, {"detail": "An approval must name an immutable record address.",
                             "write_state": "not_written"})
-    from .api import evidence_digest
+    if not store.acquire_lane(candidate):
+        return _reply(409, {"detail": "Another same-category publication is pending or unknown.",
+                            "write_state": "not_written"})
+    attempt = {"write_attempted": False}
+    try:
+        response = _publish_locked(body, store, candidate, attempt)
+    except Exception:
+        if not attempt["write_attempted"]:
+            store.release_lane(candidate)
+        raise
+    if response["statusCode"] == 200 or json.loads(response["body"]).get(
+        "write_state"
+    ) == "not_written":
+        store.release_lane(candidate)
+    return response
+
+
+def _publish_locked(body, store, candidate, attempt):
+    from .api import evidence_digest, fairness_history
     from .background import completed_result
 
+    nonce, key, content = str(body.get("nonce", "")), str(body.get("key", "")), str(body.get("body", ""))
     corpus = corpus_from_env()
     offer = _offer(candidate.offer_id) if candidate.offer_id else None
     result = completed_result(ledger_from_env().thread(candidate.run_id)) or {}
@@ -470,7 +491,9 @@ def publish(body: dict) -> dict[str, Any]:
             or (result.get("verdict") or {}).get("passed") is not True
             or result.get("offer_id") != candidate.offer_id
             or result.get("draft_body") != content
-            or candidate.evidence_digest != evidence_digest(corpus, offer)):
+            or candidate.category != offer.get("category")
+            or candidate.evidence_digest != evidence_digest(
+                corpus, offer, fairness_history({"mode": "live"}, NETWORK, offer))):
         return _reply(409, {"detail": "A fresh passing plan and exact approval are required.",
                             "write_state": "not_written"})
     from datetime import date
@@ -484,6 +507,7 @@ def publish(body: dict) -> dict[str, Any]:
 
     bucket = os.environ["MERISMOS_RECORDS_BUCKET"]
     try:
+        attempt["write_attempted"] = True
         boto3.client("s3").put_object(
             Bucket=bucket, Key=key, Body=content.encode("utf-8"),
             ContentType="text/markdown; charset=utf-8", IfNoneMatch="*",
@@ -548,6 +572,7 @@ def publication_status(body):
                             "detail": "The object does not match this approval."})
     receipt = _publication_receipt(approval, bucket, saved["LastModified"].timestamp())
     _append_receipt(receipt)
+    ApprovalStore().release_lane(approval)
     return _reply(200, {"state": "recorded", "receipt": receipt.as_dict()})
 
 
@@ -650,6 +675,39 @@ def approve(body: dict) -> dict[str, Any]:
         approved_by=str(body["approved_by"]),
         run_id=str(body.get("run_id", "")),
     ).as_dict()
+
+
+def publication_capabilities() -> dict[str, Any]:
+    """Read-only permission checks under the actual writer's AWS identity.
+
+    This does not mint consent, spend a nonce, append history or put an object.
+    A missing head still exercises GetItem authorization, not custody continuity.
+    """
+    if role() != "writer":
+        return _reply(403, {"detail": "Only the private writer serves this capability probe."})
+    from .api import evidence_digest
+    from .ledger import DynamoDbLedger
+
+    checks = {}
+    try:
+        corpus = corpus_from_env()
+        available = read_offers(corpus)
+        if not available:
+            raise ValueError("No offer available for the evidence read")
+        evidence_digest(corpus, available[0])
+        checks["corpus_freshness_read"] = {"allowed": True}
+    except Exception as error:
+        checks["corpus_freshness_read"] = {"allowed": False, "detail": _aws_said(error)}
+    try:
+        ledger = DynamoDbLedger()
+        ledger.client.get_item(TableName=ledger.table_name, ConsistentRead=True,
+                               Key={"subject": {"S": "custody:capability-probe"},
+                                    "entry_id": {"S": "head"}})
+        checks["custody_head_read"] = {"allowed": True}
+    except Exception as error:
+        checks["custody_head_read"] = {"allowed": False, "detail": _aws_said(error)}
+    return _reply(200, {"role": "writer", "read_only": True, "checks": checks,
+                        "limits": "Permission evidence only; not publication or chain verification."})
 
 
 def thread_of(run_id: str) -> dict[str, Any]:
@@ -1034,7 +1092,7 @@ def _published_index() -> str:
     base = f"https://{bucket}.s3.amazonaws.com/" if bucket else ""
     rows = ""
     try:
-        entries = ledger_from_env().recall(NETWORK, "record.published", limit=50)
+        entries = published_history(ledger_from_env(), NETWORK, read_offers(corpus_from_env()))
         published = [
             {
                 "key": str(e.body.get("key", "")),

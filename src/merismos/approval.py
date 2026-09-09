@@ -264,6 +264,37 @@ class ApprovalStore:
                 ) from error
             raise
 
+    def acquire_lane(self, approval: Approval) -> bool:
+        """Serialize same-category writes. Unknown attempts never expire into a retry."""
+        try:
+            self.client.update_item(
+                TableName=self.table_name,
+                Key={"nonce": {"S": f"lane:{approval.network}:{approval.category}"}},
+                UpdateExpression="SET holder = :n",
+                ConditionExpression="attribute_not_exists(holder)",
+                ExpressionAttributeValues={":n": {"S": approval.nonce}})
+            return True
+        except Exception as error:
+            if getattr(error, "response", {}).get("Error", {}).get("Code") == (
+                "ConditionalCheckFailedException"
+            ):
+                return False
+            raise
+
+    def release_lane(self, approval: Approval) -> None:
+        try:
+            self.client.update_item(
+                TableName=self.table_name,
+                Key={"nonce": {"S": f"lane:{approval.network}:{approval.category}"}},
+                UpdateExpression="REMOVE holder",
+                ConditionExpression="holder = :n",
+                ExpressionAttributeValues={":n": {"S": approval.nonce}})
+        except Exception as error:
+            if getattr(error, "response", {}).get("Error", {}).get("Code") != (
+                "ConditionalCheckFailedException"
+            ):
+                raise
+
 
 def _from_item(item: Mapping[str, Any]) -> Approval:
     return Approval(
@@ -287,6 +318,24 @@ class InMemoryApprovalStore:
 
     def __init__(self) -> None:
         self._rows: dict[str, tuple[Approval, float | None]] = {}
+        self._lanes = {}
+        from threading import RLock
+
+        self._lock = RLock()
+
+    def acquire_lane(self, approval: Approval) -> bool:
+        with self._lock:
+            key = (approval.network, approval.category)
+            if key in self._lanes:
+                return False
+            self._lanes[key] = approval.nonce
+            return True
+
+    def release_lane(self, approval: Approval) -> None:
+        with self._lock:
+            key = (approval.network, approval.category)
+            if self._lanes.get(key) == approval.nonce:
+                del self._lanes[key]
 
     def put(self, approval: Approval) -> Approval:
         if approval.nonce in self._rows:
@@ -358,7 +407,8 @@ def authorise(
     return approval
 
 
-def published_history(ledger, network: str, current_offers=(), limit: int = 200):
+def published_history(ledger, network: str, current_offers=(), limit: int = 200,
+                      category: str | None = None):
     """Read existing receipt namespaces without moving or repairing old rows.
 
     New receipts use the network partition. Older category receipts remain
@@ -368,7 +418,10 @@ def published_history(ledger, network: str, current_offers=(), limit: int = 200)
 
     subjects = {network, *(subject_for_offer(network, offer) for offer in current_offers)}
     found = [entry for subject in sorted(subjects)
-             for entry in ledger.recall(subject, "record.published", limit)]
+             for entry in ledger.recall(subject, "record.published", None)]
+    if category is not None:
+        found = [entry for entry in found if entry.body.get("category", "").lower() ==
+                 category.lower()]
     unique = {}
     for entry in sorted(found, key=lambda entry: entry.at):
         if entry.body.get("key"):

@@ -183,6 +183,11 @@ data "aws_iam_policy_document" "evaluator" {
     actions   = ["dynamodb:PutItem", "dynamodb:GetItem"]
     resources = [aws_dynamodb_table.thread.arn]
   }
+  statement {
+    sid       = "DetectReadOnlyLegacyRuns"
+    actions   = ["dynamodb:Query"]
+    resources = ["${aws_dynamodb_table.thread.arn}/index/by-run"]
+  }
 }
 
 ###############################################################################

@@ -15,13 +15,13 @@ on:
       keep:
         description: "Leave the fleet standing after the checks (yes/no). 'no' tears it down in the same run."
         required: true
-        default: "no"
+        default: "yes"
         type: choice
-        options: ["no", "yes"]
+        options: ["yes", "no"]
       model:
         description: "Bedrock inference profile, or 'none' for the deterministic path."
         required: false
-        default: "none"
+        default: "eu.anthropic.claude-opus-5"
 
 permissions:
   contents: read
@@ -103,15 +103,18 @@ jobs:
           terraform -chdir=infra apply -auto-approve -input=false tfplan
           echo "url=$(terraform -chdir=infra output -raw judge_url)/" >> "$GITHUB_OUTPUT"
 
-      # Everything below runs against the deployed system with no credentials,
-      # which is the point: it is the same thing a judge can run. Green CI
-      # proves the code that was pushed. It does not prove the thing running.
-      #
-      # The URL is the API Gateway one rather than the reader's Function URL.
-      # Public Function URLs are refused account wide here, which was settled by
-      # deploying a two line throwaway Lambda with a public URL and watching it
-      # be refused too. Checking a door that cannot open in this account proves
-      # nothing about the door a judge actually uses.
+      # Public HTTP probes remain anonymous and read-only. Model proof below is
+      # a separate IAM-authorized internal worker invocation, never a forged
+      # HTTP authorizer. No proof publishes or repairs a historical record.
+      - name: Preserve reviewed plan for the exact source revision
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-plan-${{ github.sha }}-${{ github.run_id }}
+          path: plan.txt
+          retention-days: 90
+          if-no-files-found: error
+
       - name: The reader answers a stranger
         if: inputs.dry_run != 'yes'
         run: |
@@ -163,6 +166,29 @@ jobs:
             exit 1
           }
 
+      - name: Actual writer freshness and custody reads are permitted
+        if: inputs.dry_run != 'yes'
+        run: |
+          set -euo pipefail
+          aws lambda invoke --function-name merismos-writer \
+            --payload '{"requestContext":{"http":{"method":"GET","path":"/publication-capabilities"}}}' \
+            --cli-binary-format raw-in-base64-out writer-reads.json >/dev/null
+          jq -e '.statusCode == 200' writer-reads.json
+          jq -r '.body' writer-reads.json | jq -e '
+            .role == "writer" and .read_only == true and
+            .checks.corpus_freshness_read.allowed == true and
+            .checks.custody_head_read.allowed == true'
+          echo 'Writer read-only permission checks passed; this is not a publication drill.' >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Preserve actual writer capability evidence
+        if: always() && inputs.dry_run != 'yes'
+        uses: actions/upload-artifact@v4
+        with:
+          name: writer-read-capabilities-${{ github.run_id }}
+          path: writer-reads.json
+          retention-days: 90
+          if-no-files-found: error
+
       - name: The other two refuse a stranger
         if: inputs.dry_run != 'yes'
         run: |
@@ -188,11 +214,14 @@ jobs:
           set -euo pipefail
           url="${{ steps.apply.outputs.url }}"
 
-          # Press the button. The reply is a redirect naming the run.
-          location=$(curl -s -o /dev/null -w '%{redirect_url}' -X POST "${url}offer/offer-4471")
-          echo "started: ${location}"
-          run_id="${location##*run=}"
-          test -n "${run_id}" || { echo "::error::no run id came back"; exit 1; }
+          # The deploy role invokes the existing internal worker, not a public
+          # mutation route and not a fabricated requestContext.authorizer.
+          run_id="run-$(openssl rand -hex 6)"
+          payload=$(jq -nc --arg run "$run_id" '{source:"merismos.background",offer_id:"offer-4471",run_id:$run}')
+          aws lambda invoke --function-name merismos-runner --invocation-type Event \
+            --cli-binary-format raw-in-base64-out --payload "$payload" accepted.json > invocation.json
+          test "$(jq -r '.StatusCode' invocation.json)" = "202"
+          echo "IAM-authorized internal run: ${run_id}"
 
           # Poll the provenance thread, which is the page's own progress bar.
           deadline=$(( $(date +%s) + 900 ))
@@ -239,7 +268,7 @@ jobs:
             echo "::error::a run-less approve answered ${code}. It may be deciding again."; exit 1; }
           grep -q "will not decide again on your behalf" noRun.html
 
-      - name: A coordinator can add an offer, and cannot add a person
+      - name: Public intake and all legacy mutations require authentication
         if: inputs.dry_run != 'yes'
         run: |
           set -euo pipefail
@@ -257,17 +286,24 @@ jobs:
             --data-urlencode 'category=ambient' \
             --data-urlencode 'collection_date=2026-09-30' \
             --data-urlencode 'note=Ring 6944 123 456 on arrival')
-          test "${code}" = "400" || {
-            echo "::error::an offer carrying a phone number was accepted (${code})"; exit 1; }
-          grep -q "published record" refused.html
+          test "${code}" = "403" || {
+            echo "::error::anonymous intake answered ${code}, expected authentication refusal"; exit 1; }
+          grep -q "authenticated" refused.html
+          for path in run offer/offer-4471 approve/offer-4471; do
+            code=$(curl -s -o denied.json -w '%{http_code}' -X POST "${url}${path}")
+            test "$code" = "403"
+          done
 
       - name: The refused offer is still refused when deployed
         if: inputs.dry_run != 'yes'
         run: |
           set -euo pipefail
           url="${{ steps.apply.outputs.url }}"
-          location=$(curl -s -o /dev/null -w '%{redirect_url}' -X POST "${url}offer/offer-4477")
-          run_id="${location##*run=}"
+          run_id="run-$(openssl rand -hex 6)"
+          payload=$(jq -nc --arg run "$run_id" '{source:"merismos.background",offer_id:"offer-4477",run_id:$run}')
+          aws lambda invoke --function-name merismos-runner --invocation-type Event \
+            --cli-binary-format raw-in-base64-out --payload "$payload" refused-start.json > refused-invoke.json
+          test "$(jq -r '.StatusCode' refused-invoke.json)" = "202"
           deadline=$(( $(date +%s) + 900 ))
           while :; do
             curl -s "${url}offer/offer-4477?run=${run_id}" > blocked.html

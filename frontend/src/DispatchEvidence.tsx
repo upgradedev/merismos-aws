@@ -29,6 +29,7 @@ export function evidenceBundle(row: OfferRow, data: Workspace): string {
     'COLLECTION HANDOFF',
     ...(pickups.length ? pickups.map(item => `${item.org}: ${item.quantity} ${item.unit} · ${item.state} · ${item.role || 'role unassigned'} · ${item.agreed_at || 'time not agreed'}`) : ['No collection commitment reported.']),
     'RECOVERY AND LIMITS',
+    ...pickups.flatMap(item => (item.feedback || []).map(event => `Handoff report: ${item.org} · ${event.code} · ${event.role} · ${new Date(event.at * 1000).toISOString()}`)),
     'After a failed or uncertain request, refresh and inspect the same run and record before retrying. Do not infer failure from a timeout.',
     'A correction needs a new review and exact consent. Existing record addresses remain historical evidence.',
     'Human active time, time saved, food rescued and beneficiary impact: unknown; not measured.',

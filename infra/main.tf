@@ -165,6 +165,7 @@ resource "aws_lambda_function" "fleet" {
 # Dependencies as a layer so the function bundle stays small and a code change
 # does not re-upload boto3 and Strands.
 resource "aws_lambda_layer_version" "deps" {
+  skip_destroy        = true
   layer_name          = "${var.project}-deps"
   filename            = "${path.module}/.build/deps.zip"
   compatible_runtimes = ["python3.13"]

@@ -245,7 +245,7 @@ class InMemoryLedger:
             (e for e in self._entries if e.run_id == run_id), key=lambda e: e.at
         )
 
-    def recall(self, subject: str, kind: str, limit: int = 20) -> list[Entry]:
+    def recall(self, subject: str, kind: str, limit: int | None = 20) -> list[Entry]:
         found = [e for e in self._entries if e.subject == subject and e.kind == kind]
         return sorted(found, key=lambda e: e.at, reverse=True)[:limit]
 
@@ -315,6 +315,8 @@ class DynamoDbLedger:
         for _ in range(3):
             head = self.client.get_item(TableName=self.table_name, Key=key,
                                         ConsistentRead=True).get("Item")
+            if not head and self.thread(entry.run_id):
+                raise ValueError("Legacy run has no persisted custody head. Read only; start a new run.")
             parent = head["last_id"]["S"] if head else ""
             moment = max(entry.at, float(head["at"]["N"]) + 0.000001) if head else entry.at
             linked = replace(entry, parent_id=parent, at=moment).stamped()
@@ -346,7 +348,7 @@ class DynamoDbLedger:
         raise ValueError("The custody head changed concurrently. Refresh before continuing.")
 
     def thread(self, run_id: str) -> list[Entry]:
-        response = self.client.query(
+        response = self._query_pages(
             TableName=self.table_name,
             IndexName="by-run",
             KeyConditionExpression="run_id = :r",
@@ -357,17 +359,30 @@ class DynamoDbLedger:
             key=lambda e: e.at,
         )
 
-    def recall(self, subject: str, kind: str, limit: int = 20) -> list[Entry]:
-        response = self.client.query(
+    def recall(self, subject: str, kind: str, limit: int | None = 20) -> list[Entry]:
+        response = self._query_pages(
             TableName=self.table_name,
             KeyConditionExpression="subject = :s",
             FilterExpression="kind = :k",
             ExpressionAttributeValues={":s": {"S": subject}, ":k": {"S": kind}},
             ScanIndexForward=False,
-            Limit=max(limit * 4, limit),
+            ConsistentRead=True,
+            Limit=max((limit or 200) * 4, limit or 200),
         )
         entries = [_from_item(item) for item in response.get("Items", [])]
         return sorted(entries, key=lambda e: e.at, reverse=True)[:limit]
+
+    def _query_pages(self, **request) -> dict:
+        # A filtered empty page is not empty history. UUID sort keys do not
+        # order time either: collect the bounded result before sorting by at.
+        items = []
+        for _ in range(20):
+            page = self.client.query(**request)
+            items.extend(page.get("Items", []))
+            if not page.get("LastEvaluatedKey"):
+                return {"Items": items}
+            request["ExclusiveStartKey"] = page["LastEvaluatedKey"]
+        raise ValueError("Ledger history exceeds the read bound; review before a new decision.")
 
     def open_deferrals(self, subject: str = "") -> list[Entry]:
         if not subject:

@@ -61,7 +61,7 @@ def snapshot(corpus) -> dict:
     return {p: corpus.read(p) for p in corpus.list_paths()}
 
 
-def evidence_digest(corpus, offer: dict) -> str:
+def evidence_digest(corpus, offer: dict, history=()) -> str:
     """Target offer plus the sources that determine its eligibility and split.
 
     Another offer arriving is not evidence about this donation. Organisations,
@@ -74,7 +74,32 @@ def evidence_digest(corpus, offer: dict) -> str:
         path = manifest if manifest.startswith("offers/") else f"offers/{manifest}"
         if path in corpus.list_paths():
             relevant[path] = corpus.read(path)
-    return fingerprint({"offer": offer, "sources": relevant})
+    same = [record for record in history
+            if record.get("category", "").lower() == offer.get("category", "").lower()]
+    return fingerprint({"offer": offer, "sources": relevant, "fairness_history": same})
+
+
+def fairness_history(state, network, offer):
+    if state["mode"] == "sandbox":
+        records = state["records"]
+    else:
+        records = [entry.body for entry in published_history(
+            ledger_from_env(), network, [offer], category=offer.get("category", ""))]
+    # Store only semantics used by fairness. Transport timestamps/digests are not
+    # verdict facts; order and distinct donation identity are.
+    records = sorted(records, key=lambda record: record.get("published_at", 0), reverse=True)
+    same, seen = [], set()
+    for record in records:
+        if record.get("category", "").lower() != offer.get("category", "").lower():
+            continue
+        identity = record.get("offer_id") or record.get("key")
+        if identity in seen:
+            continue
+        seen.add(identity)
+        same.append({key: record.get(key) for key in ("offer_id", "category", "orgs", "key")})
+        if len(same) == 2:
+            break
+    return same
 
 
 def initial_state(mode: str) -> dict:
@@ -365,7 +390,8 @@ def mutate(state, corpus, network, offer, action, body, principal, store, identi
         saved = store.get(identifier)
         operation = (saved or {}).get("operations", {}).get(body["request_id"])
         if operation and operation.get("status") == "pending" and (
-            not operation.get("external") or isinstance(error, ApiError)
+            not operation.get("external") or isinstance(error, background.NotDispatched)
+            or isinstance(error, ApiError)
             and error.write_state == "not_written"
         ):
             operation.update(status="failed", detail="No write completed. Review before retrying.")
@@ -399,8 +425,12 @@ def _mutate(state, corpus, network, offer, action, body, principal, store, ident
             "run_id"
         ):
             raise ApiError(409, "This plan is stale. Refresh and review the allocation again.")
-        if run.get("evidence_digest") != evidence_digest(corpus, offer):
+        if action == "approve" and run.get("evidence_digest") != evidence_digest(
+            corpus, offer, fairness_history(state, network, offer)
+        ):
             raise ApiError(409, "Evidence changed or predates this API. Run the fleet again.")
+        if action == "pickup" and run.get("source_digest") != evidence_digest(corpus, offer):
+            raise ApiError(409, "Evidence changed. Review the current allocation before collection.")
         if action == "approve" and mode == "live" and str(
             offer.get("collection_date", "")
         ) < date.today().isoformat():
@@ -432,7 +462,9 @@ def _mutate(state, corpus, network, offer, action, body, principal, store, ident
                 raise ApiError(status, detail, "not_written" if status in (400, 409) else "unknown")
     elif action == "run":
         run_id = new_run_id()
-        run = {"run_id": run_id, "evidence_digest": evidence_digest(corpus, offer)}
+        run = {"run_id": run_id, "evidence_digest": evidence_digest(
+            corpus, offer, fairness_history(state, network, offer)),
+            "source_digest": evidence_digest(corpus, offer)}
         state["runs"][offer_id] = run
         if mode == "sandbox":
             ledger = InMemoryLedger()
@@ -453,8 +485,9 @@ def _mutate(state, corpus, network, offer, action, body, principal, store, ident
             thread.append("run.started", offer_id=offer_id, evidence_digest=run["evidence_digest"])
             try:
                 background.start(offer_id, run_id, network)
-            except Exception:
-                thread.append("run.failed", detail="The runner could not be started. Retry later.")
+            except background.NotDispatched:
+                thread.append("run.failed", detail="The runner was not dispatched. Review and retry.",
+                              dispatch_outcome="not_dispatched")
                 raise
     elif action == "approve":
         approval = grant(network, plan["key"], plan["body"], principal, run["run_id"],
@@ -514,6 +547,21 @@ def update_pickup(state, offer, run, plan, body):
             raise ApiError(400, "Choose a future collection time within 14 days, with timezone.") \
                 from error
         claim = replace(claim, agreed_at=when.astimezone(timezone.utc).isoformat())
+    elif action == "feedback":
+        code, role = body.get("feedback"), body.get("role")
+        if code not in ("driver_ready", "recipient_ready", "no_show") or role not in pickup.ROLES:
+            raise ApiError(400, "Choose a known handoff report and organisational role.")
+        if body.get("consent") is not True:
+            raise ApiError(400, "Confirm that this handoff report was actually observed.")
+        if code == "no_show" and (not claim.agreed_at or
+                                 datetime.fromisoformat(claim.agreed_at).timestamp() > time.time()):
+            raise ApiError(409, "A no-show report requires a scheduled collection time that passed.")
+        feedback = tuple(claim.feedback)
+        if len(feedback) >= 10:
+            raise ApiError(409, "Handoff report limit reached. Ask the coordinator to review.")
+        if feedback and feedback[-1]["code"] == code and feedback[-1]["role"] == role:
+            raise ApiError(409, "This handoff report is already recorded.")
+        claim = replace(claim, feedback=(*feedback, {"code": code, "role": role, "at": time.time()}))
     elif action == "confirm":
         if body.get("consent") is not True:
             raise ApiError(400, "Confirm that this collection actually happened.")
@@ -568,5 +616,8 @@ def reconcile(state, store, identifier, offer_id, operation_id):
             entries = ledger_from_env().thread(run.get("run_id", ""))
             if background.completed_result(entries):
                 operation["status"] = "complete"
+                changed = True
+            elif background.failure(entries):
+                operation["status"] = "failed"
                 changed = True
     return store.save(identifier, state, state["version"]) if changed else state

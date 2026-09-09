@@ -92,6 +92,7 @@ jobs:
         with:
           name: frontend-lock
           path: frontend/package-lock.json
+          retention-days: 90
           if-no-files-found: error
       - name: Audit all dependencies (high and critical findings block)
         if: ${{ !cancelled() && steps.deps_node.outcome == 'success' }}
@@ -114,6 +115,7 @@ jobs:
         with:
           name: frontend-dist
           path: frontend/dist/
+          retention-days: 90
           if-no-files-found: error
       - name: Preserve dependency audit diagnostics
         if: always()
@@ -121,6 +123,7 @@ jobs:
         with:
           name: frontend-audit
           path: frontend/test-results/npm-audit-*.json
+          retention-days: 90
           if-no-files-found: error
       - name: Lint Python
         if: ${{ !cancelled() && steps.deps_python.outcome == 'success' }}

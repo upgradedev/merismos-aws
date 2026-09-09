@@ -1,235 +1,34 @@
-# The submission video
+# Merismos — submission video draft
 
-Under five minutes, public on YouTube. The rules ask for two things in one file:
-a **demonstration of the working project** and a **pitch** covering the problem,
-who it is for, and why it matters. The judging question is narrower and worth
-quoting, because it is what this script is built to answer: *"Does the video
-clearly demonstrate the project working end-to-end?"*
+For a community-food coordinator, [open Merismos](https://d2qnkmlhs7y5fp.cloudfront.net/).
+Start with **Add an offer → Try success**, edit, review the split and consent in sandbox.
+The sandbox uses real HTTP persistence and load-bearing Strands with a scripted model, no
+model network call. Live records are publicly read-only.
 
-**Every shot is the real product.** No mockups, no slides pretending to be
-screens. Where something is not deployed, the narration says so rather than the
-picture implying otherwise.
+Target **90–174 seconds**, with seven beats of **3–40 seconds** each. These are production
+bounds, not measured timing. The existing audio/video/caption gates remain authoritative.
+No recording or public upload is claimed by this draft. Capture the actual release after its
+exact-SHA acceptance; an edited wait must disclose the elapsed time removed.
 
-**The live run is shown, and cut.** A four-specialist run takes about seven
-minutes and the cap is five, so beat 3 shows the run starting and the page
-reporting progress, then cuts to the finished decision. The cut is announced on
-screen rather than hidden, because a recording that implies a seven minute job
-took twenty seconds is the kind of small dishonesty this entry cannot afford.
+| Beat | Actual product to capture |
+| --- | --- |
+| hook | Synthetic banner, coordinator persona and dashboard. No staged customer story. |
+| surface | Editable success preset, real request and returned status. |
+| trigger | Explicit run button and progress. Scheduled escalation support is separate, not a recorded schedule firing. |
+| live | Refused cold chain; no approval. Refused intake with retained fields, correction and successful resubmission. Passing exact consent and separate collection confirmation. |
+| sponsor | Strands dispatcher/guard evidence and CI negative controls. Distinguish scripted sandbox from configured internal Bedrock Opus 5. |
+| evidence | Evidence bundle with sources, decision, run/revision, provider/mode, history, failure/recovery and limits. Hashes are not source truth. |
+| close | Observed outcomes and unmeasured human active time/benefits, then the workspace URL. |
 
-Target 4:30. The cap is 5:00 and a recording that lands at 4:59 is a recording
-that fails to build on the day.
+`video/narration.json` contains the matching seven caption/speech beats. The existing video
+tool schema/provider settings are preserved as production contracts, not app runtime providers.
+`docs/video/cards.html` is only a labelled recording aid, never a substitute for product footage.
 
----
+Do not claim a live critic Lambda, automatic sends, compliance, measured savings or real food
+rescued. The known contradictory historical record stays disclosed; it is not silently repaired.
+A trusted public coordinator sign-in integration is not supplied. AWS permission/model probes are
+separate IAM-authorized checks, never fabricated browser authorization.
 
-## Beat 1. The problem, on the screen it actually happens on. 0:00 to 0:35
-
-**Picture.** A phone-shaped frame. A group chat. Messages arriving:
-*"Bakery has 240kg bread + veg, who can take it?"* ·
-*"we can!"* · *"we're coming too"* · *"is anyone getting this?"*
-
-**Narration.**
-> Five small charities in one Athens neighbourhood share whatever food gets
-> donated. A pantry, a night shelter, a school, a library breakfast club, a soup
-> kitchen. None of them employs anybody to do this.
->
-> An offer arrives, and whoever answers first takes it.
-
-## Beat 2. What that costs. 0:35 to 1:05
-
-**Picture.** Three cards, one at a time.
-1. Two vans, same pallet.
-2. A gift hamper, and a wine bottle inside it. Beside it: the night shelter's
-   record, `alcohol_free_premises`, and the line about a residential recovery
-   programme.
-3. A calendar flipping September to March. An email: *"Please confirm what was
-   distributed."*
-
-**Narration.**
-> Two vans drive to the same pallet.
->
-> A crate of gift hampers goes to the shelter that runs a recovery programme,
-> because the pallet label said "assorted ambient grocery" and nobody opened the
-> manifest.
->
-> And in March the funder asks what happened in September, and the record was a
-> phone. That is the one that costs a small organisation its funding, for work
-> it genuinely did.
-
-## Beat 3. The product, live. 1:05 to 2:15
-
-**Picture.** Screen recording of the deployed site, at a phone width, because a
-coordinator is holding a phone. Start on **Add an offer**: type what the donor
-said into the form. Then the offers list. Click **Work out the split** on offer
-4471, then **Ask the fleet**. The waiting screen appears, counting specialists as
-they answer. Cut, with a caption saying how long was removed. The decision
-screen: the shares table, then scroll to *"Not receiving a share, and the rule
-that decided it"* with three organisations and three reasons.
-
-**Narration.**
-> This is Merismos. The offer goes in the way the donor said it, on a phone, in a
-> doorway. Then it does the apportionment unattended and brings back one thing to
-> approve.
->
-> Four specialists wake. Each one is handed the network's filing and a question,
-> not an answer, and each decides what to open. That takes minutes, so this is
-> cut.
->
-> Here is the split. And here is the part that matters: three members are not
-> receiving a share, and each one is named with the rule that decided it. The
-> library has no van and can carry fifteen kilos. That is on the screen, so
-> nobody has to phone the library to find out.
-
-**One shot in this beat is not the happy path and it earns its ten seconds.**
-Type a phone number into the note and press Add. It is refused, on the spot, in
-the coordinator's own words, with everything they typed still in the form.
-Narration: *"A published record never carries a person. So it says so now, while
-you can still see what you wrote, rather than four minutes later."*
-
-## Beat 4. The case that decides whether a model earns its place. 2:05 to 2:50
-
-**Picture.** Offer 4483. Show the offer's own fields: `category: ambient`,
-`allergens: []`. Then the manifest, with wine, pork salami and hazelnut
-highlighted. Then a two-row comparison on screen.
-
-**Narration.**
-> This offer declares category ambient and no allergens, and the donor described
-> it honestly. They have no idea which of these five runs a recovery programme.
->
-> The manifest says every hamper holds a bottle of wine and a pork salami, and
-> some biscuits contain hazelnut.
->
-> Read the declared fields alone: zero findings, nobody excluded, and wine
-> reaches a recovery shelter and a school. Open the manifest: three findings,
-> three organisations skipped, each with its reason. Both halves are pinned by
-> tests.
-
-## Beat 5. The one moment a person is in the loop. 2:50 to 3:30
-
-**Picture.** The approval card. Scroll slowly: the exact bytes, then the sha256,
-then *"What this approval does not authorise"*. Type a name. Click
-**I have read these bytes. Publish them.** The published record appears. Then
-open the public S3 URL in a clean window with no account.
-
-**Narration.**
-> Everything so far was autonomous. This is the only step that is not.
->
-> You are approving these exact bytes. That digest is recomputed by a different
-> identity before anything is written, so changing one character afterwards is
-> refused. The approval lasts fifteen minutes and works once.
->
-> And here is the record, public, readable by the funder with no account. That
-> is the answer to the question asked in March.
-
-## Beat 6. Why the Strands SDK is load-bearing, proven by removing it. 3:30 to 4:10
-
-**Picture.** Split screen. Left: `guard.py`, the `BeforeToolCallEvent` callback
-setting `cancel_tool`. Right: a terminal running `python scripts/the_swap_test.py`
-and printing `SWAP TEST PASSED`. Then the CI page showing the `guard-has-teeth`
-job with both of its steps green.
-
-**Narration.**
-> Every refusal in this fleet happens inside the Strands tool dispatcher. The
-> hook sets cancel_tool and the tool is never invoked. Remove the SDK and there
-> is no dispatcher to refuse in.
->
-> A gate nobody has watched go red is a gate nobody should believe. So one job
-> removes the hook and asserts the same model then reaches the tool. The refusal
-> is the guard, and not something else about the setup.
->
-> And a second one takes the whole SDK away and requires the demo to stop
-> working. That one caught us out. The offline path had no agent at all, so the
-> claim was true of the repository and false of the thing you would run. You can
-> run the check yourself; it is one command and it fails if the demo stays green.
-
-## Beat 7. What is not true yet. 4:10 to 4:20
-
-**Picture.** Plain card, four lines of text.
-
-**Narration.**
-> Three honest limits. A run takes minutes, because a gateway request gets
-> thirty seconds and a model read takes a hundred, so the chore runs in the
-> background and the page waits. Private repositories are not supported. And the
-> provenance ledger is append-only by interface rather than by storage policy,
-> which the custody chain makes detectable rather than impossible.
->
-> Merismos. Apportionment, and the record of how it was decided.
-
----
-
-## The length collision, found 2026-09-08 and not yet resolved
-
-**This script targets 4:30. The kit's pipeline refuses anything outside 90 to 174
-seconds.** `_submission_kit/repos/submission-kit/video` is per-beat audio locked
-and enforces that window, printing the measured figure when it rejects a run, and
-`STANDARDS.md` E1 names it as how narration is built.
-
-So the two cannot both stand. The narration is drafted to the pipeline's window,
-in [`video/narration.json`](../video/narration.json): seven beats at roughly 156
-seconds by word count, which is an estimate and not a measurement. The beats are
-the pipeline's own, and they line up with this script rather than replacing it:
-hook is beat 1, surface and trigger are the two things this script never had a
-beat for, live is beat 3, sponsor is beat 6, evidence is beat 5, close is beat 7.
-
-**The choice is smaller than it first looked, and that was our fault.** The
-argument for the hand cut was that the pipeline's seven beats lose beats 2 and 4,
-the wine hamper and the offer-4483 comparison, which are the strongest material
-in the entry. They are content rather than beats, so they now sit inside the
-seven: `hook` trades the two vans, the weakest of the three costs, for the hamper
-reaching the recovery shelter, and `live` moves from offer-4471 to offer-4483 and
-carries zero findings against three. The flagship claim is not that it splits
-things, it is that reading changed the answer.
-
-So the pipeline path no longer costs the entry its best material. What it still
-buys is the sync gate, per-beat re-cutting and CI, against a hand cut that has
-none of those and where fixing one line means rebuilding. Two entries in this
-workspace have died with a finished video sitting on disk, which is the whole
-reason the kit exists.
-
-## The cards, already built
-
-Every beat that is a graphic rather than a screen recording is in
-[`docs/video/cards.html`](video/cards.html). Open it, press full screen, and step
-with the arrow keys or the space bar. Eight cards in 16:9, scaled to whatever
-display records them, in the product's own colours and typeface so a cut between
-a card and a screen capture does not read as two different pieces of software.
-
-Self-contained on purpose: no font host, no CDN, nothing that can fail on the day
-because somebody else's server did. It carries a few lines of script for the
-arrow keys, which is why it lives in `docs/` and is never served by the fleet;
-every screen the product itself serves loads no script at all, and that is
-asserted per screen in the suite.
-
-What is **not** in it, deliberately, is anything from beats 3, 5 and 6. Those are
-the deployed site, the approval card and a terminal, and a card pretending to be
-one of those is the thing this script's opening rule forbids.
-
-## Production notes
-
-**Length.** Beats sum to 4:30 against a 5:00 cap. If a beat overruns, beat 2
-loses its third card before anything else is cut, and beat 3's refusal shot goes
-second. Beats 5 and 6 are the two that carry the submission and are never
-trimmed.
-
-**Capture.** The deployed URL for beats 3 and 5, at a desktop width. The site
-carries no external asset, so a capture is reproducible and will not change
-because a font host did.
-
-**Narration.** ElevenLabs, per beat, so one line can be re-cut without
-rebuilding the whole thing. The key is present on this machine as a Windows user
-variable and is not in this repository.
-
-**What must never appear on screen.** The AWS account id, any function URL that
-carries one, and any real organisation's name. Everything in the corpus is
-invented and the video should not imply otherwise.
-
-**The claim to check before publishing.** Every number spoken in this script has
-to match the README and the description on the day it is recorded. The four that
-move: the test count, the coverage figure, the live URL, and the number of Lambda
-functions, which became four when the chore was given its own concurrency pool.
-The identities are still three, and the difference is worth getting right on
-screen because the whole boundary argument rests on it.
-
-**Record beat 3 against the deployed site, not against a local run.** The two are
-not the same today and the script says the site. If the fleet standing at the URL
-is behind the branch on the day of recording, that is a redeploy before a
-recording, not a caption.
+Current code, CI and live release evidence must be shown distinctly. New capture and human
+acceptance remain NOT_RUN until performed. Pre-existing-material and dependency licence
+disclosures are preserved in the README.

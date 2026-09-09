@@ -1,5 +1,5 @@
 {
-  "_comment": "The submission narration, one entry per beat, consumed by video/generate-narration.py from _submission_kit/repos/submission-kit/video. captionText is what a viewer reads and carries the exact names and figures a judge will check. speechText is the same sentence spelled the way a text to speech engine pronounces it: SHA256 becomes S H A two five six, IAM becomes I A M, offer-4471 becomes offer four four seven one. Nothing is said here that is not true of the deployed fleet today.",
+  "_comment": "Draft narration for the current synthetic coordinator flows. Capture actual product only after exact-release acceptance; captions do not establish deployment. Existing production-tool schema and provider contract preserved.",
   "schemaVersion": "archon.submission-video/v1",
   "provider": "elevenlabs",
   "elevenLabs": {
@@ -10,49 +10,42 @@
   "languageCode": "en-GB",
   "voice": "en-GB-Neural2-B",
   "speakingRate": 0.98,
-  "_comment_length": "The pipeline refuses a whole video outside 90 to 174 seconds and refuses any beat outside 3 to 40. These seven are drafted at roughly 150 seconds at a normal pace, which leaves room in both directions. That number is a draft and not a measurement: run the generator once and read the total it prints, then cut or add words. Our own docs/video-script.md targets 4:30, which this pipeline will not accept, and that collision is written into STATE.md rather than left to surface on recording day.",
+  "_comment_length": "Target 90–174 seconds, seven beats of 3–40 seconds. Draft timing only; measured audio/video and captions must pass existing gates before publication.",
   "segments": [
     {
       "id": "hook",
-      "_beat": "The problem, in the buyer's words. A named segment, and the cost that lands.",
-      "captionText": "Five small charities in one Athens neighbourhood share whatever food gets donated. None of them employs anybody to do this, so an offer arrives in a group chat and whoever answers first takes it. That is how a crate of gift hampers went to the night shelter that runs a recovery programme. Every hamper held a bottle of wine, and nobody had opened the manifest.",
-      "speechText": "Five small charities in one Athens neighbourhood share whatever food gets donated. None of them employs anybody to do this, so an offer arrives in a group chat and whoever answers first takes it. That is how a crate of gift hampers went to the night shelter that runs a recovery programme. Every hamper held a bottle of wine, and nobody had opened the manifest."
+      "captionText": "A community-food coordinator needs more than a split. They need to know why one organisation receives food, why another cannot, and who will collect it. Merismos demonstrates that workflow with five invented organisations and synthetic donations. No real delivery or impact is claimed.",
+      "speechText": "A community-food coordinator needs more than a split. They need to know why one organisation receives food, why another cannot, and who will collect it. Merismos demonstrates that workflow with five invented organisations and synthetic donations. No real delivery or impact is claimed."
     },
     {
       "id": "surface",
-      "_beat": "The surface the buyer already opens. Not another dashboard.",
-      "captionText": "The decision arrives in the group chat they are already in. Merismos writes it out for them: who receives what, and who was skipped with the rule that decided it, in the words a coordinator would send. They select it and send it. No new habit, and no twelfth tab anybody has to remember to open.",
-      "speechText": "The decision arrives in the group chat they are already in. Merismos writes it out for them: who receives what, and who was skipped with the rule that decided it, in the words a coordinator would send. They select it and send it. No new habit, and no twelfth tab anybody has to remember to open."
+      "captionText": "Open the Merismos coordinator workspace with no account. Choose Add an offer, then Try success. The fields remain editable. Submit an invented donation and work out its split. This uses a real HTTP API, persistent session and the Strands agent dispatcher, not a prerecorded answer.",
+      "speechText": "Open the Merismos coordinator workspace with no account. Choose Add an offer, then Try success. The fields remain editable. Submit an invented donation and work out its split. This uses a real HTTP API, persistent session and the Strands agent dispatcher, not a prerecorded answer."
     },
     {
       "id": "trigger",
-      "_beat": "What fires without anyone asking, and the bound on it.",
-      "captionText": "Pressing a button is not the only way a run starts. A specialist that cannot settle something today parks it with a date, and on that date an EventBridge one-shot wakes the fleet and deletes itself. That path may only add a note to the record. A trigger that fires unattended and can also publish is not a feature.",
-      "speechText": "Pressing a button is not the only way a run starts. A specialist that cannot settle something today parks it with a date, and on that date an Event Bridge one shot wakes the fleet and deletes itself. That path may only add a note to the record. A trigger that fires unattended and can also publish is not a feature."
+      "captionText": "The coordinator starts the review. Separate scheduled deferrals can append an escalation, not approve a publication. There is no automatic chat intake or message delivery. The public sandbox uses a scripted model with no model network call. Live records are separately read-only.",
+      "speechText": "The coordinator starts the review. Separate scheduled deferrals can append an escalation, not approve a publication. There is no automatic chat intake or message delivery. The public sandbox uses a scripted model with no model network call. Live records are separately read-only."
     },
     {
       "id": "live",
-      "_beat": "The anonymous path executing the flagship claim, which is that reading changes the answer. This is the beat the browser capture records.",
-      "captionText": "Here is the live site, no account. offer-4483 declares category ambient and no allergens, and the donor was honest. Read only those fields: zero findings, nobody excluded, and the wine reaches the shelter. Press Ask the fleet. Four specialists wake on Claude Opus 5, one opens the manifest, and now there are three findings and three organisations skipped, each with its reason.",
-      "speechText": "Here is the live site, no account. Offer four four eight three declares category ambient and no allergens, and the donor was honest. Read only those fields: zero findings, nobody excluded, and the wine reaches the shelter. Press Ask the fleet. Four specialists wake on Claude Opus five, one opens the manifest, and now there are three findings and three organisations skipped, each with its reason."
+      "captionText": "Try refusal submits a broken cold chain: the result must not offer approval. Try correction submits an invented phone-shaped note: intake is refused and the fields remain available to correct. On a passing plan, inspect the exact text and address before consenting. Collection needs a separate explicit confirmation.",
+      "speechText": "Try refusal submits a broken cold chain: the result must not offer approval. Try correction submits an invented phone-shaped note: intake is refused and the fields remain available to correct. On a passing plan, inspect the exact text and address before consenting. Collection needs a separate explicit confirmation."
     },
     {
       "id": "sponsor",
-      "_beat": "How the sponsor's product is load-bearing, proven by removing it.",
-      "captionText": "Every refusal in this fleet happens inside the Strands tool dispatcher. A hook sets cancel_tool and the tool is never invoked. Take the SDK away and one command requires the demo to stop working. It caught us out: the offline path had no agent at all, so the claim was true of the repository and false of what you would run.",
-      "speechText": "Every refusal in this fleet happens inside the Strands tool dispatcher. A hook sets cancel tool and the tool is never invoked. Take the S D K away and one command requires the demo to stop working. It caught us out: the offline path had no agent at all, so the claim was true of the repository and false of what you would run."
+      "captionText": "Strands is load-bearing in tool dispatch. Its BeforeToolCallEvent guard cancels forbidden calls before invocation. CI tests remove that guard and then remove the SDK to demonstrate both boundaries. A separate deterministic gate checks the draft. The internal AWS runner retains configured Bedrock Opus 5, but configuration is not a model-call receipt.",
+      "speechText": "Strands is load-bearing in tool dispatch. Its BeforeToolCallEvent guard cancels forbidden calls before invocation. CI tests remove that guard and then remove the SDK to demonstrate both boundaries. A separate deterministic gate checks the draft. The internal AWS runner retains configured Bedrock Opus 5, but configuration is not a model-call receipt."
     },
     {
       "id": "evidence",
-      "_beat": "What a judge can check without asking us.",
-      "captionText": "You can check all of it without us. The published record is a public address anyone opens with no account. The approval binds a sha256 that a different identity recomputes from the bytes that arrive. And the identity serving the page is refused that write by IAM, which it proves by attempting it.",
-      "speechText": "You can check all of it without us. The published record is a public address anyone opens with no account. The approval binds a S H A two five six that a different identity recomputes from the bytes that arrive. And the identity serving the page is refused that write by I A M, which it proves by attempting it."
+      "captionText": "The evidence bundle keeps public sources, decision reasons, run and workspace revision, provider, mode, record history and handoff together. Hashes bind bytes, not source truth or delivery. Live recovery requires an authenticated coordinator and checks one reserved attempt without publishing again. Historical records are not silently repaired.",
+      "speechText": "The evidence bundle keeps public sources, decision reasons, run and workspace revision, provider, mode, record history and handoff together. Hashes bind bytes, not source truth or delivery. Live recovery requires an authenticated coordinator and checks one reserved attempt without publishing again. Historical records are not silently repaired."
     },
     {
       "id": "close",
-      "_beat": "The sentence to be republished. One mechanism, one consequence, nothing else.",
-      "captionText": "Merismos splits one food donation between five charities, so nobody has to phone the shelter to ask why it was skipped.",
-      "speechText": "Merismos splits one food donation between five charities, so nobody has to phone the shelter to ask why it was skipped."
+      "captionText": "Merismos keeps an allocation decision beside its collection handoff. Copy the evidence for your own review; nothing is sent automatically. Human active time, savings and food rescued remain unmeasured. Open the sandbox and try the three editable flows. Current CI, deployed release evidence and human acceptance are separate.",
+      "speechText": "Merismos keeps an allocation decision beside its collection handoff. Copy the evidence for your own review; nothing is sent automatically. Human active time, savings and food rescued remain unmeasured. Open the sandbox and try the three editable flows. Current CI, deployed release evidence and human acceptance are separate."
     }
   ]
 }

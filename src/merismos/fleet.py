@@ -743,7 +743,8 @@ def run_chore(
     policy_text = _read_policy(corpus)
     from .approval import published_history
 
-    recent = [e.body for e in published_history(thread.ledger, network, [offer])
+    recent = [e.body for e in published_history(thread.ledger, network, [offer],
+                                              category=offer.get("category", ""))
               if e.run_id != thread.run_id]
     if recent:
         thread.append("recall.performed", found=len(recent))

@@ -60,6 +60,11 @@ test('Human intake to split, exact approval and collection, with invalid field r
   const card=page.getByRole('article').filter({has:page.getByRole('heading',{name:'Omonoia Soup Kitchen',exact:true})});
   await card.getByRole('button',{name:'Claim this share'}).click();
   await expect(card.getByText('Claimed',{exact:true})).toBeVisible();
+  await card.getByLabel('I observed this handoff event in the simulation.').check();
+  await card.getByRole('button',{name:'Save handoff report'}).click();
+  await expect(card.getByRole('heading',{name:'Reported handoff'})).toBeVisible();
+  await expect(card.getByText(/driver ready ·/)).toBeVisible();
+  await expect(card.getByText('Claimed',{exact:true})).toBeVisible();
   await card.getByLabel('This collection actually happened in the simulation.').check();
   await card.getByRole('button',{name:'Confirm collection'}).click();
   await page.getByLabel('Show').selectOption('confirmed');

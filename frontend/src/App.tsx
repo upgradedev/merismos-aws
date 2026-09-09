@@ -40,8 +40,10 @@ export function App() {
     setLoading(true);
     try {
       const next = await api.loadWorkspace(mode);
-      if (next.operations?.some(operation => operation.id === retry.current?.id && operation.status === 'failed')) retry.current = null;
-      if (current === generation.current) { setData(next); setError(''); setActionBlocked(false); setExpired(false); setObservedAt(new Date().toLocaleString()); }
+      if (current === generation.current) {
+        if (next.operations?.some(operation => operation.id === retry.current?.id && operation.status === 'failed')) retry.current = null;
+        setData(next); setError(''); setActionBlocked(false); setExpired(false); setObservedAt(new Date().toLocaleString());
+      }
     } catch (e) { if (current === generation.current) report(e); }
     finally { if (current === generation.current) setLoading(false); }
   }, [mode, report]);
