@@ -89,12 +89,46 @@ def test_a_served_read_spends_exactly_one(tools, box):
 
 
 def test_the_budget_stops_the_read_after_the_last_one(tools, box):
-    for _ in range(READ_BUDGET):
-        tools["read_file"]("registers/retention.md")
+    """Distinct files, because the budget is a number of files.
+
+    This read one file ``READ_BUDGET`` times and expected the budget spent. It
+    encoded reads where the published bound says files, which is the thing that
+    changed on 2026-09-09: a second read of a path already open reaches nothing
+    the first did not, and charging for it taxed a specialist for losing track.
+    """
+    corpus = LocalCorpus()
+    paths = [p for p in corpus.list_paths() if p.startswith(("orgs/", "registers/"))]
+    assert len(paths) >= READ_BUDGET, "the corpus is too small to exhaust the budget"
+
+    for path in paths[:READ_BUDGET]:
+        tools["read_file"](path)
 
     assert box.log.spent == READ_BUDGET
-    assert tools["read_file"]("registers/retention.md").startswith("REFUSED:")
+    assert tools["read_file"](paths[READ_BUDGET]).startswith("REFUSED:")
     assert box.log.spent == READ_BUDGET, "the refusal must not increment the count"
+
+
+def test_opening_the_same_file_twice_costs_one(tools, box):
+    """The bound is published as a number of files, so it counts files.
+
+    Watched happening in production: the live offer-4471 run opened its manifest
+    twice and finished with five reads left rather than six, having learned
+    nothing for the one it spent.
+    """
+    for _ in range(3):
+        tools["read_file"]("registers/retention.md")
+
+    assert box.log.spent == 1
+    assert len(box.log.paths_opened()) == 3, "every read is still recorded"
+
+
+def test_a_repeat_read_returns_current_bytes_rather_than_the_first_ones(tools, box):
+    """Free is not cached. A file that changed mid run must not be hidden."""
+    first = tools["read_file"]("registers/retention.md")
+    again = tools["read_file"]("registers/retention.md")
+
+    assert again == first
+    assert not again.startswith("REFUSED:")
 
 
 def test_a_long_file_is_truncated_and_says_so(box):

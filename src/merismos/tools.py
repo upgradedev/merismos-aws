@@ -6,7 +6,9 @@ the bound is checked in one function that every reading tool goes through.
 
 Four bounds. Scope: only the register, the offers and the policies. Traversal:
 no ``..`` and no absolute path. Size: one read is capped. Budget: a finite number
-of successful reads per run.
+of **distinct files** per run. Opening one twice costs one, because the bound is
+published as a number of files and a second read of the same path reaches nothing
+the first did not.
 
 **Why the budget is counted here and not at the caller.** The obvious shape puts
 all four bounds in ``read_file`` and none in ``search``, which checks scope
@@ -182,7 +184,20 @@ def bounded_read(log: ReadLog, corpus: Corpus, tool: str, path: str) -> str:
     if truncated:
         text = text.encode("utf-8")[:MAX_READ_BYTES].decode("utf-8", "ignore")
         text += f"\n\n[truncated at {MAX_READ_BYTES} bytes]"
-    log.spent += 1
+    # **A file already open is not charged again.** The bound is published as
+    # "6 files per specialist" and was counted in reads, and those are the same
+    # sentence only if nothing is ever opened twice. The live offer-4471 run
+    # opened its manifest twice and finished with five reads left rather than
+    # six, having learned nothing for the one it spent.
+    #
+    # Charging again bounds nothing: the bytes are already in the conversation,
+    # so a second read reaches no part of the filing the first did not. It only
+    # takes an allowance away from a specialist for losing track.
+    #
+    # Re-read rather than served from memory, so a file that changed mid run is
+    # not hidden. The budget question does not need the content kept.
+    if path not in log.paths_opened():
+        log.spent += 1
     log.record(tool, path, served=True, bytes_read=len(text.encode("utf-8")))
     return text
 
