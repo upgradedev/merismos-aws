@@ -1,5 +1,11 @@
 name: Live AWS acceptance
 on:
+  workflow_call:
+    inputs:
+      release_sha:
+        description: Exact frontend commit published by the caller
+        required: true
+        type: string
   workflow_dispatch:
     inputs:
       release_sha:
@@ -11,6 +17,7 @@ permissions:
 concurrency:
   group: merismos-live-acceptance
   cancel-in-progress: false
+  queue: max
 jobs:
   acceptance:
     runs-on: ubuntu-latest
@@ -27,6 +34,7 @@ jobs:
         with:
           python-version: '3.12'
       - name: Verify real AWS release before any synthetic action
+        id: preflight
         run: |
           python -c 'import os,re; assert re.fullmatch("[0-9a-f]{40}", os.environ["EXPECTED_RELEASE"]), "Full release SHA required"'
           python infra/frontend_smoke.py --url "$MERISMOS_UI_URL" --sha "$EXPECTED_RELEASE"
@@ -38,8 +46,23 @@ jobs:
           npm audit --omit=dev --audit-level=low
           npx playwright install --with-deps chromium
       - name: Real CloudFront API and durable AWS workspace journeys
+        id: journeys
         working-directory: frontend
-        run: npm run test:e2e
+        run: npm run test:e2e -- --forbid-only
+      - name: Verify the tested release did not change during the journeys
+        id: postflight
+        if: always() && steps.journeys.outcome != 'skipped'
+        run: python infra/frontend_smoke.py --url "$MERISMOS_UI_URL" --sha "$EXPECTED_RELEASE"
+      - name: Summarize automated evidence without human signoff
+        if: always()
+        env:
+          PREFLIGHT: ${{ steps.preflight.outcome }}
+          JOURNEYS: ${{ steps.journeys.outcome }}
+          POSTFLIGHT: ${{ steps.postflight.outcome }}
+        run: |
+          printf '### Live AWS Playwright acceptance\n\n' >> "$GITHUB_STEP_SUMMARY"
+          printf 'Frontend commit: %s\n\nPreflight: %s | Playwright: %s | Postflight: %s\n\n' "$EXPECTED_RELEASE" "$PREFLIGHT" "$JOURNEYS" "$POSTFLIGHT" >> "$GITHUB_STEP_SUMMARY"
+          printf 'Evidence: aws-acceptance-%s (HTML report, JUnit, traces, screenshots, testbook).\n\nHuman UAT: NOT_RUN. Backend deployments are managed separately.\n' "$GITHUB_RUN_ID" >> "$GITHUB_STEP_SUMMARY"
       - name: Keep observed results separate from human acceptance
         if: always()
         uses: actions/upload-artifact@v4
@@ -49,5 +72,6 @@ jobs:
             frontend/test-results/
             frontend/artifacts/browser-junit.xml
             frontend/playwright-report/
+            frontend/UAT.testbook.*
           retention-days: 14
-
+          if-no-files-found: error
