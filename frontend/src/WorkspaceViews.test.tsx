@@ -119,7 +119,7 @@ it('keeps an exact pickup in navigation URLs and on remount, but clears it on of
   await userEvent.click(within(screen.getByRole('navigation', { name: 'Main navigation' })).getByText('Dashboard'));
   await screen.findByRole('heading', { name: 'Dashboard' });
   await userEvent.click(screen.getByRole('link', { name: /^Pending pickups/ }));
-  await screen.findByRole('heading', { name: 'Records', exact: true });
+  await screen.findByRole('heading', { name: /^Records$/ });
   await userEvent.click(screen.getByRole('link', { name: 'Return to workspace →' }));
   expect(await screen.findByLabelText('Pickup organisation')).toHaveValue(JSON.stringify(['Shelter', 'digest']));
   first.unmount(); render(<App/>);
