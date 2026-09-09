@@ -41,13 +41,16 @@
       "preconditions": "A finished run with passing gate",
       "steps": [
         "Read allocation and excluded organisations",
+        "Compare each recipient's allocation and applied policy ceiling on the total-offered scale; inspect the policy source",
+        "Copy the exact digest; confirm that copying does not approve or change server-recorded custody state",
         "open exact record text",
         "tick consent",
         "approve in sandbox"
       ],
-      "expected_outcome": "One synthetic record; public S3 is unchanged; collection remains unconfirmed",
-      "negative_recovery_case": "Stale digest, missing consent, duplicate approval and changed relevant sources are refused",
-      "automation_mapping": "e2e/journeys.spec.ts; tests/integration/test_coordinator_api.py",
+      "expected_outcome": "One synthetic record; public S3 is unchanged; collection remains unconfirmed. Bars use the full offer: 20 kg allocated against a 96 kg cap for 240 kg at the server's 40%, not 40% of shelter capacity. Non-40% fractions use the exact exposed value. Digest labels distinguish draft, sandbox record and published record without claiming a Merkle proof or independent custody verification.",
+      "negative_recovery_case": "Stale digest, missing consent, duplicate approval and changed relevant sources are refused. Missing/invalid cap or no plan never assumes 40%; zero/unknown totals do not infer percentages. Clipboard denial leaves a selectable exact digest. Long fractional caps must not trigger phone-number refusal; raw metadata stays private.",
+      "automation_mapping": "e2e/journeys.spec.ts (required API cap assertion on local CI AND MERISMOS_UI_URL); src/DispatchEvidence.test.tsx; tests/integration/test_coordinator_api.py; tests/integration/test_fairness_cap_projection.py",
+      "ui_enhancement_observed_result_evidence": "PASS_AUTOMATED_OFFLINE at 5774011: real HTTP response required the exact cap; desktop/mobile meters showed 20/240 kg allocated and 96/240 kg ceiling. Unit/API regressions cover 25%, 12.5%, long fraction, absent/invalid/bool/nonfinite metadata, old results and personal-data refusal. Native browser clipboard matched the exact digest without a server version change; approval then changed the server-recorded pill. Denied clipboard recovery covered in unit tests. Evidence: https://github.com/upgradedev/merismos-aws/actions/runs/34336944213 . Updated external AWS cap assertion NOT_RUN pending deployment; human signoff NOT_RUN.",
       "observed_result_evidence": "PASS (automated): desktop/mobile exact-plan approval; API rejects missing consent, stale digest, duplicate approval and relevant evidence changes. Offline writer transport test confirms exact bytes and no overwrite; no live publication exercised. Evidence: https://github.com/upgradedev/merismos-aws/actions/runs/34327011203 (frontend-evidence artifact: test-results/*.xml, coverage/, Playwright traces/screenshots).",
       "human_signoff": "NOT_RUN"
     },
@@ -93,11 +96,13 @@
       "steps": [
         "Open Pickups",
         "review each status",
+        "Read calendar cue, exact collection/use-by dates and browser-local view-opening clock basis; compare with backend collection status",
         "filter Needs attention and Confirmed"
       ],
-      "expected_outcome": "Unconfirmed scheduled time in the past reads Overdue; allocated quantity never counts as collected",
-      "negative_recovery_case": "Confirmed facts do not age into unclaimed collections after 14 days",
-      "automation_mapping": "src/components.test.tsx; tests/integration/test_coordinator_api.py; tests/unit/test_a_share_becomes_a_collection.py",
+      "expected_outcome": "Unconfirmed scheduled time in the past reads Overdue; allocated quantity never counts as collected. Calendar badges compare the earliest valid collection/use-by date with the browser-local date at view opening, independently of backend status. Confirmed/invalidated rows show Recorded date, not a fresh collection demand. Reload updates calendar basis; no spoilage countdown or food-safety assurance.",
+      "negative_recovery_case": "Confirmed facts do not age into unclaimed collections after 14 days. Missing/invalid dates or missing source offers show Date unavailable; impossible dates do not silently roll forward.",
+      "automation_mapping": "src/components.test.tsx; src/dispatch.test.ts; src/DispatchEvidence.test.tsx; e2e/journeys.spec.ts; tests/integration/test_coordinator_api.py; tests/unit/test_a_share_becomes_a_collection.py",
+      "ui_enhancement_observed_result_evidence": "PASS_AUTOMATED_OFFLINE at 5774011: date-only edge cases passed; confirmed pickup retained its server status and displayed Recorded date. Browser calendar was deliberately fixed at 2026-09-07 for the upcoming-date fixture; API/persistence used their own real clock. This is not elapsed shelf-life or live AWS evidence. Evidence: https://github.com/upgradedev/merismos-aws/actions/runs/34336944213 . Human signoff NOT_RUN.",
       "observed_result_evidence": "PASS (automated): component status/filter coverage and persisted API overdue/expired transitions; confirmed facts remain confirmed after 14 days. Time transitions were fixture-driven, not a real elapsed-time study. Evidence: https://github.com/upgradedev/merismos-aws/actions/runs/34327011203 (frontend-evidence artifact: test-results/*.xml, coverage/, Playwright traces/screenshots).",
       "human_signoff": "NOT_RUN"
     },
@@ -188,15 +193,36 @@
       "preconditions": "Built application; keyboard and screen reader available",
       "steps": [
         "Walk intake through collection using keyboard",
-        "inspect focus, labels, reading order, zoom and contrast"
+        "inspect focus, labels, reading order, zoom and contrast",
+        "Inspect essential labels/controls at 14px or above, explanatory copy at 16px and secondary digest IDs at 12px",
+        "Check allocation growth is one 0.4-second animation and date-soon emphasis is two 1.6-second cycles; enable reduced motion and confirm both animations and bar transitions stop",
+        "Inspect semantic meters, digest feedback and mobile overflow in the polished layout"
       ],
       "expected_outcome": "Controls have accessible names, focus visibility and semantic navigation; mobile layout readable",
       "negative_recovery_case": "Horizontal table scrolling remains within its container; errors have alert semantics",
       "automation_mapping": "Playwright desktop/mobile screenshots plus manual keyboard/screen-reader review",
+      "ui_enhancement_observed_result_evidence": "PARTIAL at 5774011: desktop/mobile computed-font, bounded animation, reduced-motion and no-document-overflow assertions passed. Agent inspected current inbox, approval and confirmed-pickup captures. Earlier c9143ca browser failure was an incorrect test fixture name, corrected to Elpida Night Shelter. Evidence: https://github.com/upgradedev/merismos-aws/actions/runs/34336944213 (frontend-evidence screenshots/traces). Human keyboard, screen-reader, zoom, contrast and usability study NOT_RUN; automated font checks are not full accessibility certification.",
       "observed_result_evidence": "PARTIAL: automated desktop/mobile journeys and captured screenshots passed; agent visually inspected approval and pickup captures. Human keyboard, screen-reader, zoom and contrast study NOT_RUN. Evidence: https://github.com/upgradedev/merismos-aws/actions/runs/34327011203 (frontend-evidence artifact: test-results/*.xml, coverage/, Playwright traces/screenshots).",
       "human_signoff": "NOT_RUN"
     }
   ],
+  "ui_enhancement_verification": {
+    "status": "PASS_AUTOMATED_OFFLINE",
+    "source_commit": "57740118cd12a6cb8ff541fc46d465143683df13",
+    "run_url": "https://github.com/upgradedev/merismos-aws/actions/runs/34336944213",
+    "full_product_ci_url": "https://github.com/upgradedev/merismos-aws/actions/runs/34336949213",
+    "evidence_artifact_url": "https://github.com/upgradedev/merismos-aws/actions/runs/34336944213/artifacts/10098155157",
+    "python_tests_passed": 737,
+    "frontend_unit_tests_passed": 62,
+    "playwright_tests_passed": 10,
+    "frontend_coverage": {"statements": 99.6, "branches": 96.66, "functions": 100, "lines": 100},
+    "python_coverage_percent": 93.81,
+    "dependency_audit_gates": "PASS: strict production audit and full high/critical audit; unchanged committed lock",
+    "audit_artifact_url": "https://github.com/upgradedev/merismos-aws/actions/runs/34336944213/artifacts/10098110113",
+    "updated_aws_uat": "NOT_RUN",
+    "human_signoff": "NOT_RUN",
+    "scope": "GitHub Actions on the exact source commit: real Python HTTP handler, SQLite persistence, scripted Strands and desktop/mobile browsers. No local builds or dependency execution. Updated AWS release requires backend fairness_cap deployment and the external UAT run with its mandatory runtime-cap assertion. Earlier AWS evidence below is historical, not evidence for the updated UI or projection."
+  },
   "verification": {
     "source_commit": "d4911151536a9478e081f10d79b726c9f9784ef3",
     "run_url": "https://github.com/upgradedev/merismos-aws/actions/runs/34327011203",
