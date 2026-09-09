@@ -10,4 +10,9 @@ build/
 .coverage
 *.egg-info/
 .screens/
+frontend/test-results/
+frontend/playwright-report/
+frontend/coverage/
+frontend/coverage-python.xml
+frontend/tsconfig.tsbuildinfo
 build/
