@@ -5,11 +5,21 @@ test('ME01/02/03: exact sandbox approval, persistent claim, scheduled and confir
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
   await context.grantPermissions(['clipboard-read', 'clipboard-write']);
-  await page.emulateMedia({reducedMotion: 'reduce'});
+  // Freeze only the browser calendar so the seeded collection date is tomorrow.
+  // Scheduling and all persisted server state still use the real HTTP backend.
+  await page.clock.setFixedTime(new Date('2026-09-07T12:00:00Z'));
+  await page.emulateMedia({reducedMotion: 'no-preference'});
   await page.goto('/');
   await expect(page.getByRole('heading', { name: 'Offers', exact: true })).toBeVisible();
   await expect(page.getByText('Synthetic demo', { exact: true })).toBeVisible();
   await expect(page.getByText(/Calendar cues use your browser-local date at view opening/)).toBeVisible();
+  const upcoming = page.locator('.date-cue-soon .date-cue-label').first();
+  await expect(upcoming).toHaveCSS('font-size', '14px');
+  await expect(upcoming).toHaveCSS('animation-name', 'dispatch-date-cue');
+  await expect(upcoming).toHaveCSS('animation-duration', '1.6s');
+  await expect(upcoming).toHaveCSS('animation-iteration-count', '2');
+  await page.emulateMedia({reducedMotion: 'reduce'});
+  await expect(upcoming).toHaveCSS('animation-name', 'none');
   await expect(page.locator('.sidebar nav a').first()).toHaveCSS('transition-duration', '0s');
   await page.screenshot({path: info.outputPath('dispatch-inbox.png'), fullPage: true});
   await page.getByRole('link', { name: 'End of day bread and vegetables', exact: true }).click();
@@ -27,10 +37,24 @@ test('ME01/02/03: exact sandbox approval, persistent claim, scheduled and confir
   await expect(page.getByRole('heading', { name: 'Approve this exact plan' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Omonoia Soup Kitchen' })).toBeVisible();
   await expect(page.getByText('124 kg', { exact: true })).toBeVisible();
-  await expect(page.getByRole('meter', {name: 'Elpida Shelter: allocated share'})).toHaveAttribute('aria-valuenow', '20');
-  await expect(page.getByRole('meter', {name: 'Elpida Shelter: allocated share'})).toHaveAttribute('aria-valuemax', '240');
-  await expect(page.getByRole('meter', {name: 'Elpida Shelter: policy ceiling'})).toHaveAttribute('aria-valuenow', '96');
-  await expect(page.getByRole('meter', {name: 'Elpida Shelter: policy ceiling'})).toHaveAttribute('aria-valuemax', '240');
+  await expect(page.getByRole('meter', {name: 'Elpida Night Shelter: allocated share'})).toHaveAttribute('aria-valuenow', '20');
+  await expect(page.getByRole('meter', {name: 'Elpida Night Shelter: allocated share'})).toHaveAttribute('aria-valuemax', '240');
+  await expect(page.getByRole('meter', {name: 'Elpida Night Shelter: policy ceiling'})).toHaveAttribute('aria-valuenow', '96');
+  await expect(page.getByRole('meter', {name: 'Elpida Night Shelter: policy ceiling'})).toHaveAttribute('aria-valuemax', '240');
+  for (const selector of ['.bar-heading', '.custody-pill', '.digest-copy', '.digest-label']) {
+    await expect(page.locator(selector).first()).toHaveCSS('font-size', '14px');
+  }
+  for (const selector of ['.allocation-list p', '.allocation-scale', '.digest-explanation']) {
+    await expect(page.locator(selector).first()).toHaveCSS('font-size', '16px');
+  }
+  const bar = page.getByRole('meter', {name: 'Elpida Night Shelter: allocated share'}).locator('span');
+  await expect(bar).toHaveCSS('animation-name', 'none');
+  await expect(bar).toHaveCSS('transition-duration', '0s');
+  await page.emulateMedia({reducedMotion: 'no-preference'});
+  await expect(bar).toHaveCSS('animation-name', 'allocation-grow');
+  await expect(bar).toHaveCSS('animation-duration', '0.4s');
+  await expect(bar).toHaveCSS('animation-iteration-count', '1');
+  await page.emulateMedia({reducedMotion: 'reduce'});
   await expect(page.getByRole('textbox', {name: 'Approval content digest'})).toHaveValue(offer.plan!.digest);
   await page.getByRole('button', {name: 'Copy digest'}).click();
   await expect(page.getByText('Digest copied. Record status is unchanged.')).toBeVisible();

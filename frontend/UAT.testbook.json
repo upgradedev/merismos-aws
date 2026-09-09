@@ -194,12 +194,14 @@
       "steps": [
         "Walk intake through collection using keyboard",
         "inspect focus, labels, reading order, zoom and contrast",
-        "Enable reduced motion; inspect semantic meters, digest feedback and mobile overflow in the polished layout"
+        "Inspect essential labels/controls at 14px or above, explanatory copy at 16px and secondary digest IDs at 12px",
+        "Check allocation growth is one 0.4-second animation and date-soon emphasis is two 1.6-second cycles; enable reduced motion and confirm both animations and bar transitions stop",
+        "Inspect semantic meters, digest feedback and mobile overflow in the polished layout"
       ],
       "expected_outcome": "Controls have accessible names, focus visibility and semantic navigation; mobile layout readable",
       "negative_recovery_case": "Horizontal table scrolling remains within its container; errors have alert semantics",
       "automation_mapping": "Playwright desktop/mobile screenshots plus manual keyboard/screen-reader review",
-      "ui_enhancement_observed_result_evidence": "NOT_RUN pending CI and visual review: refreshed civic dispatch layout, reduced-motion assertion and detail overflow check. Human accessibility/acceptance remains NOT_RUN; previous screenshots are not evidence of the updated design.",
+      "ui_enhancement_observed_result_evidence": "NOT_RUN pending corrected CI and visual review: legible civic dispatch layout, computed-font assertions, bounded animations, reduced-motion and detail overflow checks. First checkpoint c9143ca passed 737 Python and 62 unit tests but browser regression used an incorrect fixture organisation name (Elpida Shelter rather than Elpida Night Shelter). Human accessibility/acceptance remains NOT_RUN; previous screenshots do not verify the revised design.",
       "observed_result_evidence": "PARTIAL: automated desktop/mobile journeys and captured screenshots passed; agent visually inspected approval and pickup captures. Human keyboard, screen-reader, zoom and contrast study NOT_RUN. Evidence: https://github.com/upgradedev/merismos-aws/actions/runs/34327011203 (frontend-evidence artifact: test-results/*.xml, coverage/, Playwright traces/screenshots).",
       "human_signoff": "NOT_RUN"
     }

@@ -75,3 +75,18 @@ body{background:radial-gradient(ellipse at 90% 0%,#e0ede8 0,transparent 45%),#f4
 .digest-explanation,.copy-feedback{font-size:.72rem;line-height:1.65;margin:10px 0 0;color:#53675d}.copy-feedback{font-weight:600;color:#244f40}
 @media(max-width:700px){.sidebar{position:static;height:auto}.page-heading{margin-bottom:22px}.panel.padded{padding:20px}.digest-custody{padding:14px}.custody-heading{align-items:flex-start;flex-wrap:wrap}.approval-card .digest-copy{width:auto}.clock-basis{font-size:.7rem}.date-cue{max-width:235px}.brand small{letter-spacing:.14em}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
+
+/* Essential decisions stay readable at mobile sizes; only secondary IDs use 12px. */
+body{font-size:1rem}.brand-icon{flex:none}.brand small{font-size:.875rem;line-height:1.4;letter-spacing:.04em;max-width:155px}
+.sidebar nav a,.sidebar-bottom a,.network-label small,.topbar,.topbar>span,.mode-control label,.mode-control select,.demo-banner{font-size:.875rem}
+.summary-card>span,.summary-card small,.summary-card a,.filters input,.filters select,th,td,td small,.badge,label,dt,summary,.small-note,.footnote,.text-button,footer{font-size:.875rem}
+.page-heading p,.donor-note,.action-card p,.allocation-list p,.allocation-scale,.allocation-unavailable,.exclusions p,.finding p,.digest-explanation,.copy-feedback,.clock-basis,.notice,.success-note,.record-list p{font-size:1rem;line-height:1.65}
+.allocation-list .allocation-warning{font-size:1rem!important}.bar-heading,.date-cue,.date-cue-label,.custody-pill,.digest-copy,.digest-label{font-size:.875rem}
+.offer-link{font-size:1rem}.eyebrow{font-size:.875rem!important}.digest-value,.footnote.break-all{font-size:.75rem}.workspace-tools .small-note{font-size:.875rem}
+.intake-form input,.intake-form select,.intake-form textarea,.pickup-card input,.pickup-card select{font-size:1rem}
+/* Finite emphasis on existing date facts, never a realtime or freshness signal. */
+.allocation-meter>span{transform-origin:left;animation:allocation-grow .4s ease-out 1;transition:width .25s ease-out}
+.date-cue-soon .date-cue-label{animation:dispatch-date-cue 1.6s ease-in-out 2}
+@keyframes allocation-grow{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+@keyframes dispatch-date-cue{0%,100%{box-shadow:0 0 0 0 #b9891b00}50%{box-shadow:0 0 0 3px #b9891b1a}}
+@media(max-width:700px){.topbar{height:auto;min-height:60px;gap:12px;flex-wrap:wrap;padding-block:12px}.sidebar nav a{font-size:.875rem}.date-cue{max-width:260px}.bar-heading{flex-wrap:wrap}.recipient-heading{align-items:flex-start}.recipient-heading h3{overflow-wrap:anywhere}.clock-basis,.allocation-scale{font-size:1rem}}
