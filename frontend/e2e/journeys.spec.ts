@@ -10,7 +10,7 @@ test('ME01/02/03: exact sandbox approval, persistent claim, scheduled and confir
   await page.clock.setFixedTime(new Date('2026-09-07T12:00:00Z'));
   await page.emulateMedia({reducedMotion: 'no-preference'});
   await page.goto('/');
-  await expect(page.getByRole('heading', { name: 'Offers', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Dashboard', exact: true })).toBeVisible();
   await expect(page.getByText('Synthetic demo', { exact: true })).toBeVisible();
   await expect(page.getByText(/Calendar cues use your browser-local date at view opening/)).toBeVisible();
   const upcoming = page.locator('.date-cue-soon .date-cue-label').first();
@@ -22,7 +22,8 @@ test('ME01/02/03: exact sandbox approval, persistent claim, scheduled and confir
   await expect(upcoming).toHaveCSS('animation-name', 'none');
   await expect(page.locator('.sidebar nav a').first()).toHaveCSS('transition-duration', '0s');
   await page.screenshot({path: info.outputPath('dispatch-inbox.png'), fullPage: true});
-  await page.getByRole('link', { name: 'End of day bread and vegetables', exact: true }).click();
+  await page.getByText('End of day bread and vegetables', { exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'End of day bread and vegetables', exact: true })).toBeVisible();
   const runResponse = page.waitForResponse(response => response.url().endsWith('/api/offers/offer-4471/run') && response.request().method() === 'POST');
   await page.getByRole('button', { name: 'Work out the split' }).click();
   const response = await runResponse;
@@ -68,6 +69,7 @@ test('ME01/02/03: exact sandbox approval, persistent claim, scheduled and confir
   await expect(page.getByRole('button', { name: 'Approve in sandbox' })).toBeDisabled();
   await page.getByText('Read the exact record text', { exact: true }).click();
   await expect(page.locator('pre')).toContainText('Elpida');
+  await page.getByText('Share allocation reasons', {exact: true}).click();
   await expect(page.getByLabel('Shareable reasons summary')).toContainText('DRAFT');
   await page.screenshot({ path: info.outputPath('approval.png'), fullPage: true });
   await page.getByLabel('I have reviewed this exact allocation and record address, and approve this plan.').check();
@@ -76,9 +78,18 @@ test('ME01/02/03: exact sandbox approval, persistent claim, scheduled and confir
   await expect(page.getByText('Sandbox record · server reported')).toBeVisible();
   await expect(page.getByText('Digest copied. Record status is unchanged.')).toHaveCount(0);
   await page.getByRole('link', { name: 'Open collection tasks →' }).click();
+  // Both pages contain PickupCard. Wait for the destination page so selection
+  // cannot land in the outgoing workspace card before hash navigation commits.
+  await expect(page.getByRole('heading', { name: 'Pickups', exact: true })).toBeVisible();
   const kitchen = page.getByRole('article').filter({has: page.getByRole('heading', {name: 'Omonoia Soup Kitchen'})});
   await kitchen.getByRole('combobox', { name: 'Collecting role', exact: true }).selectOption('kitchen lead');
+  await expect(kitchen.getByRole('combobox', { name: 'Collecting role', exact: true })).toHaveValue('kitchen lead');
+  const claimResponse = page.waitForResponse(response => response.url().endsWith('/api/offers/offer-4471/pickup') && response.request().method() === 'POST');
   await kitchen.getByRole('button', { name: 'Claim this share' }).click();
+  const claimed = await claimResponse;
+  expect(claimed.request().postDataJSON()).toMatchObject({ action: 'claim', org: 'Omonoia Soup Kitchen', role: 'kitchen lead' });
+  expect(claimed.status()).toBe(200);
+  expect((await claimed.json()).pickups.find((item: { org: string }) => item.org === 'Omonoia Soup Kitchen')).toMatchObject({ state: 'claimed', role: 'kitchen lead' });
   await expect(kitchen.getByText('Claimed', { exact: true })).toBeVisible();
   await page.reload();
   await expect(kitchen.getByText('Collecting role: kitchen lead')).toBeVisible();
@@ -94,11 +105,11 @@ test('ME01/02/03: exact sandbox approval, persistent claim, scheduled and confir
   await expect(kitchen.getByText('Recorded date', {exact: true})).toBeVisible();
   await expect(kitchen.getByRole('button', { name: 'Claim this share' })).toHaveCount(0);
   await page.screenshot({ path: info.outputPath('confirmed-pickup.png'), fullPage: true });
-  await page.getByRole('link', { name: 'Published history', exact: true }).click();
+  await page.getByRole('link', { name: 'History', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Sandbox history' })).toBeVisible();
-  await expect(page.getByRole('link', { name: 'records/offer-4471.md' })).toBeVisible();
+  await expect(page.locator('.record-list').getByRole('link', { name: 'records/offer-4471.md', exact: true })).toBeVisible();
   await page.reload();
-  await expect(page.getByRole('link', { name: 'records/offer-4471.md' })).toBeVisible();
+  await expect(page.locator('.record-list').getByRole('link', { name: 'records/offer-4471.md', exact: true })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   expect(await page.evaluate(() => Object.keys(localStorage).sort())).toEqual(['merismos.session']);
   expect(errors).toEqual([]);
@@ -111,11 +122,16 @@ test('Safety refusal, empty filters, deep link and live read-only boundary', asy
   await expect(page.getByRole('button', { name: 'Approve in sandbox' })).toHaveCount(0);
   await page.screenshot({ path: info.outputPath('refusal.png'), fullPage: true });
   await page.getByRole('link', { name: 'All offers' }).click();
+  await expect(page.getByRole('heading', { name: 'Offers', exact: true })).toBeVisible();
   await page.getByRole('searchbox', { name: 'Search offers' }).fill('no such donation');
   await expect(page.getByRole('heading', { name: 'No offers match' })).toBeVisible();
+  const liveResponse = page.waitForResponse(response => response.url().endsWith('/api/workspace?mode=live') && response.request().method() === 'GET');
   await page.getByLabel('Workspace', { exact: true }).selectOption('live');
+  expect((await liveResponse).status()).toBe(200);
   await expect(page.getByRole('heading', { name: 'Offers', exact: true })).toBeVisible();
-  await page.getByRole('link', { name: 'End of day bread and vegetables', exact: true }).click();
+  await expect(page.locator('.summary-card').getByText('A record does not confirm collection', { exact: true })).toBeVisible();
+  await page.getByText('End of day bread and vegetables', { exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'End of day bread and vegetables', exact: true })).toBeVisible();
   // Live data already has runs and may already have a recorded plan. Assert
   // the authorization boundary, not the empty local fixture's initial label.
   const session = await page.evaluate(() => localStorage.getItem('merismos.session'));

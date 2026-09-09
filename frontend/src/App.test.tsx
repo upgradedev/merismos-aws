@@ -10,7 +10,7 @@ beforeEach(() => { vi.clearAllMocks(); removePreference('merismos.mode'); vi.moc
 async function navigate(path: string) { await act(async () => { location.hash=path; window.dispatchEvent(new HashChangeEvent('hashchange')); }); }
 it('loads, navigates with durable URLs, switches mode and refreshes', async () => {
   const user=userEvent.setup(); render(<App/>); expect(screen.getByText(/Loading your coordinator/)).toBeVisible();
-  await screen.findByRole('heading',{name:'Offers'});
+  await screen.findByRole('heading',{name:'Dashboard'});
   const legacy = screen.getByRole('link',{name:'Legacy offer view ↗'});
   expect(legacy).toHaveAttribute('href','https://efnt6e0kv7.execute-api.eu-west-1.amazonaws.com/offer/offer-4471');
   expect(legacy).toHaveAttribute('target','_blank'); expect(legacy).toHaveAttribute('rel','noreferrer');
@@ -20,24 +20,27 @@ it('loads, navigates with durable URLs, switches mode and refreshes', async () =
   await navigate('/offers/new'); expect(screen.getByRole('heading',{name:'Add an offer'})).toBeVisible();
   await navigate('/offers/offer-4471'); expect(screen.getByRole('heading',{name:'Bread and vegetables'})).toBeVisible();
   await navigate('/missing'); expect(screen.getByText('Page not found')).toBeVisible();
-  await navigate(''); await screen.findByRole('heading',{name:'Offers'});
+  await navigate(''); await screen.findByRole('heading',{name:'Dashboard'});
   await user.selectOptions(screen.getByLabelText('Workspace',{exact:true}),'live'); await waitFor(() => expect(api.loadWorkspace).toHaveBeenCalledWith('live'));
-  await screen.findByRole('heading',{name:'Offers'}); await user.click(screen.getByText('Refresh workspace')); expect(api.loadWorkspace).toHaveBeenCalledTimes(3);
+  await screen.findByRole('heading',{name:'Dashboard'}); await user.click(screen.getByText('Refresh workspace')); expect(api.loadWorkspace).toHaveBeenCalledTimes(3);
 });
 it('reports a failed request and recovers an expired sandbox', async () => {
   vi.mocked(api.loadWorkspace).mockRejectedValueOnce(new api.ApiError('Session expired',410));
   render(<App/>); expect(await screen.findByRole('alert')).toHaveTextContent('Session expired');
-  await userEvent.click(screen.getByText('Start a new sandbox')); await screen.findByRole('heading',{name:'Offers'});
+  await userEvent.click(screen.getByText('Start a new sandbox')); await screen.findByRole('heading',{name:'Dashboard'});
 });
 it('refreshes on ordinary failures and safely handles non-Error failures', async () => {
   vi.mocked(api.loadWorkspace).mockRejectedValueOnce('bad'); render(<App/>);
   expect(await screen.findByRole('alert')).toHaveTextContent('could not be loaded');
-  await userEvent.click(screen.getByText('Refresh and review')); await screen.findByRole('heading',{name:'Offers'});
+  await userEvent.click(screen.getByText('Refresh and review')); await screen.findByRole('heading',{name:'Dashboard'});
 });
 it('does not automatically retry failed mutations and reuses the request id on explicit retry', async () => {
   location.hash='/offers/offer-4471'; vi.mocked(api.action).mockRejectedValueOnce(new Error('Connection lost'));
   render(<App/>); const button=await screen.findByText('Re-run the fleet'); await userEvent.click(button);
   expect(await screen.findByRole('alert')).toHaveTextContent('Connection lost'); expect(api.action).toHaveBeenCalledTimes(1);
+  expect(button).toBeDisabled();
+  await userEvent.click(screen.getByText('Refresh and review'));
+  await waitFor(() => expect(button).toBeEnabled());
   await userEvent.click(button); await waitFor(() => expect(api.action).toHaveBeenCalledTimes(2));
   expect(vi.mocked(api.action).mock.calls[0][4]).toBe(vi.mocked(api.action).mock.calls[1][4]);
 });

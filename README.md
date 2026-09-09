@@ -96,16 +96,42 @@ proven by a deployment rather than by this suite, which is a weaker thing and is
 ### React coordinator workspace
 
 Live AWS application: [Merismos coordinator workspace](https://d2qnkmlhs7y5fp.cloudfront.net/).
-[Live AWS acceptance](https://github.com/upgradedev/merismos-aws/actions/runs/34328335818)
+[Historical live AWS acceptance](https://github.com/upgradedev/merismos-aws/actions/runs/34328335818)
 passed all 10 desktop/mobile journeys on 2026-09-09 against CloudFront, Lambda and DynamoDB,
 including API refusal of unauthorized live changes. Automated synthetic acceptance is not
 human signoff or measured food rescued. Tested frontend: `5bdb573151c49499c8f01d938b7d12d3ca3b94be`;
-current release identity is at `/release.json`.
+current release identity is at `/release.json`. That historical checkpoint does not validate
+the Dashboard / Workspace / Records / History redesign. Its current acceptance is in the
+exact-commit GitHub Actions artifacts and the existing acceptance testbook.
 
 `frontend/` is the React, TypeScript and Tailwind coordinator application. It builds to
 `frontend/dist/` and calls the same-origin `/api/*` JSON boundary in `merismos.handler.handler`.
-Hash links (`#/offers`, `#/offers/new`, `#/offers/<id>`, `#/pickups`, `#/history`) survive reload
-without replacing the compatible `/offer/*` screens.
+Dashboard, Workspace, Records and History use contextual hash links. A selected offer stays
+in the URL through metric drilldowns, browser back and reload. Existing `#/offers`,
+`#/offers/new`, `#/offers/<id>` and `#/pickups` links still work without replacing the
+compatible `/offer/*` screens.
+
+The dashboard derives six metrics from the current API snapshot: offered, allocated and
+unallocated quantities in a selected unit, pending pickups, explicit confirmed collections
+and offers with dated urgency. Kilograms and units are never summed. Computed draft plans
+contribute to allocation totals but do not establish collection; uncomputed or inconsistent
+allocations stay unknown, and partial totals state how many offers were excluded. Identical
+projection rows count once; conflicting identities are withheld and disclosed. Date cues
+state the browser calendar date and are not food-safety promises.
+
+The dispatch workspace pairs an offer stream and selected solver evidence with the exact
+approval and a selected organisation's claim, schedule and confirmation. Changing the offer,
+run or plan clears consent; changing offers resets pickup selection and incomplete form state.
+Allocation bars use the actual offered quantity and the backend's applied policy cap. The
+solver is bounded and deterministic, not an optimal knapsack claim. History keeps reported
+publication and collection timestamps separate from scheduled dates and labels unknown times.
+The optional `confirmed_at` TypeScript field uses an existing API projection; no backend
+deployment or policy change is needed for this interface.
+
+Known intake HTTP 400 validation failures keep fields editable for correction. Network,
+stale-plan, pending and server failures pause mutations until a successful refresh. Repeated
+clicks cannot dispatch a second pending request. No action overwrites the contradictory
+historical offer-4471 publication or treats copying a digest as custody verification.
 
 The default sandbox uses bundled synthetic filing, the real Strands dispatcher with
 `scripted-planner/1.0.0`, and backend persistence. It does not call Bedrock or publish to S3.
@@ -128,7 +154,11 @@ For parent-owned deployed UAT, set `MERISMOS_UI_URL` to the CloudFront HTTPS ori
 `npm run test:e2e` in CI. This uses the same synthetic journeys and disables both local servers.
 Offline SQLite CI results are not evidence of AWS deployment behavior.
 `frontend/UAT.testbook.html` and its JSON companion distinguish automated evidence from human
-acceptance; human signoff remains `NOT_RUN` until an actual reviewer signs off.
+acceptance; human signoff remains `NOT_RUN` until an actual reviewer signs off. New and changed
+cases begin at `PENDING_CI`; prior passing evidence is explicitly scoped to its original release.
+Dashboard and selected-workspace screenshots are produced for desktop and mobile in CI. The
+small `ui-screenshots-<commit>` artifact contains PNGs only; full traces, reports and videos
+remain in the existing `frontend-evidence` artifact.
 
 Every push to `main`, including a merged pull request, now starts
 [`frontend-deploy.yml`](https://github.com/upgradedev/merismos-aws/actions/workflows/frontend-deploy.yml):
@@ -702,7 +732,12 @@ interfaces: `Agent`, `@tool`, `BedrockModel`, and the `BeforeToolCallEvent` hook
 
 Every line of code here was written during the submission period. The author has built agent fleets
 before and the shape of this one is informed by that, but no code was carried across and nothing in
-this repository is derived from a deployable product.
+this repository is derived from a deployable product. The dashboard and dispatch interface
+use visual inspiration from the author's Kerdon workspace direction: deep navy surfaces,
+teal civic dispatch accents and paired context/decision panels. These components were
+implemented for Merismos. No Kerdon source code, dependencies, customer data, tenant
+configuration or customer assets were reused; quantities and identities come from Merismos's
+API and its explicitly synthetic filing.
 
 ## Licence
 

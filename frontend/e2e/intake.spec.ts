@@ -23,6 +23,7 @@ test('Human intake to split, exact approval and collection, with invalid field r
   await page.getByRole('button',{name:'Approve in sandbox'}).click();
   await expect(page.getByRole('heading',{name:'The recorded plan'})).toBeVisible();
   await page.getByRole('link',{name:'Open collection tasks →'}).click();
+  await expect(page.getByRole('heading',{name:'Pickups',exact:true})).toBeVisible();
   const card=page.getByRole('article').filter({has:page.getByRole('heading',{name:'Omonoia Soup Kitchen',exact:true})});
   await card.getByRole('button',{name:'Claim this share'}).click();
   await expect(card.getByText('Claimed',{exact:true})).toBeVisible();
@@ -36,9 +37,10 @@ test('Human intake to split, exact approval and collection, with invalid field r
 test('Storage-blocked browser keeps a usable in-tab sandbox', async ({page}) => {
   await page.addInitScript(() => Object.defineProperty(window,'localStorage',{get(){throw new DOMException('Storage blocked');}}));
   await page.goto('/');
-  await expect(page.getByRole('heading',{name:'Offers',exact:true})).toBeVisible();
+  await expect(page.getByRole('heading',{name:'Dashboard',exact:true})).toBeVisible();
   await expect(page.getByText(/Browser storage is unavailable/)).toBeVisible();
-  await page.getByRole('link',{name:'End of day bread and vegetables',exact:true}).click();
+  await page.getByText('End of day bread and vegetables',{exact:true}).click();
+  await expect(page.getByRole('heading',{name:'End of day bread and vegetables',exact:true})).toBeVisible();
   await page.getByRole('button',{name:'Work out the split'}).click();
   await expect(page.getByRole('heading',{name:'Approve this exact plan'})).toBeVisible();
 });
