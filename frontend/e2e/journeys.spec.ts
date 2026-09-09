@@ -97,9 +97,9 @@ test('ME01/02/03: exact sandbox approval, persistent claim, scheduled and confir
   await page.screenshot({ path: info.outputPath('confirmed-pickup.png'), fullPage: true });
   await page.getByRole('link', { name: 'History', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Sandbox history' })).toBeVisible();
-  await expect(page.getByRole('link', { name: 'records/offer-4471.md' })).toBeVisible();
+  await expect(page.locator('.record-list').getByRole('link', { name: 'records/offer-4471.md', exact: true })).toBeVisible();
   await page.reload();
-  await expect(page.getByRole('link', { name: 'records/offer-4471.md' })).toBeVisible();
+  await expect(page.locator('.record-list').getByRole('link', { name: 'records/offer-4471.md', exact: true })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   expect(await page.evaluate(() => Object.keys(localStorage).sort())).toEqual(['merismos.session']);
   expect(errors).toEqual([]);

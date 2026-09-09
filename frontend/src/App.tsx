@@ -79,7 +79,7 @@ export function App() {
   function changeMode(next: Mode) { writePreference('merismos.mode', next); setMode(next); }
   function restart() { removePreference('merismos.session'); retry.current = null; setData(undefined); setExpired(false); void refresh(); }
   const nav = [['/dashboard', 'Dashboard', '01', 'dashboard'], ['/workspace', 'Workspace', '02', 'workspace'], ['/records', 'Records', '03', 'records'], ['/history', 'History', '04', 'history']];
-  const unavailable = busy || loading || actionBlocked || expired;
+  const unavailable = busy || loading || actionBlocked || expired || (!!error && route.page !== 'intake');
   return <div className="app-shell"><a href="#main" className="skip-link" onClick={e => { e.preventDefault(); document.getElementById('main')?.focus(); }}>Skip to main content</a>
     <aside className="sidebar"><a href={routeLink('/dashboard', { offer: selected })} className="brand"><span className="brand-icon" aria-hidden="true">μ</span><span>merismos<small>CIVIC DISPATCH</small></span></a><div className="network-label"><span aria-hidden="true">◉</span> Kypseli network<small>Five synthetic community organisations</small></div>
       <nav aria-label="Main navigation">{nav.map(([path, label, number, page]) => <a href={routeLink(path, { offer: selected })} key={path} aria-current={route.page === page || page === 'workspace' && ['pickups', 'intake'].includes(route.page) ? 'page' : undefined}><span aria-hidden="true">{number}</span>{label}</a>)}</nav>
