@@ -427,7 +427,17 @@ def _specialists(result: Any) -> str:
   {f'<ul class="reasons">{findings}</ul>' if findings else ''}
 </div>""")
     opened = result.read_log.get("reads", []) if result.read_log else []
-    served = [r["path"] for r in opened if r.get("served")]
+    # **Distinct files, because the sentence says files.** This counted served
+    # read events, so a specialist that opened one file twice was reported as
+    # having opened two, and the live offer-4471 run listed
+    # offers/manifests/4471.md twice in a row inside a sentence about files.
+    # Third instance of the same shape today, after the waiting screen counter
+    # and the read budget: something is counted in events and published in
+    # files, and only the published word is what a reader checks against.
+    served: list[str] = []
+    for row in opened:
+        if row.get("served") and row["path"] not in served:
+            served.append(row["path"])
     read_note = (
         f'<p class="why">The specialists opened {len(served)} '
         f'{"file" if len(served) == 1 else "files"} from the network\'s own filing: '
