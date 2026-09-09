@@ -158,7 +158,7 @@ def handler(event: Any, context: Any = None) -> dict[str, Any]:
         if path == "/offers":
             return _reply(200, {"offers": [o["id"] for o in read_offers(corpus_from_env())]})
         if path == "/thread" and method == "GET":
-            return _reply(200, thread_of(body.get("run_id", "")))
+            return _reply(200, thread_of(body.get("run_id") or body.get("run") or ""))
         if path == "/run" and method == "POST":
             return _reply(200, run(body))
         if path == "/publish" and method == "POST":
@@ -501,9 +501,29 @@ def approve(body: dict) -> dict[str, Any]:
 
 
 def thread_of(run_id: str) -> dict[str, Any]:
-    """One run, as a chain. Follow it back."""
-    ledger = ledger_from_env()
-    entries = ledger.thread(run_id) if run_id else []
+    """One run, as a chain. Follow it back.
+
+    **Both spellings are accepted, and a missing one is said rather than
+    implied.** This read ``run_id`` while every URL the site produces carries
+    ``?run=``, so copying a run id out of the address bar onto this endpoint,
+    which is the obvious thing to do with an endpoint called thread, returned an
+    empty list. An empty list is also what a real run with no entries returns, so
+    the answer to "you did not name a run" was indistinguishable from the answer
+    to "that run recorded nothing". Silence read as data, in the endpoint whose
+    entire purpose is evidence.
+    """
+    if not run_id:
+        return {
+            "run_id": "",
+            "entries": [],
+            "detail": (
+                "name a run: /thread?run=run-xxxxxxxx. The run id is in the "
+                "address of any decision page. This is not an empty run, it is "
+                "no run at all, and the difference matters here"
+            ),
+            "note": "each entry names the entry before it in parent_id",
+        }
+    entries = ledger_from_env().thread(run_id)
     return {
         "run_id": run_id,
         "entries": [e.as_dict() for e in entries],
