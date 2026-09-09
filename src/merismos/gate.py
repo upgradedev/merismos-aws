@@ -155,11 +155,27 @@ class Draft:
     def untrusted_text(self) -> str:
         """Every string that came from outside the fleet.
 
-        The donor's note is the obvious one. The organisation names travel with
-        it because an org record is edited by the org, not by us.
+        The donor's note is the obvious one. The **donor** is not obvious and was
+        missing until 2026-09-09: it is free text on the intake form, "Who is
+        giving it", and it travels into the model's prompt and into the published
+        record. ``intake`` had the same asymmetry, passing ``donor`` to the
+        person check and not to the instruction check, so an instruction placed
+        in a donor name went past both.
+
+        The organisation names travel with it because an org record is edited by
+        the org, not by us. That sentence was in this docstring while the code
+        appended ``allocation.get("note")``, and an allocation has no ``note``
+        key: it has ``org``, ``quantity``, ``reason`` and ``share_of_offer``. So
+        the line appended an empty string every time and the names it describes
+        were never read.
         """
-        parts = [str(self.offer.get("note", "")), str(self.offer.get("title", ""))]
+        parts = [
+            str(self.offer.get("note", "")),
+            str(self.offer.get("title", "")),
+            str(self.offer.get("donor", "")),
+        ]
         for allocation in self.allocations:
+            parts.append(str(allocation.get("org", "")))
             parts.append(str(allocation.get("note", "")))
         return "\n".join(parts)
 

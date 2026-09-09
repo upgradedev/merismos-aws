@@ -86,7 +86,10 @@ def offer_from_form(form: Mapping[str, Any], offer_id: str) -> dict[str, Any]:
     allergens = _allergens(form.get("allergens"), form.get("allergens_unknown"))
 
     _refuse_a_person(title, donor, note)
-    _refuse_an_instruction(f"{title}\n{note}")
+    # ``donor`` belongs here too, and did not until 2026-09-09. It was already
+    # passed to the person check one line above, which is what made the gap easy
+    # to miss: the field had been thought about, for a different question.
+    _refuse_an_instruction(f"{title}\n{note}\n{donor}")
 
     return {
         "id": offer_id,
