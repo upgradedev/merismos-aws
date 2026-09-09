@@ -172,6 +172,12 @@ class Scheduler:
                 "deferral_id": deferral.deferral_id,
                 "subject": deferral.subject,
                 "run_id": deferral.run_id,
+                # Why it is worth asking again, carried to the day it is asked.
+                # The wake used to escalate with "the deferral reached its date",
+                # which is the one thing a person reading an escalation already
+                # knows. The sentence that helps is the one recorded when the
+                # decision was parked, and it was being left behind here.
+                "reason": deferral.reason,
             },
             sort_keys=True,
         )

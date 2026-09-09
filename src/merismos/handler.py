@@ -602,10 +602,15 @@ def _wake(event: dict) -> dict[str, Any]:
         subject=str(event.get("subject", NETWORK)),
         run_id=str(event.get("run_id", new_run_id())),
     )
+    # The reason recorded when the decision was parked, which says why it is
+    # worth asking again rather than why it was refused. The fallback is for a
+    # schedule created before payloads carried it, which will still be in flight
+    # when this ships.
+    why = str(event.get("reason", "")).strip()
     return escalate(
         thread,
         deferral_id=str(event.get("deferral_id", "")),
-        reason="the deferral reached its date and nobody had come back",
+        reason=why or "the deferral reached its date and nobody had come back",
         fired_by="eventbridge-scheduler",
     )
 
