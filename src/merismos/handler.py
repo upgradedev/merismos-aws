@@ -31,9 +31,9 @@ from . import bedrock
 from .approval import (
     ApprovalRefused,
     ApprovalStore,
-    digest,
     Receipt,
     authorise,
+    digest,
     grant,
     published_history,
 )
@@ -544,7 +544,8 @@ def publication_status(body):
     content = saved["Body"].read().decode("utf-8")
     if (saved.get("Metadata", {}).get("approval-nonce") != approval.nonce
             or digest(NETWORK, approval.key, content) != approval.content_digest):
-        return _reply(200, {"state": "unknown", "detail": "The object does not match this approval."})
+        return _reply(200, {"state": "unknown",
+                            "detail": "The object does not match this approval."})
     receipt = _publication_receipt(approval, bucket, saved["LastModified"].timestamp())
     _append_receipt(receipt)
     return _reply(200, {"state": "recorded", "receipt": receipt.as_dict()})
@@ -921,53 +922,6 @@ def _the_run_they_read(offer_id: str, run_id: str):
     if not record or str(record.get("offer_id", offer_id)) != offer_id:
         return offer, None
     return offer, web.recorded(record)
-
-
-def _publish_approved(result, offer_id: str, key: str, approver: str) -> dict[str, Any]:
-    """Mint the approval, then ask the writer. The reader cannot publish.
-
-    This is the whole architecture in one function: the identity a person is
-    talking to holds no authority to write, so it mints an approval bound to the
-    exact bytes and asks a different identity, which re-checks the digest.
-    """
-    from . import web
-
-    content = result.draft.body
-    approval = grant(
-        network=NETWORK,
-        key=key,
-        body=content,
-        approved_by=approver,
-        run_id=result.run_id,
-    )
-    ApprovalStore().put(approval)
-
-    import boto3
-
-    payload = json.dumps(
-        {
-            "requestContext": {"http": {"method": "POST", "path": "/publish"}},
-            "body": json.dumps(
-                {"nonce": approval.nonce, "key": key, "body": content}
-            ),
-        }
-    )
-    answer = boto3.client("lambda").invoke(
-        FunctionName=os.environ["MERISMOS_WRITER_FUNCTION"], Payload=payload
-    )
-    written = json.loads(answer["Payload"].read())
-    if written.get("statusCode") != 200:
-        detail = json.loads(written.get("body", "{}")).get("detail", "the writer refused")
-        return _html(
-            502,
-            web.page(
-                "Not published",
-                f"<h1>The writer refused</h1><div class='note stop'>{detail}</div>"
-                f"<p><a class='btn secondary' href='/offer/{offer_id}'>Back</a></p>",
-            ),
-        )
-    receipt = json.loads(written["body"])
-    return _html(200, web.published(receipt, content))
 
 
 def _slug(key: str) -> str:

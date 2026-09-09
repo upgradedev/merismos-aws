@@ -54,7 +54,8 @@ def writer(monkeypatch):
     corpus = api.SnapshotCorpus(api.snapshot(LocalCorpus()))
     offer = offers(corpus)[0]
     tomorrow = datetime.now(timezone.utc).date() + timedelta(days=1)
-    offer.update(collection_date=tomorrow.isoformat(), use_by=tomorrow.isoformat())
+    offer.update(collection_date=tomorrow.isoformat(),
+                 use_by=(tomorrow + timedelta(days=2)).isoformat())
     corpus.files[f"offers/{offer['id']}.json"] = json.dumps(offer)
     ledger, approvals, objects = InMemoryLedger(), InMemoryApprovalStore(), {}
     monkeypatch.setenv("MERISMOS_ROLE", "writer")
@@ -173,3 +174,51 @@ def test_custody_resumes_across_independent_thread_handles_and_detects_missing_r
     assert custody.summary("offer-1", entries)["verified"]
     assert not custody.summary("offer-1", [entries[0], entries[2]])["verified"]
     assert not custody.summary("offer-1", [entries[0], entries[2], entries[1]])["verified"]
+
+
+def test_public_get_never_reconciles_a_pending_saved_publication(client, monkeypatch):
+    state = api.initial_state("live")
+    state["operations"]["reserved-approval"] = {
+        "status": "pending", "action": "approve", "offer_id": "offer-4471",
+        "nonce": "private-nonce", "signature": "private-signature",
+    }
+    client.store.save(f"live:{handler.NETWORK}", state, 0)
+    monkeypatch.setattr(api, "invoke_writer", lambda *a: pytest.fail("GET invoked writer"))
+    monkeypatch.setattr(api.WorkspaceStore, "save", lambda *a: pytest.fail("GET saved state"))
+    for path in ("/api/workspace", "/api/offers/offer-4471"):
+        code, answer = client(path, data={"mode": "live"})
+        assert code == 200
+        assert "private-nonce" not in json.dumps(answer)
+        assert "private-signature" not in json.dumps(answer)
+
+
+def test_only_trusted_explicit_recovery_completes_the_reserved_attempt(client, monkeypatch):
+    state = api.initial_state("live")
+    state["operations"]["reserved-approval"] = {
+        "status": "pending", "action": "approve", "offer_id": "offer-4471",
+        "nonce": "exact-reserved-nonce", "signature": "private-signature",
+    }
+    saved = client.store.save(f"live:{handler.NETWORK}", state, 0)
+    calls = []
+
+    def status_only(payload, path):
+        assert path == "/publication-status"
+        assert payload == {"nonce": "exact-reserved-nonce"}
+        calls.append(payload)
+        return {"state": "recorded"}
+
+    monkeypatch.setattr(api, "invoke_writer", status_only)
+    payload = {"mode": "live", "version": saved["version"],
+               "request_id": "recovery-request-0001", "operation_id": "reserved-approval"}
+    path = "/api/offers/offer-4471/recover"
+    assert client(path, "POST", payload)[0] == 403
+    assert calls == []
+    context = {"authorizer": {"lambda": {"network": handler.NETWORK,
+               "principalId": "fixture-coordinator", "permissions": ["merismos:coordinate"]}}}
+    assert client(path, "POST", payload, context=context)[0] == 200
+    assert len(calls) == 1
+    saved = client.store.get(f"live:{handler.NETWORK}")
+    assert saved["operations"]["reserved-approval"]["status"] == "complete"
+    assert client(path, "POST", {**payload, "version": saved["version"]},
+                  context=context)[0] == 200
+    assert len(calls) == 1

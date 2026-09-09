@@ -40,6 +40,7 @@ export function App() {
     setLoading(true);
     try {
       const next = await api.loadWorkspace(mode);
+      if (next.operations?.some(operation => operation.id === retry.current?.id && operation.status === 'failed')) retry.current = null;
       if (current === generation.current) { setData(next); setError(''); setActionBlocked(false); setExpired(false); setObservedAt(new Date().toLocaleString()); }
     } catch (e) { if (current === generation.current) report(e); }
     finally { if (current === generation.current) setLoading(false); }
@@ -97,6 +98,7 @@ export function App() {
       <main id="main" tabIndex={-1}><div className="workspace-tools"><span className="small-note">{data?.provider || 'Connecting to the coordinator service'}{observedAt && <span className="observed-at">Snapshot as of {observedAt}{actionBlocked ? ' · Refresh failed; saved view may be stale' : loading ? ' · Refreshing' : ''}</span>}</span><button className="text-button" onClick={() => void refresh()} disabled={loading || busy}>Refresh workspace</button></div>
         {error && <div role="alert" className="error"><h2>That action could not be completed</h2><p>{error}</p><p>{actionBlocked ? 'Actions are paused. Refresh and review the current state before retrying.' : 'Correct the highlighted information and submit the offer again. The rejected intake was not saved.'}</p><button className="secondary" disabled={loading || busy} onClick={expired && mode === 'sandbox' ? restart : () => void refresh()}>{expired && mode === 'sandbox' ? 'Start a new sandbox' : 'Refresh and review'}</button></div>}
         {busy && <p role="status" className="working">Saving through the backend. Please wait before making another change.</p>}
+        {data?.operations?.filter(operation => operation.status === 'pending').map(operation => <div className="notice" key={operation.id}><p>{operation.offer_id}: {operation.action} outcome pending or unknown. Refreshing only reads the workspace. Recovery checks this exact attempt without issuing a second publication.</p><button disabled={unavailable || !data.can_write} onClick={() => void mutate(operation.offer_id, 'recover', {operation_id: operation.id})}>Reconcile recorded outcome</button>{!data.can_write && <p>{data.authorization_note} Ask the coordinator to reconcile this attempt.</p>}</div>)}
         {storageBlocked() && <p className="notice">Browser storage is unavailable. This session works in this tab, but reloading may lose its handle.</p>}
         {error && mode === 'sandbox' && !expired && <p className="small-note">To recover from an unknown action outcome, you can <button className="text-button" onClick={restart} disabled={busy || loading}>Start a separate sandbox</button>. Your old session is not changed or deleted.</p>}
         {loading && !data && <div className="loading" role="status"><span className="spinner" aria-hidden="true"/>Loading your coordinator workspace…</div>}

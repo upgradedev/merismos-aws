@@ -180,7 +180,7 @@ data "aws_iam_policy_document" "reader" {
 data "aws_iam_policy_document" "evaluator" {
   statement {
     sid       = "RecordTheVerdict"
-    actions   = ["dynamodb:PutItem"]
+    actions   = ["dynamodb:PutItem", "dynamodb:GetItem"]
     resources = [aws_dynamodb_table.thread.arn]
   }
 }

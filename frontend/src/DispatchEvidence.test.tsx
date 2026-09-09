@@ -2,7 +2,7 @@ import { act, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { expect, it, vi } from 'vitest';
 import { AllocationBars } from './AllocationBars';
-import { ClockBasis, DateCue, DigestCustody } from './DispatchEvidence';
+import { ClockBasis, DateCue, DigestCustody, EvidenceBundle, evidenceBundle } from './DispatchEvidence';
 import { OfferDetail } from './OfferDetail';
 import { Pickups } from './Pickups';
 import { row, workspace } from './test/fixtures';
@@ -10,6 +10,27 @@ import type { FairnessCap } from './types';
 
 const allocation = { org: 'Elpida Shelter', quantity: 20, reason: 'Transport capacity is 20 kg.', share_of_offer: 20 / 240 };
 const source = 'registers/allocation-policy.md';
+
+it('exports observed decisions and limits without claiming source truth or delivery', async () => {
+  const data = workspace();
+  const text = evidenceBundle(row, data);
+  expect(text).toContain('Workspace revision:');
+  expect(text).toContain('Hashes bind bytes; they do not prove source truth');
+  expect(text).toContain('Human active time');
+  expect(text).toContain('not measured');
+  expect(text).toContain('No message is sent');
+  const user = userEvent.setup();
+  const write = vi.fn().mockResolvedValue(undefined);
+  Object.defineProperty(navigator, 'clipboard', {value: {writeText: write}, configurable: true});
+  render(<EvidenceBundle row={row} data={data}/>);
+  await user.click(screen.getByText('Evidence bundle and recovery'));
+  await user.click(screen.getByText('Copy evidence bundle'));
+  expect(write).toHaveBeenCalledWith(text);
+  expect(screen.getByRole('status')).toHaveTextContent('You choose where to share it');
+  write.mockRejectedValueOnce(new Error('denied'));
+  await user.click(screen.getByText('Copy evidence bundle'));
+  expect(screen.getByRole('status')).toHaveTextContent('Select and copy');
+});
 
 it.each([[0.4, 96], [0.25, 60], [0.125, 30], [0.3333333333333333, 80]])('scales actual amount and %s cap against all 240 kg, never recipient capacity', (share, ceiling) => {
   render(<AllocationBars allocation={allocation} offer={row.offer} cap={{share, source}}/>);

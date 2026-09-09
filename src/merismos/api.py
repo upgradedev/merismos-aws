@@ -19,8 +19,14 @@ from datetime import date, datetime, timezone
 from importlib.resources import files
 
 from . import background, bedrock, gate, intake, pickup
-from .approval import (ApprovalStore, InMemoryApprovalStore, authorise, digest, grant,
-                       published_history)
+from .approval import (
+    ApprovalStore,
+    InMemoryApprovalStore,
+    authorise,
+    digest,
+    grant,
+    published_history,
+)
 from .corpus import corpus_from_env, offers
 from .fleet import new_run_id, record_key, run_chore, subject_for_offer
 from .ledger import InMemoryLedger, Thread, ledger_from_env
@@ -259,6 +265,11 @@ def view(state: dict, corpus, network: str, event: dict) -> dict:
             "provider": "scripted-planner/1.0.0 · real Strands agent loop; no model network call"
             if state["mode"] == "sandbox" else config()["analyst"],
             "expires_at": state.get("expires_at"),
+            "operations": [{"id": request_id, "offer_id": op.get("offer_id", ""),
+                            "action": op.get("action", "unknown"),
+                            "status": op.get("status", "unknown")}
+                           for request_id, op in state["operations"].items()
+                           if op.get("status") in ("pending", "failed")],
             "authorization_note": "Live changes require an authenticated network coordinator."}
 
 
@@ -295,9 +306,8 @@ def route(event: dict, method: str, path: str, body: dict) -> dict:
             state = store.get(identifier) or initial_state("live")
             corpus = corpus_from_env()
         if method == "GET" and path == "/api/workspace":
-            state = reconcile(state, store, identifier)
             return _reply(200, view(state, corpus, NETWORK, event))
-        match = re.fullmatch(r"/api/offers/(offer-[0-9]+)(?:/(run|approve|pickup))?", path)
+        match = re.fullmatch(r"/api/offers/(offer-[0-9]+)(?:/(run|approve|pickup|recover))?", path)
         if not match and path != "/api/offers/new":
             raise ApiError(404, "No such API route.")
         offer_id, action = match.groups() if match else ("new", "add")
@@ -329,6 +339,9 @@ def route(event: dict, method: str, path: str, body: dict) -> dict:
             return _reply(200, view(state, corpus, NETWORK, event))
         if body.get("version") != state["version"]:
             raise ApiError(409, "Workspace changed. Refresh and review the current plan.")
+        if action == "recover":
+            result = reconcile(state, store, identifier, offer_id, body.get("operation_id"))
+            return _reply(200, view(result, corpus, NETWORK, event))
         if any(op.get("status") == "pending" and op.get("offer_id", offer_id) == offer_id
                for op in state["operations"].values()):
             raise ApiError(409, "An earlier action is pending or its outcome is unknown. "
@@ -529,10 +542,17 @@ def invoke_writer(payload: dict, path: str = "/publish") -> dict:
     return result
 
 
-def reconcile(state, store, identifier):
+def reconcile(state, store, identifier, offer_id, operation_id):
     """Inspect only reserved operations; never issue a second publication."""
+    operation = state["operations"].get(operation_id)
+    if not operation or operation.get("offer_id") != offer_id:
+        raise ApiError(404, "No reserved attempt for this offer.")
+    if state["mode"] != "live":
+        raise ApiError(409, "Sandbox failures need a reviewed new request, not writer recovery.")
     changed = False
-    for operation in state["operations"].values():
+    for request_id, operation in state["operations"].items():
+        if request_id != operation_id or operation.get("offer_id") != offer_id:
+            continue
         if operation.get("status") != "pending":
             continue
         if operation.get("action") == "approve" and operation.get("nonce"):

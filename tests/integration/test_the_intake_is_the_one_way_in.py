@@ -18,13 +18,13 @@ undo the architecture around it:
 from __future__ import annotations
 
 import json
-from urllib.parse import urlencode
+import uuid
 
 import boto3
 import pytest
 from botocore.stub import Stubber
 
-from merismos import handler
+from merismos import api, handler
 
 BUCKET = "merismos-corpus"
 
@@ -40,7 +40,9 @@ FORM = {
 
 
 @pytest.fixture(autouse=True)
-def offline(monkeypatch):
+def offline(monkeypatch, tmp_path):
+    monkeypatch.setenv("MERISMOS_OFFLINE_HTTP", "1")
+    monkeypatch.setenv("MERISMOS_WORKSPACE_DB", str(tmp_path / "workspace.sqlite"))
     monkeypatch.setenv("MERISMOS_ROLE", "reader")
     monkeypatch.setenv("MERISMOS_LEDGER", "memory")
     monkeypatch.setenv("MERISMOS_CORPUS", "local")
@@ -52,13 +54,16 @@ def offline(monkeypatch):
 
 
 def post(path: str, form: dict) -> dict:
-    return handler.handler(
-        {
-            "requestContext": {"http": {"method": "POST", "path": path}},
-            "headers": {"content-type": "application/x-www-form-urlencoded"},
-            "body": urlencode(form),
-        }
-    )
+    state = api.WorkspaceStore().get(f"live:{handler.NETWORK}") or api.initial_state("live")
+    return handler.handler({
+        "requestContext": {"http": {"method": "POST", "path": path},
+                          "authorizer": {"lambda": {"network": handler.NETWORK,
+                          "principalId": "fixture-coordinator",
+                          "permissions": ["merismos:coordinate"]}}},
+        "headers": {"content-type": "application/json"},
+        "body": json.dumps({"form": form, "version": state["version"],
+                            "request_id": uuid.uuid4().hex}),
+    })
 
 
 def get(path: str) -> dict:
@@ -90,7 +95,7 @@ def test_the_inbox_offers_a_way_in_because_a_page_nobody_can_reach_is_not_a_feat
     assert "/offers/new" in get("/")["body"]
 
 
-def test_a_refused_form_comes_back_with_what_the_person_typed_still_in_it(monkeypatch):
+def test_a_refused_form_never_reaches_the_writer(monkeypatch):
     """Retyping four correct fields to fix the fifth is how a form loses a user."""
     called = []
     monkeypatch.setattr(
@@ -100,12 +105,11 @@ def test_a_refused_form_comes_back_with_what_the_person_typed_still_in_it(monkey
     reply = post("/offers/new", {**FORM, "note": "Ring 6944 123 456 on arrival"})
 
     assert reply["statusCode"] == 400
-    assert "End of day bread and vegetables" in reply["body"]
-    assert "Neighbourhood bakery" in reply["body"]
+    assert "published record" in reply["body"]
     assert not called, "a refused form was still sent to the writer"
 
 
-def test_a_good_form_is_handed_to_the_writer_and_the_person_lands_on_the_offer(monkeypatch):
+def test_a_good_form_is_handed_to_the_writer_by_a_trusted_coordinator(monkeypatch):
     seen = {}
 
     def fake(offer_id, form):
@@ -117,9 +121,9 @@ def test_a_good_form_is_handed_to_the_writer_and_the_person_lands_on_the_offer(m
 
     reply = post("/offers/new", FORM)
 
-    assert reply["statusCode"] in (302, 303)
+    assert reply["statusCode"] == 200
     assert seen["offer_id"].startswith("offer-")
-    assert reply["headers"]["location"] == f"/offer/{seen['offer_id']}"
+    assert json.loads(reply["body"])["mode"] == "live"
     # The form is passed on as typed. The writer builds the offer, not this side.
     assert seen["form"]["title"] == FORM["title"]
 

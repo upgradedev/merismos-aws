@@ -27,9 +27,9 @@ import json
 import os
 import time
 import uuid
-from threading import RLock
 from collections.abc import Iterable, Iterator, Mapping, Sequence
 from dataclasses import dataclass, field, replace
+from threading import RLock
 from typing import Any, Protocol
 
 #: The kinds an entry may carry. Named rather than free text so that a typo is a
@@ -319,7 +319,8 @@ class DynamoDbLedger:
             moment = max(entry.at, float(head["at"]["N"]) + 0.000001) if head else entry.at
             linked = replace(entry, parent_id=parent, at=moment).stamped()
             advance = {"TableName": self.table_name,
-                       "Item": {**key, "last_id": {"S": linked.entry_id}, "at": {"N": repr(moment)}},
+                       "Item": {**key, "last_id": {"S": linked.entry_id},
+                                "at": {"N": repr(moment)}},
                        "ConditionExpression": "last_id = :last" if head else
                                               "attribute_not_exists(entry_id)"}
             if head:
@@ -464,7 +465,7 @@ class Thread:
                 body=body,
                 parent_id=self.last_id,
                 scope=self.scope,
-            ).stamped()
+            )
         )
         self.last_id = entry.entry_id
         return entry

@@ -56,3 +56,24 @@ it('polls only running work and ignores results from a previous mode', async () 
   await act(async () => { await vi.advanceTimersByTimeAsync(5000); }); expect(api.loadWorkspace).toHaveBeenCalledTimes(2);
   unmount(); await act(async () => { await vi.advanceTimersByTimeAsync(5000); }); expect(api.loadWorkspace).toHaveBeenCalledTimes(2); vi.useRealTimers();
 });
+
+it('keeps pending reads passive and explains unauthorized recovery', async () => {
+  const pending = {...workspace(), mode: 'live' as const, can_write: false,
+    operations: [{id: 'reserved-attempt', offer_id: 'offer-4471', action: 'approve', status: 'pending'}]};
+  vi.mocked(api.loadWorkspace).mockResolvedValue(pending);
+  render(<App/>);
+  expect(await screen.findByText('Reconcile recorded outcome')).toBeDisabled();
+  expect(screen.getByText(/Ask the coordinator to reconcile/)).toBeVisible();
+  await userEvent.click(screen.getByText('Refresh workspace'));
+  expect(api.action).not.toHaveBeenCalled();
+});
+
+it('recovers only the selected reserved operation on explicit coordinator action', async () => {
+  const pending = {...workspace(), operations: [{id: 'reserved-attempt',
+    offer_id: 'offer-4471', action: 'approve', status: 'pending'}]};
+  vi.mocked(api.loadWorkspace).mockResolvedValue(pending);
+  render(<App/>);
+  await userEvent.click(await screen.findByText('Reconcile recorded outcome'));
+  expect(api.action).toHaveBeenCalledWith(pending, 'offer-4471', 'recover',
+    {operation_id: 'reserved-attempt'}, expect.any(String));
+});

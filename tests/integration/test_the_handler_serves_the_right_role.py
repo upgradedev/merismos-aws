@@ -35,7 +35,10 @@ def offline(monkeypatch):
 
 def _event(method: str, path: str, body: dict | None = None) -> dict:
     return {
-        "requestContext": {"http": {"method": method, "path": path}},
+        "requestContext": {"http": {"method": method, "path": path},
+                           "authorizer": {"lambda": {"network": handler.NETWORK,
+                           "principalId": "fixture-coordinator",
+                           "permissions": ["merismos:coordinate"]}}},
         "body": json.dumps(body or {}),
     }
 
@@ -301,7 +304,10 @@ def test_a_base64_body_is_decoded(monkeypatch):
 
     monkeypatch.setenv("MERISMOS_ROLE", "reader")
     event = {
-        "requestContext": {"http": {"method": "POST", "path": "/run"}},
+        "requestContext": {"http": {"method": "POST", "path": "/run"},
+                           "authorizer": {"lambda": {"network": handler.NETWORK,
+                           "principalId": "fixture-coordinator",
+                           "permissions": ["merismos:coordinate"]}}},
         "body": base64.b64encode(json.dumps({"offer": "offer-4477"}).encode()).decode(),
         "isBase64Encoded": True,
     }
@@ -312,7 +318,10 @@ def test_a_base64_body_is_decoded(monkeypatch):
 def test_a_malformed_body_does_not_take_the_run_down(monkeypatch):
     monkeypatch.setenv("MERISMOS_ROLE", "reader")
     event = {
-        "requestContext": {"http": {"method": "POST", "path": "/run"}},
+        "requestContext": {"http": {"method": "POST", "path": "/run"},
+                           "authorizer": {"lambda": {"network": handler.NETWORK,
+                           "principalId": "fixture-coordinator",
+                           "permissions": ["merismos:coordinate"]}}},
         "body": "{not json",
     }
 

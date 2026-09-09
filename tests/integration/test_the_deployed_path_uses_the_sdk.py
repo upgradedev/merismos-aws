@@ -38,7 +38,10 @@ def offline(monkeypatch):
 
 def _event(method: str, path: str, query: dict | None = None) -> dict:
     return {
-        "requestContext": {"http": {"method": method, "path": path}},
+        "requestContext": {"http": {"method": method, "path": path},
+                           "authorizer": {"lambda": {"network": handler.NETWORK,
+                           "principalId": "fixture-coordinator",
+                           "permissions": ["merismos:coordinate"]}}},
         "headers": {"content-type": "application/json"},
         "body": "{}",
         "queryStringParameters": query or {},

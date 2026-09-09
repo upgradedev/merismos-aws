@@ -206,7 +206,7 @@ def test_there_is_no_fallback_that_decides_when_no_run_is_named(monkeypatch):
     assert "no decision here to approve" in reply["body"]
 
 
-def test_publishing_uses_the_recorded_run_rather_than_deciding_again(monkeypatch):
+def test_legacy_named_approval_cannot_publish_or_decide_again(monkeypatch):
     """The POST half. It is the half that writes, so it matters more."""
     run_id = a_finished_run()
 
@@ -262,12 +262,6 @@ def test_publishing_uses_the_recorded_run_rather_than_deciding_again(monkeypatch
         form={"approved_by": "the coordinator", "run": run_id},
     )
 
-    assert reply["statusCode"] == 200, reply["body"][:300]
-
-    from merismos import background
-    from merismos.ledger import ledger_from_env
-
-    record = background.completed_result(ledger_from_env().thread(run_id))
-    assert asked["payload"]["body"] == record["draft_body"], (
-        "the bytes sent to the writer are not the bytes the coordinator read"
-    )
+    assert reply["statusCode"] == 403
+    assert "authenticated" in reply["body"]
+    assert asked == {}, "anonymous approval reached the writer"

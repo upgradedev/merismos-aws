@@ -48,6 +48,10 @@ def get(
 
         event["headers"]["content-type"] = "application/x-www-form-urlencoded"
         event["body"] = urlencode(form)
+    if method == "POST" and path.startswith("/offer/"):
+        event["requestContext"]["authorizer"] = {"lambda": {
+            "network": handler.NETWORK, "principalId": "fixture-coordinator",
+            "permissions": ["merismos:coordinate"]}}
     return handler.handler(event)
 
 
@@ -252,18 +256,19 @@ def test_the_card_states_what_the_approval_does_not_authorise(run_now):
     assert "cannot be replayed" in page
 
 
-def test_approving_requires_a_named_person(run_now):
+def test_historical_card_requires_authenticated_current_approval(run_now):
     page = card("offer-4471")
 
-    assert 'name="approved_by" required' in page
+    assert "Read-only historical card" in page
+    assert 'name="approved_by"' not in page
 
     refused = get(
         "/approve/offer-4471",
         method="POST",
         form={"approved_by": "  ", "run": a_run("offer-4471")},
     )
-    assert refused["statusCode"] == 400
-    assert "names a person" in refused["body"]
+    assert refused["statusCode"] == 403
+    assert "authenticated" in refused["body"]
 
 
 def test_the_card_is_never_offered_for_an_offer_that_was_refused(run_now):

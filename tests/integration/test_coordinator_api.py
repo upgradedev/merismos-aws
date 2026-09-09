@@ -347,14 +347,17 @@ def test_live_authorized_journey_uses_the_separate_writer_and_never_overwrites(c
     assert code == 200, result
 
 
-def test_outcome_unknown_is_not_retried_and_new_actions_are_held(client, monkeypatch):
+def test_known_sandbox_failure_requires_a_reviewed_new_request(client, monkeypatch):
+    analyst = api.bedrock.scripted_analyst
     monkeypatch.setattr(api.bedrock, "scripted_analyst", lambda: (_ for _ in ()).throw(
         RuntimeError("offline agent unavailable")))
     state, payload = post(client, "run", expected=500)
     assert state["detail"] == "RuntimeError"
     code, answer = client("/api/offers/offer-4471/run", "POST", payload)
-    assert code == 409 and "unknown" in answer["detail"]
-    post(client, "run", expected=409)
+    assert code == 409 and "failed before a write" in answer["detail"]
+    assert client()[1]["records"] == []
+    monkeypatch.setattr(api.bedrock, "scripted_analyst", analyst)
+    post(client, "run")
 
 
 def test_overdue_and_expired_claims_have_distinct_states(client):

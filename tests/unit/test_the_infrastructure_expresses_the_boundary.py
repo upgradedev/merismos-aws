@@ -92,6 +92,16 @@ def test_the_evaluator_cannot_read_the_filing_at_all(iam):
         assert forbidden not in policy, f"the evaluator holds {forbidden}"
 
 
+@pytest.mark.parametrize("who", ["reader", "evaluator", "writer"])
+def test_every_ledger_writer_can_read_the_transactional_custody_head(iam, who):
+    policy = _statement_blocks(iam, who)
+    grants = [block for block in policy.split("statement {")
+              if '"dynamodb:PutItem"' in block and "aws_dynamodb_table.thread.arn" in block]
+    assert len(grants) == 1
+    assert '"dynamodb:GetItem"' in grants[0]
+    assert 'resources = ["*"]' not in grants[0]
+
+
 def test_the_writer_cannot_rewrite_the_filing_it_was_judged_against(iam):
     """Otherwise a compromised writer could edit the register to justify itself.
 
@@ -106,7 +116,9 @@ def test_the_writer_cannot_rewrite_the_filing_it_was_judged_against(iam):
 
     assert "records/*" in policy, "the writer's S3 grant is not scoped to the record prefix"
 
-    corpus_grants = re.findall(r"\$\{aws_s3_bucket\.corpus\.arn\}/([^\"]*)", policy)
+    writes = "\n".join(block for block in policy.split("statement {")
+                       if '"s3:PutObject"' in block)
+    corpus_grants = re.findall(r"\$\{aws_s3_bucket\.corpus\.arn\}/([^\"]*)", writes)
     assert corpus_grants == ["offers/*"], (
         f"the writer reaches {corpus_grants} of the filing. Only offers/ may be written"
     )
@@ -116,11 +128,10 @@ def test_no_identity_may_write_the_register_or_the_policy(iam):
     """Said once for all three, so a new role cannot quietly acquire it."""
     for who in ("reader", "evaluator", "writer"):
         policy = _statement_blocks(iam, who)
-        reachable = re.findall(r"\$\{aws_s3_bucket\.corpus\.arn\}/([^\"]*)", policy)
+        writes = "\n".join(block for block in policy.split("statement {")
+                           if '"s3:PutObject"' in block or '"s3:DeleteObject"' in block)
+        reachable = re.findall(r"\$\{aws_s3_bucket\.corpus\.arn\}/([^\"]*)", writes)
         for prefix in reachable:
-            if prefix in ("*", ""):
-                # A whole bucket grant is only ever a read here, checked below.
-                continue
             assert prefix.startswith("offers/"), f"{who} reaches {prefix} of the filing"
 
 
