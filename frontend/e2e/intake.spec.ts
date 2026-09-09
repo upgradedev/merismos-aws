@@ -23,7 +23,7 @@ test('Human intake to split, exact approval and collection, with invalid field r
   await page.getByRole('button',{name:'Approve in sandbox'}).click();
   await expect(page.getByRole('heading',{name:'The recorded plan'})).toBeVisible();
   await page.getByRole('link',{name:'Open collection tasks →'}).click();
-  const card=page.getByRole('article').first();
+  const card=page.getByRole('article').filter({has:page.getByRole('heading',{name:'Omonoia Soup Kitchen',exact:true})});
   await card.getByRole('button',{name:'Claim this share'}).click();
   await expect(card.getByText('Claimed',{exact:true})).toBeVisible();
   await card.getByLabel('This collection actually happened in the simulation.').check();

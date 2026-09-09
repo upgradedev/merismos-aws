@@ -21,7 +21,7 @@ test('ME01/02/03: exact sandbox approval, persistent claim, scheduled and confir
   await expect(page.getByRole('heading', { name: 'The recorded plan' })).toBeVisible();
   await page.getByRole('link', { name: 'Open collection tasks →' }).click();
   const kitchen = page.getByRole('article').filter({has: page.getByRole('heading', {name: 'Omonoia Soup Kitchen'})});
-  await kitchen.getByLabel('Collecting role', { exact: true }).selectOption('kitchen lead');
+  await kitchen.getByRole('combobox', { name: 'Collecting role', exact: true }).selectOption('kitchen lead');
   await kitchen.getByRole('button', { name: 'Claim this share' }).click();
   await expect(kitchen.getByText('Claimed', { exact: true })).toBeVisible();
   await page.reload();

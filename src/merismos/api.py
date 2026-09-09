@@ -101,21 +101,30 @@ def public_offer(offer: dict) -> dict:
 
 
 def public_result(result: dict) -> dict:
-    # Reuse the same public-data check for every export, including chat summaries.
-    text = json.dumps(result, default=str)
+    # Export only coordinator-facing content. Internal read logs, numeric timing
+    # and hashes are not prose, and must neither leak nor trigger phone checks.
+    public = {k: result.get(k) for k in ("outcome", "note", "draft_body",
+              "draft_allocations", "draft_barred_because", "verdict", "woken")}
+    public["envelopes"] = [{k: e.get(k) for k in
+                           ("specialist", "status", "reason", "findings", "notes")}
+                          for e in result.get("envelopes", [])]
+    text = json.dumps(public, default=str)
     if gate.check_personal_data(gate.Draft(body=text)):
         return {"outcome": "refused_by_gate", "note": "Personal-data check refused this output.",
                 "draft_allocations": [], "draft_barred_because": {}, "draft_body": "",
                 "run_id": result.get("run_id", ""), "envelopes": []}
-    return {k: result.get(k) for k in ("run_id", "outcome", "note", "draft_body",
-            "draft_allocations", "draft_barred_because", "envelopes", "verdict", "woken")}
+    return {**public, "run_id": result.get("run_id", "")}
 
 
 def live_result(offer: dict, saved: dict, network: str) -> dict:
     ledger = ledger_from_env()
     run = saved.get("run_id")
     if not run:
-        found = ledger.recall(subject_for_offer(network, offer), "run.completed", limit=1)
+        # Fleet memory is category-scoped, not offer-scoped. Pick the matching
+        # offer's newest result without mistaking its sibling's run for corruption.
+        found = [e for e in ledger.recall(subject_for_offer(network, offer),
+                                        "run.completed", limit=200)
+                 if e.body.get("offer_id") == offer["id"]]
         if found:
             run = found[0].run_id
     if not run:
