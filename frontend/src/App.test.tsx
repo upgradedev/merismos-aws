@@ -91,7 +91,8 @@ it.each(['resolve', 'reject'])('ignores a late previous-session %s without clear
   const user = userEvent.setup();
   render(<App/>);
   await user.selectOptions(screen.getByLabelText('Workspace', {exact: true}), 'live');
-  await user.click(await screen.findByText('Re-run the fleet'));
+  const run = await screen.findByText('Re-run the fleet');
+  await user.click(run);
   expect(await screen.findByRole('alert')).toHaveTextContent('Current attempt unknown');
   const id = vi.mocked(api.action).mock.calls[0][4];
   await act(async () => {
@@ -101,9 +102,9 @@ it.each(['resolve', 'reject'])('ignores a late previous-session %s without clear
     else fail(new Error('Obsolete session error'));
   });
   expect(screen.getByRole('alert')).toHaveTextContent('Current attempt unknown');
-  expect(screen.getByText('Re-run the fleet')).toBeDisabled();
+  expect(run).toBeDisabled();
   await user.click(screen.getByText('Refresh and review'));
-  await waitFor(() => expect(screen.getByText('Re-run the fleet')).toBeEnabled());
-  await user.click(screen.getByText('Re-run the fleet'));
+  await waitFor(() => expect(run).toBeEnabled());
+  await user.click(run);
   expect(vi.mocked(api.action).mock.calls[1][4]).toBe(id);
 });
