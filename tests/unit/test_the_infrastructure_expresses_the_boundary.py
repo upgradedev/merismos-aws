@@ -64,7 +64,9 @@ def _retains_old_layer(document):
 def test_layer_migration_forgets_the_old_version_without_deleting_it(main):
     assert _retains_old_layer(main)
     assert not _retains_old_layer(main.replace("destroy = false", "destroy = true"))
-    assert not _retains_old_layer(main.replace("from = aws_lambda_layer_version.deps", "from = other"))
+    wrong_address = main.replace("from = aws_lambda_layer_version.deps", "from = other")
+    assert not _retains_old_layer(wrong_address)
+    assert 'required_version = ">= 1.7"' in main
     assert 'resource "aws_lambda_layer_version" "deps" {' not in main
     assert 'resource "aws_lambda_layer_version" "deps_retained" {' in main
     assert "layers = [aws_lambda_layer_version.deps_retained.arn]" in main

@@ -38,6 +38,15 @@ def test_every_public_legacy_mutation_refuses_forged_identity(path, encoding, mo
     assert handler.handler(event)["statusCode"] == 403
 
 
+def test_legacy_intake_is_visibly_read_only_with_a_working_sandbox_alternative():
+    from merismos import web
+
+    page = web.new_offer_form()
+    assert "Read-only legacy form" in page
+    assert 'type="submit" disabled' in page
+    assert "https://d2qnkmlhs7y5fp.cloudfront.net/#/offers/new" in page
+
+
 @pytest.mark.parametrize("verdict", [None, {}, {"passed": False}, {"passed": "true"}])
 def test_a_draft_body_is_not_a_passing_plan(client, verdict):
     current = plan(client)
@@ -348,6 +357,43 @@ def test_lane_uses_the_same_case_insensitive_category_as_fairness(writer):
     assert not store.acquire_lane(alternate)
     store.release_lane(first)
     assert store.acquire_lane(alternate)
+
+
+def test_dynamodb_lane_uses_conditional_holder_and_never_releases_another_nonce():
+    from dataclasses import replace
+
+    from botocore.stub import Stubber
+
+    from merismos.approval import ApprovalStore
+
+    client = boto3.client("dynamodb", region_name="eu-west-1",
+                          aws_access_key_id="offline", aws_secret_access_key="offline")
+    store = ApprovalStore("fixture-approvals", client)
+    approval = grant("net", "records/offer-1.md", "reviewed", "coordinator", "run-1",
+                     category="AMBIENT")
+    other = replace(approval, nonce="other-attempt")
+    def request(candidate, acquire):
+        return {"TableName": "fixture-approvals",
+                "Key": {"nonce": {"S": "lane:net:ambient"}},
+                "UpdateExpression": "SET holder = :n" if acquire else "REMOVE holder",
+                "ConditionExpression": "attribute_not_exists(holder)" if acquire else "holder = :n",
+                "ExpressionAttributeValues": {":n": {"S": candidate.nonce}}}
+    with Stubber(client) as stub:
+        stub.add_response("update_item", {}, request(approval, True))
+        stub.add_client_error("update_item", "ConditionalCheckFailedException",
+                              expected_params=request(other, True))
+        stub.add_client_error("update_item", "ConditionalCheckFailedException",
+                              expected_params=request(other, False))
+        stub.add_response("update_item", {}, request(approval, False))
+        stub.add_client_error("update_item", "AccessDeniedException",
+                              expected_params=request(other, True))
+        assert store.acquire_lane(approval)
+        assert not store.acquire_lane(other)
+        store.release_lane(other)
+        store.release_lane(approval)
+        with pytest.raises(ClientError, match="AccessDeniedException"):
+            store.acquire_lane(other)
+        stub.assert_no_pending_responses()
 
 
 def test_prewrite_evidence_failure_is_retryable_without_spending_or_writing(writer, monkeypatch):

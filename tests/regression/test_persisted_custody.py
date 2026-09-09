@@ -144,6 +144,37 @@ def test_history_reads_past_filtered_empty_pages_and_refuses_exhaustion():
         ledger.recall("net", "record.published")
 
 
+def test_independent_history_reader_sees_new_receipts_with_primary_consistency(monkeypatch):
+    from merismos import api
+    from merismos.approval import published_history
+    from merismos.ledger import _to_item
+
+    saved = []
+    calls = []
+    class Primary:
+        def query(self, **request):
+            calls.append(request)
+            assert "IndexName" not in request, "fairness cannot use an eventual GSI"
+            # Model replication lag: only a strong primary read can see new receipts.
+            subject = request["ExpressionAttributeValues"][":s"]["S"]
+            visible = saved if request.get("ConsistentRead") else []
+            return {"Items": [_to_item(entry) for entry in visible if entry.subject == subject]}
+
+    transport = Primary()
+    first = DynamoDbLedger("fixture-thread", transport)
+    assert published_history(first, "net", [{"category": "ambient"}], category="ambient") == []
+    for index in range(2):
+        saved.append(Entry(kind="record.published", subject="net", run_id=f"run-{index}",
+                           body={"category": "ambient", "orgs": ["Kitchen"],
+                                 "key": f"records/offer-{index}.md",
+                                 "offer_id": f"offer-{index}"}, at=index + 1).stamped())
+    independent = DynamoDbLedger("fixture-thread", transport)
+    monkeypatch.setattr(api, "ledger_from_env", lambda: independent)
+    history = api.fairness_history({"mode": "live"}, "net", {"category": "ambient"})
+    assert [record["offer_id"] for record in history] == ["offer-1", "offer-0"]
+    assert all(request["ConsistentRead"] is True for request in calls)
+
+
 def test_pre_upgrade_headless_run_is_read_only_and_new_run_can_start(tmp_path):
     from merismos.ledger import _to_item
 

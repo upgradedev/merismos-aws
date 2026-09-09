@@ -892,6 +892,9 @@ def new_offer_form(error: str = "", values: Mapping[str, Any] | None = None) -> 
 <h1>Add an offer</h1>
 <p class="lede">What the donor told you, and nothing their message does not already say. A
 coordinator standing in a doorway will not fill in twenty fields.</p>
+<div class="note amber"><strong>Read-only legacy form.</strong> Live intake requires an
+authenticated coordinator using the current API contract. This form cannot file an offer.
+<a href="https://d2qnkmlhs7y5fp.cloudfront.net/#/offers/new">Try an editable isolated sandbox</a>.</div>
 {warn}
 <form method="post" action="/offers/new">
   <div class="card">
@@ -951,7 +954,7 @@ coordinator standing in a doorway will not fill in twenty fields.</p>
   a person's name or address in the note: the gate refuses a record carrying one, and it is easier
   not to type it.</div>
 
-  <p><button class="btn" type="submit">Add it</button>
+  <p><button class="btn" type="submit" disabled>Add it</button>
      <a class="btn secondary" href="/">Back to offers</a></p>
 </form>""",
         "Add an offer to this network's filing",

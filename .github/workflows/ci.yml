@@ -17,8 +17,8 @@ jobs:
   # The secret scan runs first and over history, not over the working tree. A
   # credential repaired in the tree but left in a commit is still published, and
   # a discovered secret requires incident review, never silent history deletion.
-  # There is no ignore file, deliberately: allowlisting a pattern to make a
-  # secret scan pass is how secret scanners stop working.
+  # One immutable fingerprint is a reviewed socket-denied synthetic fixture.
+  # No file, rule or key pattern is excluded; the contract rejects broader ignores.
   secrets:
     runs-on: ubuntu-latest
     permissions:

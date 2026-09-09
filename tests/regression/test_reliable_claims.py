@@ -48,6 +48,19 @@ def test_full_history_and_fixed_archive_are_not_silently_narrowed():
     assert "extractall" not in archive
 
 
+def test_secret_scan_exception_is_only_the_reviewed_immutable_synthetic_fixture():
+    ignored = {line.strip() for line in (ROOT / ".gitleaksignore").read_text().splitlines()
+               if line.strip() and not line.lstrip().startswith("#")}
+    exact = "9d5d7d8d53b35d6bc07da6272de42f71126cbb47:tests/conftest.py:aws-access-token:63"
+    assert ignored == {exact}
+    # A different key/line or commit in the same file and rule must still be scanned.
+    assert exact.replace(":63", ":64") not in ignored
+    assert exact.replace("9d5d7d8d53b35d6bc07da6272de42f71126cbb47", "a" * 40) not in ignored
+    ci = (ROOT / ".github/workflows/ci.yml").read_text()
+    assert "--log-opts=--all" in ci
+    assert "--baseline-path" not in ci and "--exit-code=0" not in ci
+
+
 def test_live_model_proof_uses_private_iam_not_fake_http_authority():
     deploy = (ROOT / ".github/workflows/deploy.yml").read_text(encoding="utf-8")
     assert 'default: "eu.anthropic.claude-opus-5"' in deploy

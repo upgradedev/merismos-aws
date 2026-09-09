@@ -1,0 +1,3 @@
+# Synthetic, socket-denied Stubber fixture only. Already replaced in 60b4e355;
+# retain original history and ignore exactly this immutable finding, not its file/rule.
+9d5d7d8d53b35d6bc07da6272de42f71126cbb47:tests/conftest.py:aws-access-token:63

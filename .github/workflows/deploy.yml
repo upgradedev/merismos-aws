@@ -244,6 +244,10 @@ jobs:
             sleep 20
           done
 
+          # Observe actual model events, not merely the configured model name.
+          curl --fail --silent --show-error "${url}thread?run=${run_id}" > model-thread.json
+          jq -e '.entries | any(.kind == "specialist.answered" and .body.source == "model")' model-thread.json
+
           # It stopped at a card, and nothing left the screen.
           grep -q "Nothing is published yet" page.html || {
             echo "::error::the decision screen does not say it published nothing"; exit 1; }
@@ -336,6 +340,25 @@ jobs:
           curl -s "${url}config" | tee config.json | jq .
           test "$(jq -r '.read_budget_per_specialist' config.json)" = "6"
           test "$(jq -r '.deferrals_wake_on_a_schedule' config.json)" = "true"
+
+      - name: Preserve exact-run read-only and internal model proof
+        if: always() && inputs.dry_run != 'yes'
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-proof-${{ github.sha }}-${{ github.run_id }}
+          path: |
+            invocation.json
+            model-thread.json
+            page.html
+            card.html
+            noRun.html
+            refused-invoke.json
+            blocked.html
+            refused.html
+            denied.json
+            config.json
+          retention-days: 90
+          if-no-files-found: error
 
       # Always, even when a check above failed. A failed proof that leaves a
       # fleet standing is a bill, and this is the row STANDARDS D2 asks for.

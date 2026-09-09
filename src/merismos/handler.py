@@ -469,7 +469,7 @@ def publish(body: dict) -> dict[str, Any]:
     except Exception as error:
         if not attempt["write_attempted"]:
             store.release_lane(candidate)
-            return _reply(503, {"detail": f"Writer failed before publication: {type(error).__name__}.",
+            return _reply(503, {"detail": f"Prepublication failure: {type(error).__name__}.",
                                 "write_state": "not_written"})
         raise
     if response["statusCode"] == 200 or json.loads(response["body"]).get(
@@ -698,7 +698,7 @@ def publication_capabilities() -> dict[str, Any]:
             raise ValueError("No offer available for the evidence read")
         evidence_digest(corpus, available[0])
         checks["corpus_freshness_read"] = {
-            "allowed": True, "backend": os.environ.get("MERISMOS_CORPUS", "local")}
+            "allowed": True, "backend": getattr(corpus, "backend", "unknown")}
     except Exception as error:
         checks["corpus_freshness_read"] = {"allowed": False, "detail": _aws_said(error)}
     try:
