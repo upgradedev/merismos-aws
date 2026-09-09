@@ -288,6 +288,9 @@ def route(event: dict, method: str, path: str, body: dict) -> dict:
             return _reply(200, view(state, corpus, NETWORK, event))
         if body.get("version") != state["version"]:
             raise ApiError(409, "Workspace changed. Refresh and review the current plan.")
+        if any(op.get("status") == "pending" for op in state["operations"].values()):
+            raise ApiError(409, "An earlier action is pending or its outcome is unknown. "
+                           "Refresh the history before making another change.")
         if len(state["operations"]) >= 100:
             raise ApiError(409, "Session action limit reached. Start a new sandbox session.")
         result = mutate(state, corpus, NETWORK, offer, action, body, principal,
@@ -309,7 +312,8 @@ def mutate(state, corpus, network, offer, action, body, principal, store, identi
     plan = plan_for(offer, run, records, network) if offer else None
     if action == "run" and any(c["offer_id"] == offer_id and c.get("confirmed_at") is not None
                                for c in state["claims"]):
-        raise ApiError(409, "A collection is already confirmed. This offer cannot be allocated again.")
+        raise ApiError(409, "A collection is already confirmed. "
+                       "This offer cannot be allocated again.")
     if action == "add":
         if not isinstance(body.get("form"), dict):
             raise ApiError(400, "Fill in the offer form.")
@@ -326,7 +330,9 @@ def mutate(state, corpus, network, offer, action, body, principal, store, identi
             raise ApiError(409, "This plan is stale. Refresh and review the allocation again.")
         if run.get("evidence_digest") != evidence_digest(corpus, offer):
             raise ApiError(409, "Evidence changed or predates this API. Run the fleet again.")
-        if mode == "live" and str(offer.get("collection_date", "")) < date.today().isoformat():
+        if action == "approve" and mode == "live" and str(
+            offer.get("collection_date", "")
+        ) < date.today().isoformat():
             raise ApiError(409, "This collection date has passed. The old plan cannot be approved.")
     if action == "approve":
         if body.get("consent") is not True or body.get("key") != plan["key"]:

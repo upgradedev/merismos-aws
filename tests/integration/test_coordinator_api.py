@@ -78,8 +78,10 @@ def test_real_strands_split_exact_consent_and_durable_collection(client):
         e["kind"] == "specialist.answered" for e in persisted["runs"]["offer-4471"]["entries"])
 
 
-@pytest.mark.parametrize("edit,code", [({"digest": "wrong"}, 409), ({"run_id": "wrong"}, 409),
-                                      ({"key": "records/other.md"}, 400), ({"consent": False}, 400)])
+@pytest.mark.parametrize("edit,code", [
+    ({"digest": "wrong"}, 409), ({"run_id": "wrong"}, 409),
+    ({"key": "records/other.md"}, 400), ({"consent": False}, 400),
+])
 def test_approval_is_exact_and_requires_explicit_consent(client, edit, code):
     current = plan(client)
     post(client, "approve", {**current, "consent": True, **edit}, expected=code)
@@ -206,7 +208,8 @@ def test_expired_pending_and_full_sessions_refuse_without_fabricating_success(cl
 
 def test_public_text_refuses_pii_and_confirmed_history_does_not_expire():
     assert "withheld" in api.safe_text("call 6941234567")
-    assert api.public_result({"draft_body": "Email a@example.invalid"})["outcome"] == "refused_by_gate"
+    result = api.public_result({"draft_body": "Email a@example.invalid"})
+    assert result["outcome"] == "refused_by_gate"
     claim = pickup.Claim("offer-1", "Kitchen", "duty manager", 10, "kg", "digest",
                          claimed_at=1, confirmed_at=2)
     assert pickup.still_valid(claim, "digest", now=10**10)
