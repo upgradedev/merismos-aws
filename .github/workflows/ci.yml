@@ -21,6 +21,9 @@ jobs:
   # secret scan pass is how secret scanners stop working.
   secrets:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read # gitleaks reads the PR commit list in private repositories.
     steps:
       - uses: actions/checkout@v4
         with:
