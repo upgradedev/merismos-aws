@@ -1,0 +1,7 @@
+{
+  "product": "merismos",
+  "repository": "upgradedev/merismos-aws",
+  "stack": "merismos-frontend",
+  "region": "eu-west-1",
+  "api_domain": "efnt6e0kv7.execute-api.eu-west-1.amazonaws.com"
+}
