@@ -29,6 +29,7 @@ import time
 import uuid
 from collections.abc import Iterable, Iterator, Mapping, Sequence
 from dataclasses import dataclass, field, replace
+from threading import RLock
 from typing import Any, Protocol
 
 #: The kinds an entry may carry. Named rather than free text so that a typo is a
@@ -174,7 +175,7 @@ class Ledger(Protocol):
 
     def thread(self, run_id: str) -> list[Entry]: ...
 
-    def recall(self, subject: str, kind: str, limit: int = 20) -> list[Entry]: ...
+    def recall(self, subject: str, kind: str, limit: int | None = 20) -> list[Entry]: ...
 
     def open_deferrals(self, subject: str = "") -> list[Entry]: ...
 
@@ -223,6 +224,17 @@ class InMemoryLedger:
 
     def __init__(self) -> None:
         self._entries: list[Entry] = []
+        self._lock = RLock()
+
+    def append_linked(self, entry: Entry) -> Entry:
+        with self._lock:
+            prior = self.thread(entry.run_id)
+            existing = next((e for e in prior if e.entry_id == entry.entry_id), None)
+            if existing:
+                return existing
+            entry = replace(entry, parent_id=prior[-1].entry_id if prior else "",
+                            at=max(entry.at, prior[-1].at + 0.000001) if prior else entry.at)
+            return self.append(entry.stamped())
 
     def append(self, entry: Entry) -> Entry:
         self._entries.append(entry)
@@ -233,7 +245,7 @@ class InMemoryLedger:
             (e for e in self._entries if e.run_id == run_id), key=lambda e: e.at
         )
 
-    def recall(self, subject: str, kind: str, limit: int = 20) -> list[Entry]:
+    def recall(self, subject: str, kind: str, limit: int | None = 20) -> list[Entry]:
         found = [e for e in self._entries if e.subject == subject and e.kind == kind]
         return sorted(found, key=lambda e: e.at, reverse=True)[:limit]
 
@@ -292,8 +304,52 @@ class DynamoDbLedger:
         )
         return entry
 
+    def append_linked(self, entry: Entry) -> Entry:
+        """Atomically append and advance a persisted head for new run traffic.
+
+        The head is outside the event indexes. Historic entries are never
+        restamped or reparented. Concurrent writers retry only a rejected
+        transaction; a transport failure remains unknown and is not retried.
+        """
+        key = {"subject": {"S": f"custody:{entry.run_id}"}, "entry_id": {"S": "head"}}
+        for _ in range(3):
+            head = self.client.get_item(TableName=self.table_name, Key=key,
+                                        ConsistentRead=True).get("Item")
+            if not head and self.thread(entry.run_id):
+                raise ValueError(
+                    "Legacy run has no persisted custody head. Read only; start a new run.")
+            parent = head["last_id"]["S"] if head else ""
+            moment = max(entry.at, float(head["at"]["N"]) + 0.000001) if head else entry.at
+            linked = replace(entry, parent_id=parent, at=moment).stamped()
+            advance = {"TableName": self.table_name,
+                       "Item": {**key, "last_id": {"S": linked.entry_id},
+                                "at": {"N": repr(moment)}},
+                       "ConditionExpression": "last_id = :last" if head else
+                                              "attribute_not_exists(entry_id)"}
+            if head:
+                advance["ExpressionAttributeValues"] = {":last": {"S": parent}}
+            try:
+                self.client.transact_write_items(TransactItems=[
+                    {"Put": {"TableName": self.table_name, "Item": _to_item(linked),
+                             "ConditionExpression": "attribute_not_exists(entry_id)"}},
+                    {"Put": advance},
+                ])
+                return linked
+            except Exception as error:
+                reasons = getattr(error, "response", {}).get("CancellationReasons", [])
+                if not reasons or any(reason.get("Code") not in (
+                    "None", "ConditionalCheckFailed") for reason in reasons):
+                    raise
+                existing = self.client.get_item(
+                    TableName=self.table_name,
+                    Key={"subject": {"S": entry.subject}, "entry_id": {"S": entry.entry_id}},
+                    ConsistentRead=True).get("Item")
+                if existing:
+                    return _from_item(existing)
+        raise ValueError("The custody head changed concurrently. Refresh before continuing.")
+
     def thread(self, run_id: str) -> list[Entry]:
-        response = self.client.query(
+        response = self._query_pages(
             TableName=self.table_name,
             IndexName="by-run",
             KeyConditionExpression="run_id = :r",
@@ -304,17 +360,30 @@ class DynamoDbLedger:
             key=lambda e: e.at,
         )
 
-    def recall(self, subject: str, kind: str, limit: int = 20) -> list[Entry]:
-        response = self.client.query(
+    def recall(self, subject: str, kind: str, limit: int | None = 20) -> list[Entry]:
+        response = self._query_pages(
             TableName=self.table_name,
             KeyConditionExpression="subject = :s",
             FilterExpression="kind = :k",
             ExpressionAttributeValues={":s": {"S": subject}, ":k": {"S": kind}},
             ScanIndexForward=False,
-            Limit=max(limit * 4, limit),
+            ConsistentRead=True,
+            Limit=max((limit or 200) * 4, limit or 200),
         )
         entries = [_from_item(item) for item in response.get("Items", [])]
         return sorted(entries, key=lambda e: e.at, reverse=True)[:limit]
+
+    def _query_pages(self, **request) -> dict:
+        # A filtered empty page is not empty history. UUID sort keys do not
+        # order time either: collect the bounded result before sorting by at.
+        items = []
+        for _ in range(20):
+            page = self.client.query(**request)
+            items.extend(page.get("Items", []))
+            if not page.get("LastEvaluatedKey"):
+                return {"Items": items}
+            request["ExclusiveStartKey"] = page["LastEvaluatedKey"]
+        raise ValueError("Ledger history exceeds the read bound; review before a new decision.")
 
     def open_deferrals(self, subject: str = "") -> list[Entry]:
         if not subject:
@@ -404,7 +473,7 @@ class Thread:
         # Doing it in ``Entry.__post_init__`` would also stamp a row read back
         # from the store, computing the digest from whatever that row currently
         # says and certifying an edited one as intact.
-        entry = self.ledger.append(
+        entry = self.ledger.append_linked(
             Entry(
                 kind=kind,
                 subject=self.subject,
@@ -412,7 +481,7 @@ class Thread:
                 body=body,
                 parent_id=self.last_id,
                 scope=self.scope,
-            ).stamped()
+            )
         )
         self.last_id = entry.entry_id
         return entry

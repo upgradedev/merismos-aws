@@ -82,6 +82,10 @@ class Approval:
     run_id: str
     expires_at: float
     granted_at: float
+    evidence_digest: str = ""
+    offer_id: str = ""
+    category: str = ""
+    orgs: tuple[str, ...] = ()
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -93,6 +97,10 @@ class Approval:
             "run_id": self.run_id,
             "expires_at": self.expires_at,
             "granted_at": self.granted_at,
+            "evidence_digest": self.evidence_digest,
+            "offer_id": self.offer_id,
+            "category": self.category,
+            "orgs": list(self.orgs),
         }
 
     def as_card(self) -> str:
@@ -112,6 +120,9 @@ class Receipt:
     run_id: str
     published_url: str
     published_at: float
+    offer_id: str = ""
+    category: str = ""
+    orgs: tuple[str, ...] = ()
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -123,6 +134,9 @@ class Receipt:
             "run_id": self.run_id,
             "published_url": self.published_url,
             "published_at": self.published_at,
+            "offer_id": self.offer_id,
+            "category": self.category,
+            "orgs": list(self.orgs),
         }
 
 
@@ -137,6 +151,10 @@ def grant(
     run_id: str,
     ttl_seconds: int = DEFAULT_TTL_SECONDS,
     now: float | None = None,
+    evidence_digest: str = "",
+    offer_id: str = "",
+    category: str = "",
+    orgs: tuple[str, ...] = (),
 ) -> Approval:
     """Mint an approval over specific bytes.
 
@@ -159,6 +177,10 @@ def grant(
         run_id=run_id,
         expires_at=moment + ttl_seconds,
         granted_at=moment,
+        evidence_digest=evidence_digest,
+        offer_id=offer_id,
+        category=category,
+        orgs=orgs,
     )
 
 
@@ -195,6 +217,10 @@ class ApprovalStore:
                 "run_id": {"S": approval.run_id},
                 "expires_at": {"N": repr(approval.expires_at)},
                 "granted_at": {"N": repr(approval.granted_at)},
+                "evidence_digest": {"S": approval.evidence_digest},
+                "offer_id": {"S": approval.offer_id},
+                "category": {"S": approval.category},
+                "orgs": {"S": json.dumps(approval.orgs)},
                 # DynamoDB removes the row itself once it is long past use.
                 # Expiry is still checked in code: TTL deletion is eventual and
                 # a control that depends on a background sweep is not a control.
@@ -238,6 +264,37 @@ class ApprovalStore:
                 ) from error
             raise
 
+    def acquire_lane(self, approval: Approval) -> bool:
+        """Serialize same-category writes. Unknown attempts never expire into a retry."""
+        try:
+            self.client.update_item(
+                TableName=self.table_name,
+                Key={"nonce": {"S": f"lane:{approval.network}:{approval.category.lower()}"}},
+                UpdateExpression="SET holder = :n",
+                ConditionExpression="attribute_not_exists(holder)",
+                ExpressionAttributeValues={":n": {"S": approval.nonce}})
+            return True
+        except Exception as error:
+            if getattr(error, "response", {}).get("Error", {}).get("Code") == (
+                "ConditionalCheckFailedException"
+            ):
+                return False
+            raise
+
+    def release_lane(self, approval: Approval) -> None:
+        try:
+            self.client.update_item(
+                TableName=self.table_name,
+                Key={"nonce": {"S": f"lane:{approval.network}:{approval.category.lower()}"}},
+                UpdateExpression="REMOVE holder",
+                ConditionExpression="holder = :n",
+                ExpressionAttributeValues={":n": {"S": approval.nonce}})
+        except Exception as error:
+            if getattr(error, "response", {}).get("Error", {}).get("Code") != (
+                "ConditionalCheckFailedException"
+            ):
+                raise
+
 
 def _from_item(item: Mapping[str, Any]) -> Approval:
     return Approval(
@@ -249,6 +306,10 @@ def _from_item(item: Mapping[str, Any]) -> Approval:
         run_id=item["run_id"]["S"],
         expires_at=float(item["expires_at"]["N"]),
         granted_at=float(item["granted_at"]["N"]),
+        evidence_digest=item.get("evidence_digest", {}).get("S", ""),
+        offer_id=item.get("offer_id", {}).get("S", ""),
+        category=item.get("category", {}).get("S", ""),
+        orgs=tuple(json.loads(item.get("orgs", {}).get("S", "[]"))),
     )
 
 
@@ -257,6 +318,24 @@ class InMemoryApprovalStore:
 
     def __init__(self) -> None:
         self._rows: dict[str, tuple[Approval, float | None]] = {}
+        self._lanes = {}
+        from threading import RLock
+
+        self._lock = RLock()
+
+    def acquire_lane(self, approval: Approval) -> bool:
+        with self._lock:
+            key = (approval.network, approval.category.lower())
+            if key in self._lanes:
+                return False
+            self._lanes[key] = approval.nonce
+            return True
+
+    def release_lane(self, approval: Approval) -> None:
+        with self._lock:
+            key = (approval.network, approval.category.lower())
+            if self._lanes.get(key) == approval.nonce:
+                del self._lanes[key]
 
     def put(self, approval: Approval) -> Approval:
         if approval.nonce in self._rows:
@@ -326,3 +405,25 @@ def authorise(
 
     store.spend(nonce, now=moment)
     return approval
+
+
+def published_history(ledger, network: str, current_offers=(), limit: int = 200,
+                      category: str | None = None):
+    """Read existing receipt namespaces without moving or repairing old rows.
+
+    New receipts use the network partition. Older category receipts remain
+    readable. Missing historical category/org fields stay unknown.
+    """
+    from .fleet import subject_for_offer
+
+    subjects = {network, *(subject_for_offer(network, offer) for offer in current_offers)}
+    found = [entry for subject in sorted(subjects)
+             for entry in ledger.recall(subject, "record.published", None)]
+    if category is not None:
+        found = [entry for entry in found if entry.body.get("category", "").lower() ==
+                 category.lower()]
+    unique = {}
+    for entry in sorted(found, key=lambda entry: entry.at):
+        if entry.body.get("key"):
+            unique[entry.body["key"]] = entry
+    return sorted(unique.values(), key=lambda entry: entry.at, reverse=True)[:limit]

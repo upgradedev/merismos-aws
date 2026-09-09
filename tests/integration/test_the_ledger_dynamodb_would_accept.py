@@ -119,6 +119,7 @@ def test_recall_filters_on_subject_and_kind_and_returns_newest_first(client):
                 ":k": {"S": "record.published"},
             },
             "ScanIndexForward": False,
+            "ConsistentRead": True,
             "Limit": ANY,
         },
     )

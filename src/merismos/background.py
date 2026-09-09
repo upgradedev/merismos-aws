@@ -41,6 +41,10 @@ from typing import Any
 SOURCE = "merismos.background"
 
 
+class NotDispatched(RuntimeError):
+    """The worker was definitely not invoked; a reviewed new run is safe."""
+
+
 def start(offer_id: str, run_id: str, network: str) -> None:
     """Ask the runner to take this chore.
 
@@ -51,7 +55,7 @@ def start(offer_id: str, run_id: str, network: str) -> None:
 
     function = os.environ.get("MERISMOS_READER_FUNCTION", "")
     if not function:
-        raise RuntimeError("MERISMOS_READER_FUNCTION is not set, so no chore can be started")
+        raise NotDispatched("MERISMOS_READER_FUNCTION is not set, so no chore can be started")
 
     boto3.client("lambda").invoke(
         FunctionName=function,

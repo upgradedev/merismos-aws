@@ -1,203 +1,57 @@
-# Merismos: Enterprise Amazon Bedrock AgentCore Alignment Architecture
+# Merismos — AWS execution and trust boundaries
 
-This specification details how Merismos' autonomous multi-agent institutional fleet maps to the **Amazon Bedrock AgentCore** architecture and enterprise runtime primitives.
+For a community-food coordinator: [open Merismos](https://d2qnkmlhs7y5fp.cloudfront.net/),
+choose Add an offer → Try success, edit the donation and review the exact plan.
+The public sandbox uses real HTTP persistence and Strands with a scripted model, no model network
+call or public publication. Live records are publicly read-only.
 
-> **Read this first. Merismos does not run on AgentCore.** Sections 1 to 4 are a mapping: they say
-> which AgentCore primitive each part of this fleet corresponds to, and they are written to be
-> checked against the code. **Section 5 is what is actually deployed**, which is Lambda, the Strands
-> Agents SDK and Bedrock `Converse`. Nothing in this document should be read as a claim that the
-> deployed system uses AgentCore, and the one section that used to read that way is corrected and
-> says so.
+## Runtime, not a platform claim
 
----
+Merismos runs on AWS Lambda, DynamoDB, S3 and CloudFront. It does **not** run on AgentCore.
+Strands Agents SDK is load-bearing in specialist tool dispatch and the BeforeToolCallEvent guard.
+The deterministic gate is a separate control. The internal runner retains configured
+`eu.anthropic.claude-opus-5`; a particular model call needs run evidence. Optional tool-less
+critic support does not establish a deployed or invoked critic Lambda.
 
-## 1. Executive Summary
+| Boundary | Authority and limit |
+| --- | --- |
+| Public reader / runner role | Corpus reads, bounded agent tools, ledger state and approved internal invocations; no S3 PutObject. Public live changes require a trusted coordinator authorizer. |
+| Evaluator role | Draft-only gate, thread PutItem/GetItem for persisted custody and Query only on by-run for the legacy-head guard; no corpus reads or model authority. |
+| Writer role | Approval GetItem/conditional UpdateItem; exact fresh passing draft; record conditional create. Corpus reads/list only offers/, orgs/, registers/; corpus writes only offers/. Record reads only for exact-attempt recovery. |
+| Coordinator consent | Current workspace revision, run, evidence, bytes and address. A typed approved_by name is not authentication. |
+| Custody | Event + persisted head conditional transaction for new runs. Headless pre-upgrade runs are read-only and require a fresh run. Old events remain unchanged; a digest is not source truth. |
 
-The buyer is the **volunteer coordinator on duty** at one of five small organisations sharing donated
-food in one Athens neighbourhood: a food pantry, a night shelter, a school, a library breakfast club
-and a soup kitchen. None of them employs anybody to do this. What it costs them today is a group
-chat where whoever answers first takes the pallet, and a record that is somebody's phone when the
-funder asks in March what happened in September.
+The nonce is spent before S3 and receipt append follows S3. Therefore transport failure can leave
+an unknown outcome. GET only projects saved state. Explicit authenticated recovery checks one
+reserved approval against actual object metadata and bytes, then appends a missing receipt without
+a second publication. Missing or mismatched objects require investigation; no blind retry.
 
-What stops, the day this is in: nobody phones the shelter to ask why it was skipped, because the
-reason is on the screen beside the decision, and nobody reconstructs September from a chat log.
+New receipts use the network partition, category and recipient organisations. Readers also retain
+legacy category partitions. Fairness uses the last two distinct same-category donations, not
+corrections, and preserves the existing 40% cap. History without those fields remains unknown.
+Approval binds that exact relevant history. The writer holds a same-category conditional lane
+through the final fresh primary-table, strongly consistent history query and receipt append.
+Unknown writes keep the lane reserved until exact-attempt recovery; there is no automatic expiry
+that would permit a duplicate. All history pages are read within a fail-closed bound, with category
+filtering before the result cap so unrelated donations cannot hide the relevant history.
 
-**No agent here ever publishes an allocation on its own.** Deterministic specialists, a constraint
-solver and an advisory critic run under three IAM identities, and the whole fleet stops at one
-approval card bound by sha256 to the exact bytes a person read.
+Record URLs are stable. Conditional creation prevents application overwrite but is not WORM;
+external administrative changes and delete markers remain limits. No historical row or object is
+automatically repaired. The known contradictory record remains disclosed in the README.
 
-```
-                 An offer arrives
-        POST /run  ·  or an EventBridge Scheduler wake
-                          │
-                          ▼
-┌─────────────────────────────────────────────────────────────────────┐
-│  merismos-reader   ·   AWS Lambda   ·   its own IAM role            │
-│                                                                     │
-│   router  ->  food-safety   capacity   equity   premises            │
-│                                                                     │
-│   each specialist runs a Strands Agent:                             │
-│     model  ->  tool  ->  reasoning  ->  answer                      │
-│     model:  eu.anthropic.claude-opus-5  (Bedrock Converse)          │
-│                                                                     │
-│   Guard  ·  Strands BeforeToolCallEvent  ·  sets cancel_tool        │
-│   Bounded reads: scope, traversal, size, 6 per specialist           │
-└─────────────────────────────┬───────────────────────────────────────┘
-                              │ draft
-                              ▼
-┌─────────────────────────────────────────────────────────────────────┐
-│  merismos.solver   ·   deterministic, no model                      │
-│    40% ceiling · capacity limits · conservation · feasibility proof │
-└─────────────────────────────┬───────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────────────┐
-│  merismos-evaluator  ·  AWS Lambda  ·  second IAM role              │
-│    7 deterministic checks. Holds no S3, no Bedrock, no read tool    │
-└─────────────────────────────┬───────────────────────────────────────┘
-                              │ sanitised envelope only
-                              ▼
-              eu.amazon.nova-pro-v1:0  ·  independent critic
-              called with no toolConfig. Advisory, cannot subtract
-                              │
-                              ▼
-        approval card  ·  sha256 over network, key and exact bytes
-                              │
-                       a person approves
-                              ▼
-┌─────────────────────────────────────────────────────────────────────┐
-│  merismos-writer  ·  AWS Lambda  ·  third IAM role                  │
-│    recomputes the digest · spends the nonce · s3:PutObject          │
-└─────────────────────────────┬───────────────────────────────────────┘
-                              ▼
-        a public S3 object anyone can read with no account
+## Deployment and evidence
 
-  Provenance: DynamoDB, append only by interface, parent_id chained
-  Deferrals:  EventBridge Scheduler one-shot at(...), self deleting
-```
+The source IAM change needs a manual Terraform dry run and human plan review before authorized
+apply, preserving resource identities and current Opus 5 configuration. CI Terraform validation is
+not evidence of deployed-role behavior. The deploy proof uses genuine IAM internal worker
+invocation for model execution; anonymous mutation probes assert 403 and public history stays
+read-only. No new public authentication mechanism is simulated.
+The old layer address is removed from management with `destroy = false`, while
+`deps_retained` publishes the replacement with `skip_destroy = true`. Version 8 is intended
+to remain unmanaged for rollback. A reviewed dry-run plan must show forgetting, not destroying,
+the old version; only an authorized apply and subsequent read can establish the deployed result.
 
----
-
-## 2. Bedrock AgentCore Primitive Mapping
-
-| Merismos Component | Bedrock AgentCore Equivalent | Implementation & Role |
-| :--- | :--- | :--- |
-| **`merismos.fleet.run_chore`** | **Supervisor Agent (Orchestrator)** | Coordinates the specialized evaluation passes, executes deterministic gates, and mints approval cards. |
-| **`merismos.fleet.SPECIALISTS`** | **Collaborating Domain Agents** | Four specialized agents evaluating Food Safety (temperature, best-before dates), Storage Capacity (refrigeration volume), Equity (two-in-a-row rota), and Premises Constraints (allergens, alcohol, pork). |
-| **`merismos.solver`** | **Deterministic Action Group** | Operations Research constraint solver enforcing the $\le 40\%$ single-pantry quota and proving non-over-allocation mathematically. |
-| **`merismos.bedrock.BedrockCritic`** | **Bedrock Guardrail & Evaluator** | A second model family, called through `Converse` with **no `toolConfig`**, so it is not an agent and has no dispatcher to ask. It sees the sanitiser's output and never the draft, and its result can only be added to what a person reads. |
-| **`merismos.approval`** | **Bedrock Return-of-Control (ROC)** | sha256 over network, key and the exact bytes, in DynamoDB. The approval is valid for **15 minutes**, not 24 hours; the DynamoDB TTL sits a day past expiry so an expired approval is still there to refuse with. The nonce is spent by a conditional write, so one approval authorises one write. |
-| **`merismos.guard.decide`** | **AgentCore IAM Tool Boundary** | In-process authorization control hook blocking unauthorized tool calls before invocation. |
-
----
-
-## 3. Combinatorial Solver & Invariant Enforcement
-
-To eliminate reliance on LLM hallucinations for resource allocation, Merismos incorporates a deterministic Operations Research solver (`merismos.solver`):
-
-1. **Hard Quota Ceiling:** $\forall p \in \text{Pantries}, \text{Allocated}_p \le 0.40 \times \text{TotalOffered}$.
-2. **Storage Capacity Constraints:** $\forall p, \text{Allocated}_p \le \text{Capacity}_p$.
-3. **Conservation Invariant:** $\sum_p \text{Allocated}_p \le \text{TotalOffered}$.
-4. **Allergen / Premises Exclusion:** If an organization's premises policy bans a declared ingredient (e.g. alcohol, nuts, non-halal/kosher), $\text{Allocated}_p = 0$.
-
----
-
-## 3b. Build or buy, read off the AgentCore page rather than assumed
-
-`https://aws.amazon.com/bedrock/agentcore/`, opened 2026-09-08. What it describes:
-framework flexibility naming the Strands SDK among others, model agnosticism,
-authentication and access control, tool and MCP integration, observability of
-"what steps your agent took, what it called, and where it went off track",
-experimentation against real traffic, and access policies verified by automated
-reasoning.
-
-**Three things it does not describe, and they are the three this build is about.**
-An approval that binds exact bytes by digest before a write and is recomputed by a
-different identity. A deterministic gate that runs after the agents, on the draft,
-that no model can talk past. And a published record, readable with no account,
-naming who was excluded and by which rule.
-
-**The honest reading is that AgentCore is where this would run, not what it
-competes with.** Its nearest thing to the claim here is visibility after the fact;
-this is refusal before it, plus an artefact a funder opens. That is a capability
-gap today rather than a moat: the same page could describe an approval primitive
-next quarter, and a build-or-buy answer that pretended otherwise would be a
-forecast rather than a reading.
-
-## 4. Bedrock Multi-Agent Security & Least Privilege
-
-```
-IAM, as deployed. Role names are lower case and hyphenated.
-
-  merismos-reader      s3:GetObject on the corpus, bedrock:InvokeModel/Converse,
-                       dynamodb PutItem/Query/GetItem, scheduler:CreateSchedule,
-                       lambda:InvokeFunction on the other two.
-                       NO s3:PutObject anywhere. It cannot publish.
-
-  merismos-evaluator   dynamodb:PutItem on the thread, and nothing else.
-                       NO S3, NO Bedrock, NO read tool of any kind.
-
-  merismos-writer      s3:PutObject scoped to records/* and probes/* on the
-                       records bucket, and to offers/* on the corpus bucket,
-                       dynamodb GetItem/UpdateItem on approvals,
-                       secretsmanager:GetSecretValue on the boundary canary.
-                       NO reach into orgs/ or registers/, which are the register
-                       of members and the policy it is judged against.
-```
-
-**Why the writer holds the corpus prefix and the reader does not.** A coordinator
-can file their own offer through a form on the public site, so an offer is now
-something a stranger can create rather than something a fixture supplies. That is
-a write, and every write in this system happens under the one identity that is
-allowed to write. The reader takes the form, validates it so the person is told
-immediately, and then asks the writer over the `lambda:InvokeFunction` grant it
-already held for publishing. It gains no new AWS authority at all, which is the
-property that keeps the three-identity argument standing.
-
-The writer does not trust what it is handed. It receives **the form**, not an
-offer the reader assembled, and rebuilds the offer with the same intake rules,
-in the same way it recomputes the digest rather than trusting a publish payload.
-The S3 key is constructed from an id matched against `offer-` plus digits, so
-this route cannot be aimed at a published record. And the put carries
-`IfNoneMatch: *`, so S3 itself refuses to turn an intake into an overwrite of an
-offer that has already been read or decided about.
-
-**`s3:PutObject` is the publish authority.** The Secrets Manager value is a canary the publish path
-never reads; it exists so a refusal is observable from all three identities. `/identity` attempts
-both and reports what AWS said to each. An earlier version of this file, and of the README, called
-the canary "the publish credential", which overstated it.
-
-The evaluator deliberately holds **zero read tools**. Any attempts by an untrusted donation manifest to prompt-inject the Critic are neutralized because the Critic cannot access corpus files, environment credentials, or network sockets.
-
----
-
-## 5. What is actually deployed, which is not the same as section 2
-
-Sections 1 to 4 are a **mapping**: this component, that AgentCore equivalent. This section is the
-deployment, and the two must not be read as one thing. Merismos does **not** run on AgentCore today.
-
-| | What is built and deployed | What section 2 maps it to |
-|---|---|---|
-| **Runtime** | Four AWS Lambda functions, one package, three IAM roles. The fourth is the reader's own role in a separate concurrency pool, so a nine minute chore cannot make the site unanswerable. The agent loop is the **Strands Agents SDK**, not a managed agent runtime | AgentCore Runtime |
-| **Models** | `eu.anthropic.claude-opus-5` for the specialists, through Bedrock `Converse`. `eu.amazon.nova-pro-v1:0` as an independent critic, called with no `toolConfig` | AgentCore model configuration |
-| **Tool boundary** | `merismos.guard.decide`, enforced in the Strands `BeforeToolCallEvent` hook by setting `cancel_tool` | AgentCore IAM tool boundary |
-| **Trigger** | `POST /run` on the reader, plus **EventBridge Scheduler one-shot `at(...)` schedules** for a parked decision. There is no S3 `ObjectCreated` trigger | EventBridge |
-| **Approval state** | DynamoDB, TTL enabled, nonce spent by a conditional write. **This row is built as described** | AgentCore Memory |
-| **Audit ledger** | DynamoDB, append only **by interface**: no update or delete method exists in the code. No object level immutability feature is enabled on any bucket, so this is weaker than a storage guarantee and the README says so | AgentCore Memory |
-
-**Why AgentCore is not used.** The rules name it as strengthening Technical Implementation, so this
-is a deliberate cost rather than an oversight. The control this entry argues for is a refusal inside
-the tool dispatcher, and that is a Strands hook: `BeforeToolCallEvent` sets `cancel_tool` and the
-tool is never invoked. Moving to a managed runtime would mean re-establishing that control on
-somebody else's dispatcher, and the proof that it has teeth, a CI job that removes the hook and
-watches the same model reach the tool, is the single most load-bearing test in the repository.
-
-This section previously named a managed agent runtime, two older Claude models and a bucket
-immutability feature as the deployment. None of the four is deployed. Corrected 2026-09-04, before
-the repository was made public, by a check that compares every capability word in this file against
-the code.
-
-The old wording is described rather than reproduced, deliberately. A check over source text cannot
-tell a claim from a quotation of one, so a correction that repeats the phrase it corrects trips the
-check written to catch the original. That is a rule this workspace learned three times in one day
-and it applies to this paragraph.
+Evidence bundles show public sources, decisions, revision, run/provider/mode, failure/recovery and
+handoff. Hashes do not prove food safety, delivery, compliance or savings. Time saved, human active
+time and impact are unmeasured. See the README and existing testbook for exact CI/AWS evidence,
+NOT_RUN gaps, retained historical disclosures and dependency licences.

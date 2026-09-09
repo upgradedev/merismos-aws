@@ -51,7 +51,7 @@ def validate(deploy, uat):
     assert not any("configure-aws-credentials" in step.get("uses", "") for step in steps)
     artifact = next(step for step in steps if step.get("uses", "").startswith("actions/upload-artifact@"))
     assert artifact["if"] == "always()"
-    assert artifact["with"]["retention-days"] == "14"
+    assert artifact["with"]["retention-days"] == "90"
     for path in ("frontend/test-results/", "frontend/artifacts/browser-junit.xml",
                  "frontend/playwright-report/", "frontend/UAT.testbook.*"):
         assert path in artifact["with"]["path"].splitlines()

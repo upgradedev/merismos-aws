@@ -82,6 +82,33 @@ it('shows empty pickups and live authorization instead of unusable controls', ()
   data.can_write=false; data.pickups=[{offer_id:'offer-4471',title:'Bread',org:'Kitchen',quantity:96,unit:'kg',role:'duty manager',state:'overdue',agreed_at:'2020-01-01T12:00Z',plan_digest:'d',run_id:'r'}];
   rerender(<Pickups data={data} busy={false} mutate={vi.fn()}/>); expect(screen.getByText(data.authorization_note)).toBeVisible();
 });
+
+it('requires renewed observation consent and retains it after a failed handoff save', async () => {
+  const data = workspace(); const user = userEvent.setup();
+  data.pickups = [{offer_id:'offer-4471',title:'Bread',org:'Kitchen',quantity:96,
+    unit:'kg',role:'duty manager',state:'claimed',agreed_at:'',plan_digest:'digest',run_id:'run'}];
+  const mutate = vi.fn().mockResolvedValue(false);
+  render(<Pickups data={data} busy={false} mutate={mutate}/>);
+  const save = screen.getByText('Save handoff report');
+  const consent = screen.getByLabelText(/I observed this handoff event/);
+  expect(save).toBeDisabled();
+  await user.click(consent);
+  await user.selectOptions(screen.getByLabelText('Handoff observation'), 'recipient_ready');
+  expect(consent).not.toBeChecked();
+  await user.click(consent);
+  await user.selectOptions(screen.getByLabelText('Reporting role'), 'kitchen lead');
+  expect(consent).not.toBeChecked();
+  await user.click(consent); await user.click(save);
+  expect(mutate).toHaveBeenLastCalledWith('offer-4471', 'pickup', {
+    digest:'digest',run_id:'run',org:'Kitchen',action:'feedback',
+    feedback:'recipient_ready',role:'kitchen lead',consent:true,
+  });
+  expect(consent).toBeChecked();
+  mutate.mockResolvedValue(true); await user.click(save);
+  expect(consent).not.toBeChecked();
+  expect(screen.getByText('Confirm collection')).toBeDisabled();
+  expect(screen.getByLabelText('Show')).toBeVisible();
+});
 it('shows current and superseded history without rewriting old records', () => {
   const data=workspace(); const {rerender}=render(<History data={data}/>); expect(screen.getByText('No records yet')).toBeVisible();
   data.records=[{key:'records/offer-4471.md',offer_id:'offer-4471',run_id:'r',content_digest:'d',published_at:1,superseded_by:'records/offer-4471-c2.md',mode:'sandbox'}];

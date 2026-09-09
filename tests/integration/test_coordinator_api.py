@@ -347,14 +347,17 @@ def test_live_authorized_journey_uses_the_separate_writer_and_never_overwrites(c
     assert code == 200, result
 
 
-def test_outcome_unknown_is_not_retried_and_new_actions_are_held(client, monkeypatch):
+def test_known_sandbox_failure_requires_a_reviewed_new_request(client, monkeypatch):
+    analyst = api.bedrock.scripted_analyst
     monkeypatch.setattr(api.bedrock, "scripted_analyst", lambda: (_ for _ in ()).throw(
         RuntimeError("offline agent unavailable")))
     state, payload = post(client, "run", expected=500)
     assert state["detail"] == "RuntimeError"
     code, answer = client("/api/offers/offer-4471/run", "POST", payload)
-    assert code == 409 and "unknown" in answer["detail"]
-    post(client, "run", expected=409)
+    assert code == 409 and "failed before a write" in answer["detail"]
+    assert client()[1]["records"] == []
+    monkeypatch.setattr(api.bedrock, "scripted_analyst", analyst)
+    post(client, "run")
 
 
 def test_overdue_and_expired_claims_have_distinct_states(client):
@@ -372,3 +375,30 @@ def test_overdue_and_expired_claims_have_distinct_states(client):
     client.store.save(key, state, state["version"])
     assert any(p["state"] == "invalidated" for p in client()[1]["pickups"])
     post(client, "pickup", {**args, "action": "confirm", "consent": True}, expected=409)
+
+
+def test_handoff_reports_preserve_observations_without_confirming_collection(client):
+    current = approved(client)
+    args = {**current, "org": "Omonoia Soup Kitchen", "role": "duty manager"}
+    post(client, "pickup", {**args, "action": "claim"})
+    report = {**args, "action": "feedback", "feedback": "driver_ready", "consent": True}
+    post(client, "pickup", {**report, "consent": False}, expected=400)
+    post(client, "pickup", {**report, "role": "a real name"}, expected=400)
+    state, _ = post(client, "pickup", report)
+    item = next(p for p in state["pickups"] if p["org"] == args["org"])
+    assert item["state"] == "claimed" and item["confirmed_at"] is None
+    assert item["feedback"][0]["code"] == "driver_ready"
+    post(client, "pickup", report, expected=409)
+    post(client, "pickup", {**report, "feedback": "no_show"}, expected=409)
+    key = api.fingerprint(client.handle)
+    saved = client.store.get(key)
+    saved["claims"][0]["agreed_at"] = datetime.fromtimestamp(
+        time.time() - 60, timezone.utc).isoformat()
+    client.store.save(key, saved, saved["version"])
+    state, _ = post(client, "pickup", {**report, "feedback": "no_show"})
+    item = next(p for p in state["pickups"] if p["org"] == args["org"])
+    assert item["state"] == "overdue" and item["confirmed_at"] is None
+    state, _ = post(client, "pickup", {**args, "action": "confirm", "consent": True})
+    item = next(p for p in state["pickups"] if p["org"] == args["org"])
+    assert item["state"] == "confirmed"
+    assert [r["code"] for r in item["feedback"]] == ["driver_ready", "no_show"]

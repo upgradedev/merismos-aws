@@ -30,7 +30,7 @@ from __future__ import annotations
 
 import time
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any
 
 #: Who inside an organisation can be named. A fixed set, because the field
@@ -71,6 +71,7 @@ class Claim:
     agreed_at: str = ""
     claimed_at: float = field(default_factory=time.time)
     confirmed_at: float | None = None
+    feedback: tuple = ()
 
     @property
     def state(self) -> str:
@@ -91,6 +92,7 @@ class Claim:
             "claimed_at": self.claimed_at,
             "confirmed_at": self.confirmed_at,
             "state": self.state,
+            **({"feedback": list(self.feedback)} if self.feedback else {}),
         }
 
 
@@ -148,17 +150,7 @@ def confirm(existing: Claim, at: float | None = None) -> Claim:
     """Somebody collected it. The only place a share becomes food."""
     if existing.confirmed_at is not None:
         return existing
-    return Claim(
-        offer_id=existing.offer_id,
-        org=existing.org,
-        role=existing.role,
-        quantity=existing.quantity,
-        unit=existing.unit,
-        plan_digest=existing.plan_digest,
-        agreed_at=existing.agreed_at,
-        claimed_at=existing.claimed_at,
-        confirmed_at=time.time() if at is None else at,
-    )
+    return replace(existing, confirmed_at=time.time() if at is None else at)
 
 
 def still_valid(existing: Claim, plan_digest: str, now: float | None = None) -> bool:

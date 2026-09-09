@@ -56,3 +56,55 @@ it('polls only running work and ignores results from a previous mode', async () 
   await act(async () => { await vi.advanceTimersByTimeAsync(5000); }); expect(api.loadWorkspace).toHaveBeenCalledTimes(2);
   unmount(); await act(async () => { await vi.advanceTimersByTimeAsync(5000); }); expect(api.loadWorkspace).toHaveBeenCalledTimes(2); vi.useRealTimers();
 });
+
+it('keeps pending reads passive and explains unauthorized recovery', async () => {
+  const pending = {...workspace(), mode: 'live' as const, can_write: false,
+    operations: [{id: 'reserved-attempt', offer_id: 'offer-4471', action: 'approve', status: 'pending'}]};
+  vi.mocked(api.loadWorkspace).mockResolvedValue(pending);
+  render(<App/>);
+  expect(await screen.findByText('Reconcile recorded outcome')).toBeDisabled();
+  expect(screen.getByText(/Ask the coordinator to reconcile/)).toBeVisible();
+  await userEvent.click(screen.getByText('Refresh workspace'));
+  expect(api.action).not.toHaveBeenCalled();
+});
+
+it('recovers only the selected reserved operation on explicit coordinator action', async () => {
+  const pending = {...workspace(), operations: [{id: 'reserved-attempt',
+    offer_id: 'offer-4471', action: 'approve', status: 'pending'}]};
+  vi.mocked(api.loadWorkspace).mockResolvedValue(pending);
+  render(<App/>);
+  await userEvent.click(await screen.findByText('Reconcile recorded outcome'));
+  expect(api.action).toHaveBeenCalledWith(pending, 'offer-4471', 'recover',
+    {operation_id: 'reserved-attempt'}, expect.any(String));
+});
+
+it.each(['resolve', 'reject'])('ignores a late previous-session %s without clearing current retry intent', async outcome => {
+  location.hash = '/offers/offer-4471';
+  let finish!: (value: ReturnType<typeof workspace>) => void;
+  let fail!: (error: Error) => void;
+  vi.mocked(api.loadWorkspace).mockImplementationOnce(() => new Promise((resolve, reject) => {
+    finish = resolve; fail = reject;
+  }));
+  const live = {...workspace(), mode: 'live' as const};
+  vi.mocked(api.loadWorkspace).mockResolvedValue(live);
+  vi.mocked(api.action).mockRejectedValueOnce(new Error('Current attempt unknown'));
+  const user = userEvent.setup();
+  render(<App/>);
+  await user.selectOptions(screen.getByLabelText('Workspace', {exact: true}), 'live');
+  const run = await screen.findByText('Re-run the fleet');
+  await user.click(run);
+  expect(await screen.findByRole('alert')).toHaveTextContent('Current attempt unknown');
+  const id = vi.mocked(api.action).mock.calls[0][4];
+  await act(async () => {
+    if (outcome === 'resolve') finish({...workspace(), operations: [{
+      id, offer_id: 'offer-4471', action: 'run', status: 'failed',
+    }]});
+    else fail(new Error('Obsolete session error'));
+  });
+  expect(screen.getByRole('alert')).toHaveTextContent('Current attempt unknown');
+  expect(run).toBeDisabled();
+  await user.click(screen.getByText('Refresh and review'));
+  await waitFor(() => expect(run).toBeEnabled());
+  await user.click(run);
+  expect(vi.mocked(api.action).mock.calls[1][4]).toBe(id);
+});

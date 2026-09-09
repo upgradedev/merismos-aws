@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Empty, Status, Summary } from './components';
 import { DonationEvidence, AllocationEvidence, DecisionPanel, type Mutate } from './OfferDetail';
 import { PickupCard } from './Pickups';
-import { DateCue, ClockBasis } from './DispatchEvidence';
+import { DateCue, ClockBasis, EvidenceBundle } from './DispatchEvidence';
 import { filters, filterOffers, projection, type Filter } from './workspaceModel';
 import { routeLink } from './routes';
 import type { OfferRow, Workspace } from './types';
@@ -42,6 +42,6 @@ export function DispatchWorkspace({ data, selected, filter, unit, today, busy, m
         {selected === item.offer.id && <div className="selected-evidence"><DonationEvidence row={item}/><AllocationEvidence row={item}/>{!!item.result.run_id && <details><summary>Share allocation reasons</summary><Summary key={`${item.result.run_id}-${item.status}`} row={item}/></details>}</div>}</div>)}
       {!rows.length && <Empty title="No offers match">Clear your search or <a href={routeLink('/workspace', { offer: selected, pickup })}>clear filters</a>.</Empty>}
     </section><aside className="decision-pane" aria-label="Decision and dispatch"><div className="pane-heading"><span className="eyebrow">02</span><h2>Decision & dispatch</h2></div>{row ? <><p className="decision-context">{row.offer.id} · {row.offer.title}</p>{hiddenSelection ? <p className="notice">Show this offer's evidence before acting. <a href={routeLink('/workspace', { offer: selected, pickup })}>Review selected offer</a>.</p> : <><DecisionPanel key={`${data.mode}-${selected}-${row.result.run_id}-${row.plan?.digest}-${row.plan?.evidence_digest}-${data.version}`} row={row} data={data} busy={busy} mutate={mutate}/>
-      <DispatchTasks key={`${data.mode}-${selected}-${row.plan?.digest}`} data={data} row={row} today={today} busy={busy} mutate={mutate} pickup={pickup} onPickupChange={onPickupChange}/></>}</> : <Empty title={selected ? 'Offer not found' : 'No offers yet'}>{selected ? 'This offer is missing or has conflicting data. Select a current offer from the stream.' : 'Add an offer to start a considered allocation.'}</Empty>}</aside></div>
+      <DispatchTasks key={`${data.mode}-${selected}-${row.plan?.digest}`} data={data} row={row} today={today} busy={busy} mutate={mutate} pickup={pickup} onPickupChange={onPickupChange}/><EvidenceBundle key={`${data.mode}-${selected}-${data.version}`} row={row} data={data}/></>}</> : <Empty title={selected ? 'Offer not found' : 'No offers yet'}>{selected ? 'This offer is missing or has conflicting data. Select a current offer from the stream.' : 'Add an offer to start a considered allocation.'}</Empty>}</aside></div>
   </>;
 }

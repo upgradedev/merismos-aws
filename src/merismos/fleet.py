@@ -741,7 +741,11 @@ def run_chore(
     setup_log = ReadLog()
     manifest_text = _read_manifest(corpus, offer, setup_log)
     policy_text = _read_policy(corpus)
-    recent = [e.body for e in thread.recall("record.published", limit=8)]
+    from .approval import published_history
+
+    recent = [e.body for e in published_history(thread.ledger, network, [offer],
+                                              category=offer.get("category", ""))
+              if e.run_id != thread.run_id]
     if recent:
         thread.append("recall.performed", found=len(recent))
 
@@ -1307,7 +1311,18 @@ def _days_between(start: str, end: str) -> int | None:
 
 def _took_last_two(recent: Sequence[Mapping[str, Any]], category: str) -> list[str]:
     """Organisations that appear in both of the last two records of a category."""
-    same = [r for r in recent if str(r.get("category", "")).lower() == category][:2]
+    # Corrections to one donation are not a second donation. Keep only the
+    # newest receipt for each distinct offer, without inventing missing history.
+    same, seen = [], set()
+    for record in recent:
+        if str(record.get("category", "")).lower() != category:
+            continue
+        offer = record.get("offer_id") or record.get("key") or id(record)
+        if offer not in seen:
+            same.append(record)
+            seen.add(offer)
+        if len(same) == 2:
+            break
     if len(same) < 2:
         return []
     sets = [set(r.get("orgs", []) or []) for r in same]

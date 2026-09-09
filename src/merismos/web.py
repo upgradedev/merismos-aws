@@ -500,15 +500,13 @@ afterwards and the writer refuses it.</p>
 address and these one set of bytes. It does not let the fleet publish anything else, edit the
 network's filing, or publish again without you.</div>
 
-<form method="post" action="/approve/{_e(offer.get('id'))}">
-  <input type="hidden" name="run" value="{_e(getattr(result, 'run_id', ''))}">
-  <p><label>Your name, for the record<br>
-    <input name="approved_by" required placeholder="the coordinator on duty"
-      style="font:inherit;padding:.6rem;border:1px solid var(--line);border-radius:8px;
-             background:var(--card);color:var(--ink);width:min(100%,22rem);margin-top:.3rem"></label></p>
-  <p><button class="btn" type="submit">I have read these bytes. Publish them.</button>
-     <a class="btn secondary" href="/offer/{_e(offer.get('id'))}">Not yet</a></p>
-</form>"""
+<div class="note"><strong>Read-only historical card.</strong>
+A typed name is not authentication. Publication requires an authenticated network coordinator,
+a fresh passing plan and explicit consent to its exact bytes in the coordinator API.
+A refused or stale draft remains readable here but cannot be published.</div>
+<input type="hidden" name="run" value="{_e(getattr(result, 'run_id', ''))}">
+<p><a class="btn secondary" href="https://d2qnkmlhs7y5fp.cloudfront.net/">Open coordinator workspace</a>
+<a href="/offer/{_e(offer.get('id'))}">Back to the saved run</a></p>"""
     return page("Approve", body, "The one moment a person is in the loop")
 
 
@@ -894,6 +892,9 @@ def new_offer_form(error: str = "", values: Mapping[str, Any] | None = None) -> 
 <h1>Add an offer</h1>
 <p class="lede">What the donor told you, and nothing their message does not already say. A
 coordinator standing in a doorway will not fill in twenty fields.</p>
+<div class="note amber"><strong>Read-only legacy form.</strong> Live intake requires an
+authenticated coordinator using the current API contract. This form cannot file an offer.
+<a href="https://d2qnkmlhs7y5fp.cloudfront.net/#/offers/new">Try an editable isolated sandbox</a>.</div>
 {warn}
 <form method="post" action="/offers/new">
   <div class="card">
@@ -953,7 +954,7 @@ coordinator standing in a doorway will not fill in twenty fields.</p>
   a person's name or address in the note: the gate refuses a record carrying one, and it is easier
   not to type it.</div>
 
-  <p><button class="btn" type="submit">Add it</button>
+  <p><button class="btn" type="submit" disabled>Add it</button>
      <a class="btn secondary" href="/">Back to offers</a></p>
 </form>""",
         "Add an offer to this network's filing",

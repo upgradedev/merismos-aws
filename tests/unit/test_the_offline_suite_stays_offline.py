@@ -102,7 +102,10 @@ def test_the_handler_serves_a_run_with_every_socket_refused(no_network, monkeypa
 
     reply = handler.handler(
         {
-            "requestContext": {"http": {"method": "POST", "path": "/run"}},
+            "requestContext": {"http": {"method": "POST", "path": "/run"},
+                           "authorizer": {"lambda": {"network": handler.NETWORK,
+                           "principalId": "fixture-coordinator",
+                           "permissions": ["merismos:coordinate"]}}},
             "body": json.dumps({"offer": "offer-4471"}),
         }
     )

@@ -1,6 +1,51 @@
 import { useState } from 'react';
 import { calendarDay, dateCue } from './dispatch';
-import type { Mode, Offer, Plan } from './types';
+import type { Mode, Offer, OfferRow, Plan, Workspace } from './types';
+
+export function evidenceBundle(row: OfferRow, data: Workspace): string {
+  const records = data.records.filter(record => record.offer_id === row.offer.id);
+  const pickups = data.pickups.filter(pickup => pickup.offer_id === row.offer.id);
+  return [
+    'MERISMOS · COORDINATOR EVIDENCE BUNDLE',
+    `Scope: ${data.mode} · synthetic donations and organisations`,
+    `Workspace revision: ${data.version}; application release: not supplied in this snapshot`,
+    `Provider: ${data.provider}`,
+    'Provider configuration does not prove a model call or an independent critic ran.',
+    `Offer: ${row.offer.id} · ${row.offer.title}`,
+    `Run: ${row.result.run_id || 'not started'}; observed outcome: ${row.status}`,
+    `Progress: ${row.progress?.stage || 'no active progress reported'}`,
+    `Decision: ${row.result.note || 'No decision reported.'}`,
+    `Source: offers/${row.offer.id}.json (public offer projection)`,
+    `Applied allocation policy: ${row.result.fairness_cap?.source || 'unknown in this result'}`,
+    'Raw manifests, internal logs and personal identities are not included in this public export.',
+    ...((row.result.envelopes || []).map(item => `${item.specialist}: ${item.status} · ${item.reason}`)),
+    row.summary,
+    `Record address: ${row.plan?.key || 'none'}; state: ${row.plan?.recorded ? 'server reported record' : 'not recorded'}`,
+    `Approval digest: ${row.plan?.digest || 'unavailable'}`,
+    `Evidence digest: ${row.plan?.evidence_digest || 'unavailable'}`,
+    'Hashes bind bytes; they do not prove source truth, food safety, delivery or independent custody verification.',
+    'RECORD HISTORY',
+    ...(records.length ? records.map(record => `${record.key} · run ${record.run_id} · ${record.superseded_by ? `superseded by ${record.superseded_by}` : 'current in available history'}`) : ['No saved record in this snapshot.']),
+    'COLLECTION HANDOFF',
+    ...(pickups.length ? pickups.map(item => `${item.org}: ${item.quantity} ${item.unit} · ${item.state} · ${item.role || 'role unassigned'} · ${item.agreed_at || 'time not agreed'}`) : ['No collection commitment reported.']),
+    'RECOVERY AND LIMITS',
+    ...pickups.flatMap(item => (item.feedback || []).map(event => `Handoff report: ${item.org} · ${event.code} · ${event.role} · ${new Date(event.at * 1000).toISOString()}`)),
+    'After a failed or uncertain request, refresh and inspect the same run and record before retrying. Do not infer failure from a timeout.',
+    'A correction needs a new review and exact consent. Existing record addresses remain historical evidence.',
+    'Human active time, time saved, food rescued and beneficiary impact: unknown; not measured.',
+    'No message is sent by this export. A recorded allocation is not a confirmed collection.',
+  ].join('\n');
+}
+
+export function EvidenceBundle({ row, data }: { row: OfferRow; data: Workspace }) {
+  const [feedback, setFeedback] = useState('');
+  const text = evidenceBundle(row, data);
+  async function copy() {
+    try { await navigator.clipboard.writeText(text); setFeedback('Evidence bundle copied. You choose where to share it.'); }
+    catch { setFeedback('Clipboard unavailable. Select and copy the evidence text.'); }
+  }
+  return <details className="panel padded"><summary>Evidence bundle and recovery</summary><p>Readable evidence from this API snapshot. Review before sharing.</p><textarea aria-label="Evidence bundle" readOnly rows={14} value={text}/><button type="button" className="secondary" onClick={copy}>Copy evidence bundle</button><p role="status">{feedback}</p></details>;
+}
 
 export function DateCue({ offer, today, closed = false }: { offer?: Offer; today: string; closed?: boolean }) {
   const cue = dateCue(offer, today, closed);

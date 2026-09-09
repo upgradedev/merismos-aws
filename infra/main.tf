@@ -1,5 +1,5 @@
 terraform {
-  required_version = ">= 1.6"
+  required_version = ">= 1.7"
   required_providers {
     aws     = { source = "hashicorp/aws", version = "~> 5.60" }
     archive = { source = "hashicorp/archive", version = "~> 2.4" }
@@ -94,7 +94,7 @@ resource "aws_lambda_function" "fleet" {
   timeout     = each.key == "runner" ? 900 : (each.key == "reader" ? 60 : 30)
   memory_size = each.value == "reader" ? 1024 : 512
 
-  layers = [aws_lambda_layer_version.deps.arn]
+  layers = [aws_lambda_layer_version.deps_retained.arn]
 
   # Two pools, because they were one pool doing two jobs and the site went down.
   # The reader answers requests in well under a second; the runner spends about
@@ -164,7 +164,17 @@ resource "aws_lambda_function" "fleet" {
 
 # Dependencies as a layer so the function bundle stays small and a code change
 # does not re-upload boto3 and Strands.
-resource "aws_lambda_layer_version" "deps" {
+# Forget the old address without deleting its published version. Changing
+# skip_destroy on that address would replace it using the OLD false flag.
+removed {
+  from = aws_lambda_layer_version.deps
+  lifecycle {
+    destroy = false
+  }
+}
+
+resource "aws_lambda_layer_version" "deps_retained" {
+  skip_destroy        = true
   layer_name          = "${var.project}-deps"
   filename            = "${path.module}/.build/deps.zip"
   compatible_runtimes = ["python3.13"]
