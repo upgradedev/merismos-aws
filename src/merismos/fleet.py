@@ -71,8 +71,26 @@ CATALOGUE: dict[str, dict[str, Any]] = {
 
 
 def catalogue() -> dict[str, Any]:
-    """What ``GET /catalog`` serves. A queried structure, not a table in a doc."""
+    """What ``GET /catalog`` serves. A queried structure, not a table in a doc.
+
+    ``reads`` is what a specialist is **expected** to consult. It is not a
+    permission and was described as one until 2026-09-09: the enforced bound is
+    ``tools.DEFAULT_SCOPE``, which is per run rather than per specialist, and
+    every specialist holds all of it.
+
+    Enforcing these lists would be wrong as well as narrower. On a live run the
+    premises specialist opened ``offers/offer-4471.json``, which is not in its
+    list, and refusing that read would have broken a correct run in order to make
+    a sentence true.
+    """
+    from .tools import DEFAULT_SCOPE
+
     return {
+        "reads_is_expected_not_enforced": (
+            f"each specialist's `reads` is what it is expected to consult. The "
+            f"enforced bound is {list(DEFAULT_SCOPE)}, and it is per run rather "
+            f"than per specialist"
+        ),
         "specialists": {
             name: {
                 "wakes_for": list(spec["wakes_for"]),

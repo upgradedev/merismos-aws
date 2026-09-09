@@ -611,13 +611,17 @@ def how_it_decides(catalogue_doc: Mapping[str, Any], config_doc: Mapping[str, An
 
 <h2>The specialists</h2>
 <div class="scroll"><table>
- <thead><tr><th>Who wakes</th><th>Why they exist</th><th>What they may read</th></tr></thead>
+ <thead><tr><th>Who wakes</th><th>Why they exist</th><th>What it is expected to open</th></tr></thead>
  <tbody>{specialists}</tbody></table></div>
 
 <h2>What the agents are not allowed to do</h2>
 <div class="scroll"><table>
  <tr><th>Bound</th><td>Reads are limited to
-   <code>{_e(', '.join(config_doc.get('read_scope', [])))}</code></td></tr>
+   <code>{_e(', '.join(config_doc.get('read_scope', [])))}</code>.
+   <strong>That bound is per run, not per specialist.</strong> The column above says what
+   each one is expected to consult, which is useful and is not a permission: this is the
+   line that is enforced, and a read outside it is refused by the tool rather than
+   discouraged by a prompt</td></tr>
  <tr><th>Budget</th><td>{_e(config_doc.get('read_budget_per_specialist'))} files per specialist,
    per offer. A refused read costs nothing, so a bad guess is not punished</td></tr>
  <tr><th>Publishing</th><td>No agent can publish. The identity that reads cannot write, and AWS
