@@ -1,0 +1,200 @@
+{
+  "product": "Merismos",
+  "cases": [
+    {
+      "id": "ME00",
+      "persona": "Visiting coordinator",
+      "requirement": "Recognise the synthetic sandbox and truthful provider",
+      "preconditions": "Clean browser; no account",
+      "steps": [
+        "Open /",
+        "read the banner and provider label",
+        "switch between Sandbox and Live records"
+      ],
+      "expected_outcome": "Sandbox names scripted-planner and a real Strands loop; live configuration is separately labelled",
+      "negative_recovery_case": "Blocked storage keeps the tab usable and displays a recovery note",
+      "automation_mapping": "e2e/journeys.spec.ts; src/storage.test.ts; src/App.test.tsx",
+      "observed_result_evidence": "NOT_RUN — CI evidence will be recorded after execution.",
+      "human_signoff": "NOT_RUN"
+    },
+    {
+      "id": "ME01",
+      "persona": "Coordinator on duty",
+      "requirement": "Add a food offer and obtain a reasoned allocation",
+      "preconditions": "Active sandbox session",
+      "steps": [
+        "Add offer",
+        "fill donor organisation, quantity, category, dates and allergens",
+        "submit",
+        "work out split"
+      ],
+      "expected_outcome": "Backend validates typed fields; durable offer is reviewable and real Strands scripted run produces reasons",
+      "negative_recovery_case": "Phone number or prompt instruction is refused with entered fields retained",
+      "automation_mapping": "e2e/intake.spec.ts; tests/integration/test_coordinator_api.py::test_add_offer_uses_existing_validation_and_flows_to_the_fleet",
+      "observed_result_evidence": "NOT_RUN — CI evidence will be recorded after execution.",
+      "human_signoff": "NOT_RUN"
+    },
+    {
+      "id": "ME02-A",
+      "persona": "Approving coordinator",
+      "requirement": "Consent binds the exact run, record address and digest",
+      "preconditions": "A finished run with passing gate",
+      "steps": [
+        "Read allocation and excluded organisations",
+        "open exact record text",
+        "tick consent",
+        "approve in sandbox"
+      ],
+      "expected_outcome": "One synthetic record; public S3 is unchanged; collection remains unconfirmed",
+      "negative_recovery_case": "Stale digest, missing consent, duplicate approval and changed relevant sources are refused",
+      "automation_mapping": "e2e/journeys.spec.ts; tests/integration/test_coordinator_api.py",
+      "observed_result_evidence": "NOT_RUN — CI evidence will be recorded after execution.",
+      "human_signoff": "NOT_RUN"
+    },
+    {
+      "id": "ME02-B",
+      "persona": "Organisation collection lead",
+      "requirement": "Claim, schedule and confirm a share without double collection",
+      "preconditions": "An approved sandbox allocation",
+      "steps": [
+        "Open Pickups",
+        "select collecting role",
+        "claim",
+        "set future time",
+        "confirm actual simulated arrival"
+      ],
+      "expected_outcome": "Backend stores role and schedule; confirmation is explicit; refresh retains each stage",
+      "negative_recovery_case": "Unallocated organisation, free-text role, invalid time, expired commitment and second confirmation are refused",
+      "automation_mapping": "e2e/journeys.spec.ts; src/components.test.tsx; tests/integration/test_coordinator_api.py",
+      "observed_result_evidence": "NOT_RUN — CI evidence will be recorded after execution.",
+      "human_signoff": "NOT_RUN"
+    },
+    {
+      "id": "ME02-C",
+      "persona": "Coordinator reviewing a changed allocation",
+      "requirement": "Invalid commitments cannot authorize collection",
+      "preconditions": "Claim exists against original plan",
+      "steps": [
+        "Change relevant offer evidence in offline regression fixture",
+        "attempt confirmation",
+        "rerun and approve new plan"
+      ],
+      "expected_outcome": "Old commitment shown invalidated; old record preserved and marked superseded",
+      "negative_recovery_case": "Adding an unrelated offer must leave the original commitment valid",
+      "automation_mapping": "tests/integration/test_coordinator_api.py::test_changed_evidence_and_recomputed_plan_invalidate_claims; tests/integration/test_coordinator_api.py::test_an_unrelated_offer_does_not_invalidate_an_approved_pickup",
+      "observed_result_evidence": "NOT_RUN — CI evidence will be recorded after execution.",
+      "human_signoff": "NOT_RUN"
+    },
+    {
+      "id": "ME02-D",
+      "persona": "Morning coordinator",
+      "requirement": "Distinguish overdue, claimed, scheduled, confirmed and invalidated states",
+      "preconditions": "Persisted pickup rows covering time transitions",
+      "steps": [
+        "Open Pickups",
+        "review each status",
+        "filter Needs attention and Confirmed"
+      ],
+      "expected_outcome": "Unconfirmed scheduled time in the past reads Overdue; allocated quantity never counts as collected",
+      "negative_recovery_case": "Confirmed facts do not age into unclaimed collections after 14 days",
+      "automation_mapping": "src/components.test.tsx; tests/integration/test_coordinator_api.py; tests/unit/test_a_share_becomes_a_collection.py",
+      "observed_result_evidence": "NOT_RUN — CI evidence will be recorded after execution.",
+      "human_signoff": "NOT_RUN"
+    },
+    {
+      "id": "ME03",
+      "persona": "Coordinator sharing reasons",
+      "requirement": "Share an accurate, PII-checked reasons summary",
+      "preconditions": "Reviewed offer",
+      "steps": [
+        "Copy summary",
+        "inspect text before manually sharing"
+      ],
+      "expected_outcome": "Names organisation allocations and exclusion reasons; draft/publication state is explicit; no message sent",
+      "negative_recovery_case": "Clipboard refusal leaves selectable text; personal-data output is withheld",
+      "automation_mapping": "src/components.test.tsx; tests/integration/test_coordinator_api.py::test_public_text_refuses_pii_and_confirmed_history_does_not_expire",
+      "observed_result_evidence": "NOT_RUN — CI evidence will be recorded after execution.",
+      "human_signoff": "NOT_RUN"
+    },
+    {
+      "id": "ME04",
+      "persona": "Food safety coordinator",
+      "requirement": "Unsafe cold-chain offers stop before approval",
+      "preconditions": "Synthetic chilled offer-4477",
+      "steps": [
+        "Open offer",
+        "work out split",
+        "inspect refusal and findings"
+      ],
+      "expected_outcome": "Safety refusal and its reason; no approval action",
+      "negative_recovery_case": "No model finding can clear the deterministic refusal",
+      "automation_mapping": "e2e/journeys.spec.ts; existing tests/unit/test_the_model_cannot_clear_a_refusal.py",
+      "observed_result_evidence": "NOT_RUN — CI evidence will be recorded after execution.",
+      "human_signoff": "NOT_RUN"
+    },
+    {
+      "id": "ME05",
+      "persona": "Reviewer following an old link",
+      "requirement": "Persistent navigation, search, empty and missing states",
+      "preconditions": "Desktop or mobile browser",
+      "steps": [
+        "Filter offers",
+        "follow offer deep link",
+        "reload",
+        "navigate Pickups and History",
+        "use an unknown link"
+      ],
+      "expected_outcome": "Hash navigation survives reload; no-match and missing states offer recovery",
+      "negative_recovery_case": "Expired session gives explicit new-session action rather than invented empty data",
+      "automation_mapping": "e2e/journeys.spec.ts; src/App.test.tsx; src/components.test.tsx",
+      "observed_result_evidence": "NOT_RUN — CI evidence will be recorded after execution.",
+      "human_signoff": "NOT_RUN"
+    },
+    {
+      "id": "ME06",
+      "persona": "Anonymous live viewer",
+      "requirement": "Respect publication and mutation boundaries",
+      "preconditions": "Live mode without coordinator authorizer",
+      "steps": [
+        "Open live offer, add form, pickups and history",
+        "attempt API mutation"
+      ],
+      "expected_outcome": "Live remains readable; changes require trusted network coordinator; sandbox remains separate",
+      "negative_recovery_case": "Forged body/header identity grants no rights; writer role alone cannot serve coordinator API",
+      "automation_mapping": "tests/integration/test_coordinator_api.py; e2e/journeys.spec.ts",
+      "observed_result_evidence": "NOT_RUN — CI evidence will be recorded after execution.",
+      "human_signoff": "NOT_RUN"
+    },
+    {
+      "id": "ME07",
+      "persona": "Coordinator with unreliable connectivity",
+      "requirement": "Recover safely without automatic repeated writes",
+      "preconditions": "Active workspace",
+      "steps": [
+        "Cause a failed mutation in component test",
+        "refresh",
+        "retry explicitly"
+      ],
+      "expected_outcome": "Error is actionable; form fields/consent retained; same request id is reused for same inputs",
+      "negative_recovery_case": "35-second timeout reports unknown outcome; backend pending action cannot execute twice",
+      "automation_mapping": "src/api.test.ts; src/App.test.tsx; tests/integration/test_coordinator_api.py",
+      "observed_result_evidence": "NOT_RUN — CI evidence will be recorded after execution.",
+      "human_signoff": "NOT_RUN"
+    },
+    {
+      "id": "ME08",
+      "persona": "Human accessibility and usability reviewer",
+      "requirement": "Review actual desktop and mobile usability",
+      "preconditions": "Built application; keyboard and screen reader available",
+      "steps": [
+        "Walk intake through collection using keyboard",
+        "inspect focus, labels, reading order, zoom and contrast"
+      ],
+      "expected_outcome": "Controls have accessible names, focus visibility and semantic navigation; mobile layout readable",
+      "negative_recovery_case": "Horizontal table scrolling remains within its container; errors have alert semantics",
+      "automation_mapping": "Playwright desktop/mobile screenshots plus manual keyboard/screen-reader review",
+      "observed_result_evidence": "NOT_RUN — CI evidence will be recorded after execution.",
+      "human_signoff": "NOT_RUN"
+    }
+  ]
+}

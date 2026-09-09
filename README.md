@@ -93,6 +93,29 @@ proven by a deployment rather than by this suite, which is a weaker thing and is
 
 ## Who this is for
 
+### React coordinator workspace
+
+`frontend/` is the React, TypeScript and Tailwind coordinator application. It builds to
+`frontend/dist/` and calls the same-origin `/api/*` JSON boundary in `merismos.handler.handler`.
+Hash links (`#/offers`, `#/offers/new`, `#/offers/<id>`, `#/pickups`, `#/history`) survive reload
+without replacing the compatible `/offer/*` screens.
+
+The default sandbox uses bundled synthetic filing, the real Strands dispatcher with
+`scripted-planner/1.0.0`, and backend persistence. It does not call Bedrock or publish to S3.
+Add an invented offer, work out its split, approve the exact plan, then claim and confirm a
+collection. Live mode is separate: mutations require a trusted API Gateway Lambda authorizer
+context naming the network, a principal, and the `merismos:coordinate` permission. Without that
+integration, live mode is read-only. The browser stores only a session handle and preferences.
+Sandbox access expires after 24 hours; this is access expiry, not a physical-deletion guarantee.
+
+The reusable `frontend-ci.yml` workflow installs dependencies in GitHub Actions, generates a
+package lock only when absent, preserves that lock, builds the app, measures Vitest/RTL coverage,
+runs the existing Python suite and API tests, then runs desktop/mobile Playwright journeys against
+the real offline Python HTTP handler with SQLite persistence. Installation and browser setup must
+run in CI, not on this workspace's disk. The parent release workflow owns AWS hosting.
+`frontend/UAT.testbook.html` and its JSON companion distinguish automated evidence from human
+acceptance; human signoff remains `NOT_RUN` until an actual reviewer signs off.
+
 Five small organisations in one Athens neighbourhood who share whatever food gets donated: a food
 pantry, a night shelter, a school, a library breakfast club and a soup kitchen. None of them
 employs anyone to do this. An offer arrives in a group chat and whoever answers first gets it.

@@ -170,6 +170,8 @@ def still_valid(existing: Claim, plan_digest: str, now: float | None = None) -> 
     """
     if existing.plan_digest != plan_digest:
         return False
+    if existing.confirmed_at is not None:
+        return True
     now = time.time() if now is None else now
     return (now - existing.claimed_at) <= CLAIM_VALID_FOR_DAYS * 86400
 

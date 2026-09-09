@@ -1,0 +1,81 @@
+name: Frontend verification
+on:
+  push:
+    branches: [main, 'codex/**']
+  pull_request:
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      AWS_ACCESS_KEY_ID: offline-suite-no-account
+      AWS_SECRET_ACCESS_KEY: offline-suite-no-account
+      AWS_EC2_METADATA_DISABLED: 'true'
+      AWS_DEFAULT_REGION: eu-west-1
+      MERISMOS_OFFLINE_HTTP: '1'
+      MERISMOS_WORKSPACE_DB: /tmp/merismos-workspace.sqlite
+      MERISMOS_CORPUS_ROOT: ${{ github.workspace }}/corpus
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.18.0'
+      - uses: actions/setup-python@v5
+        with:
+          python-version-file: .python-version
+      - name: Install Python dependencies in CI
+        run: pip install -e '.[dev]'
+      - name: Resolve frontend lock only if absent
+        working-directory: frontend
+        run: |
+          if [ ! -f package-lock.json ]; then
+            npm install --package-lock-only --ignore-scripts
+          fi
+          npm ci
+      - name: Preserve generated or committed lock
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-lock
+          path: frontend/package-lock.json
+          if-no-files-found: error
+      - name: Lint Python
+        run: ruff check src/ tests/
+      - name: Existing Python regression and API functional tests
+        run: pytest -q --junitxml=frontend/test-results/python.xml --cov-report=xml:frontend/coverage-python.xml
+      - name: Build the actual React application
+        working-directory: frontend
+        run: npm run build
+      - name: Vitest and RTL with measured coverage floors
+        working-directory: frontend
+        run: npm test
+      - name: Install browser in CI
+        working-directory: frontend
+        run: npx playwright install --with-deps chromium
+      - name: Real Python HTTP API and desktop/mobile journeys
+        working-directory: frontend
+        run: npm run test:e2e
+      - name: Upload verification evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-evidence
+          path: |
+            frontend/test-results/
+            frontend/playwright-report/
+            frontend/coverage/
+            frontend/coverage-python.xml
+            frontend/UAT.testbook.*
+          retention-days: 10
+      - name: Upload verified static build
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist/
+          if-no-files-found: error
