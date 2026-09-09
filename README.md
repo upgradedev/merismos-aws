@@ -117,6 +117,9 @@ the real offline Python HTTP handler with SQLite persistence. Installation and b
 run in CI, not on this workspace's disk. The parent release workflow owns AWS hosting.
 CI also blocks on production dependency audit findings and high/critical findings in the full
 dependency graph; complete audit JSON is preserved for review, including lower-severity findings.
+For parent-owned deployed UAT, set `MERISMOS_UI_URL` to the CloudFront HTTPS origin before
+`npm run test:e2e` in CI. This uses the same synthetic journeys and disables both local servers.
+Offline SQLite CI results are not evidence of AWS deployment behavior.
 `frontend/UAT.testbook.html` and its JSON companion distinguish automated evidence from human
 acceptance; human signoff remains `NOT_RUN` until an actual reviewer signs off.
 
