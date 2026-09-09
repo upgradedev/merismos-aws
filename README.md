@@ -95,6 +95,13 @@ proven by a deployment rather than by this suite, which is a weaker thing and is
 
 ### React coordinator workspace
 
+Live AWS application: [Merismos coordinator workspace](https://d2qnkmlhs7y5fp.cloudfront.net/).
+[Live AWS acceptance](https://github.com/upgradedev/merismos-aws/actions/runs/34328335818)
+passed all 10 desktop/mobile journeys on 2026-09-09 against CloudFront, Lambda and DynamoDB,
+including API refusal of unauthorized live changes. Automated synthetic acceptance is not
+human signoff or measured food rescued. Tested frontend: `5bdb573151c49499c8f01d938b7d12d3ca3b94be`;
+current release identity is at `/release.json`.
+
 `frontend/` is the React, TypeScript and Tailwind coordinator application. It builds to
 `frontend/dist/` and calls the same-origin `/api/*` JSON boundary in `merismos.handler.handler`.
 Hash links (`#/offers`, `#/offers/new`, `#/offers/<id>`, `#/pickups`, `#/history`) survive reload
@@ -122,6 +129,17 @@ For parent-owned deployed UAT, set `MERISMOS_UI_URL` to the CloudFront HTTPS ori
 Offline SQLite CI results are not evidence of AWS deployment behavior.
 `frontend/UAT.testbook.html` and its JSON companion distinguish automated evidence from human
 acceptance; human signoff remains `NOT_RUN` until an actual reviewer signs off.
+
+Every push to `main`, including a merged pull request, now starts
+[`frontend-deploy.yml`](https://github.com/upgradedev/merismos-aws/actions/workflows/frontend-deploy.yml):
+offline checks -> AWS frontend deployment -> live desktop/mobile Playwright testbook journeys.
+The release lock stays held through acceptance; queued releases do not interrupt a running test.
+The reusable `aws-uat.yml` checks the exact frontend SHA before and after the journeys and fails
+on browser errors or a changed release. Focused `test.only` tests are refused. Each run retains
+HTML/JUnit reports, traces, screenshots, failure video and the testbook for 14 days, with a
+result summary in GitHub Actions. Failure makes the pipeline red; it does not undo a merge
+or automatically roll back the deployed frontend. Backend deployment remains a separate process.
+Manual reruns remain available. Automated results never set human UAT signoff to PASS.
 
 Five small organisations in one Athens neighbourhood who share whatever food gets donated: a food
 pantry, a night shelter, a school, a library breakfast club and a soup kitchen. None of them

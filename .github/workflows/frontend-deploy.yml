@@ -1,0 +1,67 @@
+name: Deploy AWS frontend
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: merismos-frontend-release
+  cancel-in-progress: false
+  queue: max
+jobs:
+  verify:
+    uses: ./.github/workflows/frontend-ci.yml
+  release:
+    needs: verify
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.18.0"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Require committed dependency lock and provisioned target
+        env:
+          ROLE: ${{ vars.FRONTEND_RELEASE_ROLE_ARN }}
+        run: |
+          test -s frontend/package-lock.json
+          test -n "$ROLE" || { echo "::error::Provision infra/frontend_stack.py and set FRONTEND_RELEASE_ROLE_ARN first."; exit 1; }
+          python infra/test_frontend_hosting.py
+      - name: Build exact verified revision from committed lock
+        working-directory: frontend
+        run: |
+          npm install --global npm@11.19.1 --ignore-scripts
+          npm ci
+          npm audit --omit=dev --audit-level=low
+          npm run build
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.FRONTEND_RELEASE_ROLE_ARN }}
+          aws-region: eu-west-1
+      - name: Publish versioned assets and switch HTML last
+        run: python infra/frontend_publish.py --sha "${{ github.sha }}" --stack merismos-frontend | tee frontend-release.json
+      - name: Verify deployed commit, real assets, headers and honest API errors
+        run: |
+          URL=$(python -c 'import json; print(json.load(open("frontend-release.json"))["url"])')
+          python infra/frontend_smoke.py --url "$URL" --sha "${{ github.sha }}"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: aws-frontend-release
+          path: frontend-release.json
+  acceptance:
+    name: Live Playwright testbook
+    needs: release
+    permissions:
+      contents: read
+    uses: ./.github/workflows/aws-uat.yml
+    with:
+      release_sha: ${{ github.sha }}
