@@ -86,9 +86,30 @@ def progress(entries) -> dict[str, Any]:
     specialists reading for a minute each is the part somebody is actually
     waiting through, and a bar that sits on one label for four minutes tells
     them nothing.
+
+    **Specialists are counted, not entries.** With a model configured each
+    specialist appends twice: its deterministic answer, and a second entry from
+    ``_union_model`` recording what the model chose to open. Both are worth
+    keeping and only one of them is a specialist. The live screen read "8 of 4"
+    on the first real model run after the runner was given a model, which is a
+    counter telling a judge, for four minutes, that it cannot count.
+
+    An entry with no specialist name falls back to being counted on its own, so
+    a thread written by an older build still moves the bar rather than freezing
+    it at zero.
     """
     kinds = [e.kind for e in entries]
-    answered = sum(1 for k in kinds if k == "specialist.answered")
+    named = {
+        str((e.body or {}).get("specialist"))
+        for e in entries
+        if e.kind == "specialist.answered" and (e.body or {}).get("specialist")
+    }
+    anonymous = sum(
+        1
+        for e in entries
+        if e.kind == "specialist.answered" and not (e.body or {}).get("specialist")
+    )
+    answered = len(named) + anonymous
     done = "run.completed" in kinds
     failed = "run.failed" in kinds
 
