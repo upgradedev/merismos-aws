@@ -1,0 +1,29 @@
+name: AWS hosting contract
+on:
+  pull_request:
+    paths: ["infra/frontend*", "infra/test_frontend_hosting.py", ".github/workflows/aws-hosting-ci.yml"]
+  push:
+    branches: [main, "codex/**"]
+    paths: ["infra/frontend*", "infra/test_frontend_hosting.py", ".github/workflows/aws-hosting-ci.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  hosting:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Exercise routing, isolation, publishing order and deliberately broken live gates
+        run: python infra/test_frontend_hosting.py
+      - name: Render CloudFormation
+        run: python infra/frontend_stack.py --product merismos --repository upgradedev/merismos-aws > frontend-stack.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: aws-frontend-template
+          path: frontend-stack.json

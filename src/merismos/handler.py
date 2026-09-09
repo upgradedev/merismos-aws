@@ -146,6 +146,10 @@ def handler(event: Any, context: Any = None) -> dict[str, Any]:
     me = role()
 
     try:
+        if path.startswith("/api/"):
+            from .api import route as api_route
+
+            return api_route(event, method, path, body)
         html_reply = _screens(method, path, body)
         if html_reply is not None:
             return html_reply
@@ -429,6 +433,14 @@ def publish(body: dict) -> dict[str, Any]:
     nonce = str(body.get("nonce", ""))
     key = str(body.get("key", ""))
     content = str(body.get("body", ""))
+    if "api_evidence_digest" in body:
+        from .api import evidence_digest
+
+        offer = _offer(str(body.get("offer_id", "")))
+        if offer is None or body["api_evidence_digest"] != evidence_digest(
+            corpus_from_env(), offer
+        ):
+            return _reply(409, {"detail": "Evidence changed before the writer could publish."})
     store = ApprovalStore()
 
     approval = authorise(store, nonce, NETWORK, key, content)
@@ -441,6 +453,7 @@ def publish(body: dict) -> dict[str, Any]:
         Key=key,
         Body=content.encode("utf-8"),
         ContentType="text/markdown; charset=utf-8",
+        **({"IfNoneMatch": "*"} if "api_evidence_digest" in body else {}),
     )
     receipt = Receipt(
         nonce=approval.nonce,
