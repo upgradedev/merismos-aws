@@ -159,6 +159,30 @@ below.
 The approval binds exact bytes by sha256, expires in fifteen minutes, and is spent by a conditional
 write, so one approval authorises one publish and cannot be replayed.
 
+## What happened when it was wrong
+
+On 2026-09-08 a review pointed at the published record for `offer-4471`. It gave 96 kg to an
+organisation that the food safety rule quoted two paragraphs above it forbids, and then said every
+constraint was satisfied.
+
+The cause is the thing this project argues against. The rule was found by the specialist, recorded as
+a finding, and never reached the solver, because the envelope it returned carried no eligibility. It
+was a control that existed in prose and not in the mechanism, in the flagship example, with a green
+suite.
+
+What was done about it is the part worth reading. The defect was reproduced as a failing test before
+anything was changed. The rule now constrains the solver **and** the gate re-checks the draft against
+it, because a system where the only thing standing between a forbidden share and a published record
+is that the solver got it right is not a system with a control. Two existing tests were pinning the
+wrong answer as correct and are corrected in place, saying so. The register that was ambiguous
+between a veto and a cap was made unambiguous first, so the code follows the rule a member points at
+rather than the other way round.
+
+**The wrong record is still published.** A correction takes the next address in the series and names
+what it replaces; the original stays reachable and is marked superseded, because somebody may have
+driven a van because of it, and a record that quietly becomes correct is worth less than one that
+shows it was wrong.
+
 A parked decision wakes on the day, through an EventBridge Scheduler one-shot schedule that deletes
 itself after firing.
 
