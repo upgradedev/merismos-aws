@@ -126,6 +126,31 @@ def check_read(log: ReadLog, path: str) -> None:
         raise ReadRefused(f"{path} is an absolute path, and reads are relative")
     if ".." in path.split("/"):
         raise ReadRefused(f"{path} traverses out of the corpus")
+    # **Refused here because here is the only lock that runs in production.**
+    # ``LocalCorpus.read`` resolves the path and refuses anything landing
+    # outside the corpus root, which catches a symlink escape as well; its own
+    # comment calls that the filesystem layer and this one the policy layer.
+    # ``S3Corpus.read`` interpolates the path straight into a ``get_object``
+    # key and has no second layer at all. So offline there are two and in
+    # production there is this one, and every test of this bound has run
+    # against the pair.
+    #
+    # Neither shape below was exploitable when this was written, and claiming
+    # otherwise would be the kind of overstatement this module exists to refuse.
+    # S3 keys are flat, so ``..`` is not traversal there. They are refused
+    # because a corpus path contains neither a percent sign nor a control
+    # character, and a bound that passes because something downstream happens to
+    # save it is a bound that fails when the downstream changes.
+    if any(character < " " or character == "\x7f" for character in path):
+        raise ReadRefused(
+            f"{path!r} carries a control character. A path in this corpus is "
+            f"plain text, and a null byte in one is not a typo"
+        )
+    if "%" in path:
+        raise ReadRefused(
+            f"{path!r} is percent encoded. Paths here are literal, so an encoded "
+            f"one is either an escape attempt or a caller that decoded nothing"
+        )
     if not any(path.startswith(prefix) for prefix in log.scope):
         raise ReadRefused(
             f"{path} is outside the readable scope {list(log.scope)}. "
