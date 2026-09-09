@@ -59,8 +59,29 @@ test('Safety refusal, empty filters, deep link and live read-only boundary', asy
   await page.getByLabel('Workspace', { exact: true }).selectOption('live');
   await expect(page.getByRole('heading', { name: 'Offers', exact: true })).toBeVisible();
   await page.getByRole('link', { name: 'End of day bread and vegetables', exact: true }).click();
-  await expect(page.getByRole('button', { name: 'Work out the split' })).toBeDisabled();
-  await expect(page.getByText(/Live changes require an authenticated/)).toBeVisible();
+  // Live data already has runs and may already have a recorded plan. Assert
+  // the authorization boundary, not the empty local fixture's initial label.
+  const session = await page.evaluate(() => localStorage.getItem('merismos.session'));
+  const headers = {'X-Merismos-Session': session!};
+  const response = await page.request.get('/api/workspace?mode=live', {headers});
+  expect(response.status()).toBe(200);
+  const live = await response.json();
+  expect(live.can_write).toBe(false);
+  const offer = live.offers.find((item: {offer: {id: string}}) => item.offer.id === 'offer-4471');
+  expect(offer).toBeDefined();
+  const actionCard = page.locator('.action-card');
+  if (offer.plan?.recorded) {
+    await expect(actionCard.getByRole('link', {name: 'Open collection tasks →'})).toBeVisible();
+    await expect(actionCard.getByRole('button')).toHaveCount(0);
+  } else {
+    await expect(actionCard.getByRole('button', {name: /^(Work out the split|Re-run the fleet)$/})).toBeDisabled();
+  }
+  await expect(actionCard.getByText(/Live changes require an authenticated/)).toBeVisible();
+  const denied = await page.request.post('/api/offers/offer-4471/run', {
+    headers, data: {mode:'live', version:live.version, request_id:crypto.randomUUID()},
+  });
+  expect(denied.status()).toBe(403);
+  expect((await denied.json()).detail).toContain('authenticated network coordinator');
   await expect(page.getByText('Synthetic demo', { exact: true })).toBeVisible();
 });
 

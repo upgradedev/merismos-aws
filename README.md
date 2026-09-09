@@ -95,6 +95,13 @@ proven by a deployment rather than by this suite, which is a weaker thing and is
 
 ### React coordinator workspace
 
+Live AWS application: [Merismos coordinator workspace](https://d2qnkmlhs7y5fp.cloudfront.net/).
+[Live AWS acceptance](https://github.com/upgradedev/merismos-aws/actions/runs/34328335818)
+passed all 10 desktop/mobile journeys on 2026-09-09 against CloudFront, Lambda and DynamoDB,
+including API refusal of unauthorized live changes. Automated synthetic acceptance is not
+human signoff or measured food rescued. Tested frontend: `5bdb573151c49499c8f01d938b7d12d3ca3b94be`;
+current release identity is at `/release.json`.
+
 `frontend/` is the React, TypeScript and Tailwind coordinator application. It builds to
 `frontend/dist/` and calls the same-origin `/api/*` JSON boundary in `merismos.handler.handler`.
 Hash links (`#/offers`, `#/offers/new`, `#/offers/<id>`, `#/pickups`, `#/history`) survive reload
