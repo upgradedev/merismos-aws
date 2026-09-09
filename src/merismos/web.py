@@ -230,6 +230,7 @@ def decision(result: Any, offer: Mapping[str, Any], network: str) -> str:
   <thead><tr><th>Organisation</th><th class="num">Share</th><th class="num">Of offer</th><th>Why</th></tr></thead>
   <tbody>{shares}</tbody>
 </table></div>
+{_the_arithmetic(result, offer)}
 {skipped}
 {_specialists(result)}
 <h2>What happens next</h2>
@@ -240,6 +241,52 @@ screen.</div>
    <a class="btn secondary" href="/">Back to offers</a></p>
 {_for_the_group_chat(result, offer)}"""
     return page(offer.get("title", "Offer"), body, "What the fleet decided and why")
+
+
+def _the_arithmetic(result: Any, offer: Mapping[str, Any]) -> str:
+    """What was offered, what was allocated, and what still needs a home.
+
+    The register says the leftover is published with the shares "rather than left
+    for a reader to work out by subtraction", and the published record does that.
+    This screen did not, and this screen is the one a coordinator reads before
+    approving. On the live offer-4471 run it showed 96 and 20 and never mentioned
+    that the other 124 kg of a 240 kg donation had no recipient.
+
+    That number is the most actionable thing on the page. It is the one that
+    means ring a sixth organisation, and it was the reader's to calculate.
+    """
+    try:
+        offered = float(offer.get("quantity") or 0)
+    except (TypeError, ValueError):
+        return ""
+    if not offered:
+        return ""
+
+    allocated = 0.0
+    for share in getattr(result.draft, "allocations", []) or []:
+        try:
+            allocated += float(share.get("quantity") or 0)
+        except (TypeError, ValueError):
+            return ""
+
+    unit = _e(str(offer.get("unit", "")))
+    left = round(offered - allocated, 2)
+    if left <= 0.005:
+        return (
+            f'<p class="why"><strong>All {_pretty_number(offered)} {unit} allocated.</strong> '
+            f"Nothing is left without a recipient.</p>"
+        )
+    return f"""
+<div class="note amber"><strong>Still without a recipient: {_pretty_number(left)} {unit}.</strong>
+Offered {_pretty_number(offered)} {unit}, allocated {_pretty_number(allocated)} {unit} across
+{len(result.draft.allocations)} organisations. The rest is not an error and not an oversight: the
+rules above are what left it, and it is printed here so nobody has to subtract. Somebody may want to
+ring an organisation outside this network before it spoils.</div>"""
+
+
+def _pretty_number(value: float) -> str:
+    """Whole numbers without a trailing zero, because a share is read aloud."""
+    return f"{value:g}"
 
 
 def _for_the_group_chat(result: Any, offer: Mapping[str, Any]) -> str:
