@@ -30,8 +30,10 @@ jobs:
         with:
           python-version-file: .python-version
       - name: Install Python dependencies in CI
+        id: deps_python
         run: pip install -e '.[dev]'
       - name: Resolve frontend lock only if absent
+        id: deps_node
         working-directory: frontend
         run: |
           if [ ! -f package-lock.json ]; then
@@ -45,20 +47,28 @@ jobs:
           name: frontend-lock
           path: frontend/package-lock.json
           if-no-files-found: error
-      - name: Lint Python
-        run: ruff check src/ tests/
-      - name: Existing Python regression and API functional tests
-        run: pytest -q --junitxml=frontend/test-results/python.xml --cov-report=xml:frontend/coverage-python.xml
       - name: Build the actual React application
+        id: build
+        if: ${{ !cancelled() && steps.deps_node.outcome == 'success' }}
         working-directory: frontend
         run: npm run build
+      - name: Lint Python
+        if: ${{ !cancelled() && steps.deps_python.outcome == 'success' }}
+        run: ruff check src/ tests/
+      - name: Existing Python regression and API functional tests
+        if: ${{ !cancelled() && steps.deps_python.outcome == 'success' }}
+        run: pytest -q --junitxml=frontend/test-results/python.xml --cov-report=xml:frontend/coverage-python.xml
       - name: Vitest and RTL with measured coverage floors
+        if: ${{ !cancelled() && steps.deps_node.outcome == 'success' }}
         working-directory: frontend
         run: npm test
       - name: Install browser in CI
+        id: browser
+        if: ${{ !cancelled() && steps.deps_node.outcome == 'success' }}
         working-directory: frontend
         run: npx playwright install --with-deps chromium
       - name: Real Python HTTP API and desktop/mobile journeys
+        if: ${{ !cancelled() && steps.build.outcome == 'success' && steps.browser.outcome == 'success' }}
         working-directory: frontend
         run: npm run test:e2e
       - name: Upload verification evidence
@@ -73,7 +83,8 @@ jobs:
             frontend/coverage-python.xml
             frontend/UAT.testbook.*
           retention-days: 10
-      - name: Upload verified static build
+      - name: Upload static build for review (deployment still requires all checks)
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         uses: actions/upload-artifact@v4
         with:
           name: frontend-dist

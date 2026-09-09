@@ -437,7 +437,9 @@ def publish(body: dict) -> dict[str, Any]:
         from .api import evidence_digest
 
         offer = _offer(str(body.get("offer_id", "")))
-        if offer is None or body["api_evidence_digest"] != evidence_digest(corpus_from_env(), offer):
+        if offer is None or body["api_evidence_digest"] != evidence_digest(
+            corpus_from_env(), offer
+        ):
             return _reply(409, {"detail": "Evidence changed before the writer could publish."})
     store = ApprovalStore()
 
