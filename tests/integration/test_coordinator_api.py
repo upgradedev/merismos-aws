@@ -218,6 +218,18 @@ def test_public_text_refuses_pii_and_confirmed_history_does_not_expire():
     assert pickup.still_valid(claim, "digest", now=10**10)
 
 
+def test_public_result_checks_exported_prose_not_internal_timing_and_hashes():
+    result = {"outcome": "awaiting_approval", "draft_body": "Synthetic food split.",
+              "run_id": "run-694123456789", "reads": {"at": 1788940271.694123},
+              "envelopes": [{"specialist": "fairness", "status": "ok",
+                             "meta": {"digest": "694123456789"}}]}
+    public = api.public_result(result)
+    assert public["outcome"] == "awaiting_approval"
+    assert "reads" not in public and "meta" not in public["envelopes"][0]
+    result["envelopes"][0]["reason"] = "Call 6941234567"
+    assert api.public_result(result)["outcome"] == "refused_by_gate"
+
+
 def test_sqlite_cas_survives_new_adapter_and_refuses_races(client):
     store = WorkspaceStore()
     state = api.initial_state("sandbox")

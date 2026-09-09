@@ -11,6 +11,9 @@ async function navigate(path: string) { await act(async () => { location.hash=pa
 it('loads, navigates with durable URLs, switches mode and refreshes', async () => {
   const user=userEvent.setup(); render(<App/>); expect(screen.getByText(/Loading your coordinator/)).toBeVisible();
   await screen.findByRole('heading',{name:'Offers'});
+  const legacy = screen.getByRole('link',{name:'Legacy offer view ↗'});
+  expect(legacy).toHaveAttribute('href','https://efnt6e0kv7.execute-api.eu-west-1.amazonaws.com/offer/offer-4471');
+  expect(legacy).toHaveAttribute('target','_blank'); expect(legacy).toHaveAttribute('rel','noreferrer');
   await user.click(screen.getByText('Skip to main content')); expect(screen.getByRole('main')).toHaveFocus();
   await navigate('/pickups'); expect(screen.getByRole('heading',{name:'Pickups'})).toBeVisible(); expect(document.title).toContain('Pickups');
   await navigate('/history'); expect(screen.getByText('Sandbox history')).toBeVisible(); expect(document.title).toContain('History');
