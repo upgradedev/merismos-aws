@@ -237,13 +237,76 @@ contemporaneous read bytes. The dated narrative above is also not a replayable c
 Neither was scored as new quality evidence or re-invoked. Usage, inference configuration and
 dollar cost stay **UNKNOWN** where unmeasured.
 
-**Actual comparable model evaluation: NOT_RUN; C1 remains open.** Before any future collection,
-the owner must separately approve a reviewed collector using the existing `BedrockAnalyst`,
-exact source/model/config/region, call/token/dollar limits and stop conditions. The collector
-must keep raw responses and citation sidecars; missing evidence is not fabricated by this
-replay tool. No live model workflow, model permission, cloud telemetry or runtime change is
-included here. More diverse independent cases and human adjudication remain necessary before
-any general quality claim.
+**Actual comparable model evaluation: NOT_RUN; C1 remains open.** The frozen protocol is
+unchanged. The separately gated [collector](scripts/collect_interpretation.py) prepares
+14 one-shot, text-only Converse calls to `eu.anthropic.claude-opus-5` in `eu-west-1`,
+max output 768 tokens, thinking disabled, standard tier by omission, no cache fields or tools.
+This is **evaluation-only source preloading, not the application's Strands agent/tool selection**.
+The original premises system brief/instructions/question are preserved; the same frozen input
+projection is supplied as an additional text block. No repair, continuation or fallback occurs.
+Candidate citations are `[]`: the unchanged response contract supplies no model citation
+sidecar. Clear responses without actual model citations therefore fail the frozen evaluator;
+review responses remain visibly ungrounded. `supplied_source_provenance` only records delivered
+bytes and is NEVER passed as candidate proof. A future citation-producing candidate would need
+separate preregistration/review, not a change to this ruler to make results pass.
+
+The [AWS model card](https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-anthropic-claude-opus-5.html)
+supports Converse but not runtime CountTokens. No CountTokens fallback is attempted. The input
+bound is the full canonical serialized request's UTF-8 bytes plus **4096 framing tokens**, capped
+at 16384 per case. This is a conservative byte-token/template **assumption requiring parent
+review**, not measured tokenization or a provider guarantee. Media, tools, cache directives and
+thinking are excluded. Returned usage exceeding either bound, missing request ID/usage, retries
+or cache accounting stop the panel without refund; unknown outcomes retain worst-case cost.
+Reference-only pricing is USD5.50/27.50 per million input/output tokens, from the
+[regional pricing table](https://platform.claude.com/docs/en/about-claude/pricing).
+Those rates and the reference-cost artifact grant NO authority or shared budget allocation.
+
+Source CI runs `python scripts/collect_interpretation.py source-smoke --output bounded-evaluation`.
+This exports exact per-case request bytes/hashes, max/sum sizes and reference-only worst costs,
+then exercises the full durable collector-to-frozen-replay path with a conspicuously fake client.
+The `bounded-evaluation-source-<sha>-<run>` artifact includes every raw synthetic response and
+all 14 slots. Tests prohibit sockets/model construction and break grants, budget, run bindings,
+expiry, writer durability, raw retention and unknown outcomes. No real model quality is inferred.
+
+Parent activation contract (NOT activated by source CI): configure repository/environment
+variables `MERISMOS_EVAL_GRANT_JSON` and `MERISMOS_EVAL_GRANT_SHA256`. The latter is SHA256 of
+the former's parsed JSON serialized with sorted keys, compact separators and no nonfinite values.
+The grant uses the `fake_grant` function's documented field shape, but must have authority
+`PARENT_CONFIGURED_SINGLE_RUN`, a fresh grant ID, exact `binding(requests.json)`, conservative
+finite decimal-string rates, an allocated `budget_usd` covering every worst-case call (at most5),
+`byte_bound_approved: true` and `standard_no_extra_charges: true`. The run object pins repository,
+full workflow ref, the intended workflow run number (strings) and `run_attempt: "1"`; expiry
+must be timezone-aware, still future and at most two hours away. Parent must reserve this full
+allocation in the shared cross-app ledger before configuring it. The worker does not infer
+remaining aggregate funds. Changing source, model/config, protocol or request manifest denies it.
+
+After exact-source review, source CI and shared reservation, **parent only** may use:
+
+```bash
+gh workflow run ci.yml --repo upgradedev/merismos-aws --ref <reviewed-branch> \
+  -f eval_grant_sha256=<parent-configured-canonical-grant-sha256>
+```
+
+Without the nonempty configured digest, the manual live job is skipped. Preflight runs before
+credentials; it reuses the existing OIDC role with an inline session policy allowing only this
+model's `bedrock:InvokeModel`, with no IAM/resource changes. The grant also pins the exact checked
+out SHA and rejects dirty tracked code, wrong run number and reruns. A new output journal is
+mandatory. A reservation and full request are create-only/fsynced before any SDK construction;
+`total_max_attempts=1` disables SDK retry. Full decoded SDK response JSON, including AWS usage,
+request ID and response metadata, is fsynced before parsing and flushed to stdout as backup.
+It is not a raw HTTP packet capture. Every error/unknown outcome consumes the reservation;
+actual priced usage is recorded separately and is not an AWS bill. Parent owns pricing,
+the conservative bound assumption, any implicit-cache/account defaults and total-dollar safety.
+
+The `bounded-live-<sha>-<run>-<attempt>` artifact uploads even after failure/cancellation when
+the runner survives; stdout and disk cannot guarantee artifact recovery after infrastructure
+loss. Keep the full reservation charged if evidence is lost. No run or call is auto-resumed.
+Offline CI can reconstruct surviving create-only events without new inference:
+`python scripts/collect_interpretation.py recover --journal <saved-journal> --output <new-directory>`.
+Interrupted slots stay unknown, not not-run; all future slots remain not-run. The unmodified
+evaluator still reports producer evidence as NOT_ESTABLISHED, not authenticated AWS quality.
+No production app, deployment, IAM, DB, model permission or cloud telemetry changes are included.
+Independent cases and human adjudication remain necessary before any general quality claim.
 
 ## Current public acceptance
 
