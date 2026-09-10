@@ -231,6 +231,15 @@ evidence, not a Bedrock model invocation, human acceptance or measured food resc
 
 ## Validation and release
 
+X1 source measurement protocol `merismos-source-hero-v1` is preregistered in the existing
+[structured testbook](frontend/UAT.testbook.json): exactly20 planned attempts, alternating
+10 desktop/10 mobile, fresh synthetic sandboxes, no retries or warmup exclusions.
+Timing runs from file selection to visible simulated collection confirmation; setup and
+manifest export are separate. Raw failures and missing attempts remain in the denominator.
+The protocol must be committed before instrumentation runs. CI-only local HTTP timings and
+traffic-body counts are not AWS latency, dollar costs, human time saved or rescued food.
+AWS measurement and cost limits require separate owner authorization; no paid model is used.
+
 All dependency installation, builds and tests for this workspace run in GitHub Actions.
 Core CI runs full fetched Git history secret scanning (`fetch-depth: 0`, `--log-opts=--all`),
 Ruff, Python unit/integration/functional regressions, the enforced coverage floor, Strands negative
