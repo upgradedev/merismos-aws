@@ -268,7 +268,15 @@ The `bounded-evaluation-source-<sha>-<run>` artifact includes every raw syntheti
 all 14 slots. Tests prohibit sockets/model construction and break grants, budget, run bindings,
 expiry, writer durability, raw retention and unknown outcomes. No real model quality is inferred.
 
-Parent activation contract (NOT activated by source CI): configure repository/environment
+**Live authority NOT VERIFIED at the 2026-09-11 source checkpoint.** Parent's corrected
+read-only inventory found `AWS_DEPLOY_ROLE_ARN` in the existing `aws` environment, not at
+repository scope. Its actual Bedrock permissions still need parent review. The existing
+secret/environment names are retained; `FRONTEND_RELEASE_ROLE_ARN` is never a fallback.
+Missing role configuration produces explicit preflight refusal. This patch creates no role,
+trust, permission, secret or variable; budget approval does not authorize provisioning them.
+
+Parent activation contract (NOT activated by source CI): after authority review, parent
+can configure repository
 variables `MERISMOS_EVAL_GRANT_JSON` and `MERISMOS_EVAL_GRANT_SHA256`. The latter is SHA256 of
 the former's parsed JSON serialized with sorted keys, compact separators and no nonfinite values.
 The grant uses the `fake_grant` function's documented field shape, but must have authority

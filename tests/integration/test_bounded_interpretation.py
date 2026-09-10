@@ -305,6 +305,14 @@ def test_sdk_construction_disables_total_retries_and_pins_endpoint(monkeypatch):
     assert kwargs["config"].read_timeout == 30
 
 
+@pytest.mark.parametrize("role", ["", "FRONTEND_RELEASE_ROLE_ARN", "not-an-arn"])
+def test_missing_live_role_is_explicitly_blocked_no_frontend_fallback(monkeypatch, role):
+    monkeypatch.setenv("MERISMOS_EVAL_ROLE_ARN", role)
+    monkeypatch.setenv("FRONTEND_RELEASE_ROLE_ARN", "arn:aws:iam::123456789012:role/frontend")
+    with pytest.raises(ValueError, match="live-auth BLOCKED"):
+        c.require_live_role()
+
+
 def test_actual_offline_cli_never_constructs_sdk(tmp_path, monkeypatch):
     import boto3
     from strands import models

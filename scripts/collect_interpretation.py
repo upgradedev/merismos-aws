@@ -300,6 +300,13 @@ def sdk_client():
                                       retries={"total_max_attempts": 1, "mode": "standard"}))
 
 
+def require_live_role():
+    role = os.environ.get("MERISMOS_EVAL_ROLE_ARN", "")
+    if not re.fullmatch(r"arn:aws:iam::[0-9]{12}:role/[A-Za-z0-9_+=,.@/-]+", role):
+        raise ValueError("live-auth BLOCKED: no configured evaluation-safe role; no fallback")
+    return role
+
+
 def collect(plan, grant, digest, context, directory, factory=sdk_client,
             clock=lambda: datetime.now(timezone.utc), *, synthetic=False):
     journal = Journal(Path(directory) / "journal")
@@ -405,6 +412,7 @@ def main():
     if args.mode == "preflight":
         create_json(args.output / "preflight-input.json", {"plan": plan, "grant": grant})
         try:
+            require_live_role()
             cost = validate_grant(grant, digest, plan, context, datetime.now(timezone.utc))
         except (ValueError, KeyError, TypeError) as error:
             create_json(args.output / "preflight-refused.json", {"error": str(error),
@@ -412,6 +420,7 @@ def main():
             raise
         create_json(args.output / "preflight.json", {"plan": plan, "grant": grant, "cost": cost})
         return 0
+    require_live_role()
     report = collect(plan, grant, digest, context, args.output)
     return 0 if report["input_aligned_complete"] else 1
 

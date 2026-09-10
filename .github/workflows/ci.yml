@@ -158,6 +158,7 @@ jobs:
     env:
       MERISMOS_EVAL_GRANT_JSON: ${{ vars.MERISMOS_EVAL_GRANT_JSON }}
       MERISMOS_EVAL_GRANT_SHA256: ${{ vars.MERISMOS_EVAL_GRANT_SHA256 }}
+      MERISMOS_EVAL_ROLE_ARN: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
       AWS_EC2_METADATA_DISABLED: "true"
     steps:
       - uses: actions/checkout@v4
