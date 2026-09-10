@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Merismos · Automated acceptance</title>
+  <link rel="stylesheet" href="/acceptance.css">
+  <script type="module" src="/acceptance.js"></script>
+</head>
+<body>
+  <main>
+    <nav aria-label="Related pages"><a href="/">Coordinator workspace</a><a href="/UAT.testbook.html">UAT testbook</a><a href="/acceptance.json">Latest successful JSON</a></nav>
+    <p class="eyebrow">MERISMOS / RELEASE EVIDENCE</p>
+    <h1>Automated acceptance</h1>
+    <p>Scripted browser journeys against the deployed AWS application. A passing check is evidence of synthetic software behavior, not food rescued or human acceptance.</p>
+    <section aria-labelledby="proof-heading">
+      <h2 id="proof-heading">Current frontend</h2>
+      <p id="status" role="status" data-state="PENDING">PENDING · Checking release and receipt…</p>
+      <p id="reason">No current pass is asserted until matching proof has been read.</p>
+      <dl><dt>Manifest frontend commit</dt><dd id="release">Unknown</dd><dt>Served root HTML commit</dt><dd id="root-release">Unknown</dd></dl>
+      <div id="details" hidden>
+        <dl>
+          <dt>Recorded frontend commit</dt><dd id="recorded"></dd>
+          <dt>Backend commit</dt><dd id="backend"></dd>
+          <dt>Backend identity basis</dt><dd id="basis"></dd>
+          <dt>Observed at (UTC)</dt><dd id="observed"></dd>
+          <dt>Run / attempt</dt><dd id="run"></dd>
+          <dt>Preflight / journeys / postflight</dt><dd id="phases"></dd>
+        </dl>
+        <table><caption>Counts parsed from this run's Playwright JUnit</caption><thead><tr><th>Total</th><th>Passed</th><th>Failed</th><th>Skipped</th></tr></thead><tbody><tr><td id="total"></td><td id="passed"></td><td id="failed"></td><td id="skipped"></td></tr></tbody></table>
+        <p><a id="receipt-link">Immutable run receipt</a> · <a id="run-link" rel="noreferrer">Workflow run and actual conclusion</a></p>
+        <p id="limits"></p>
+      </div>
+    </section>
+    <section aria-labelledby="limits-heading">
+      <h2 id="limits-heading">What remains unverified</h2>
+      <p>Human UAT: <strong>NOT_RUN</strong>. ME18, an authenticated real coordinator publication and recovery drill: <strong>NOT_RUN</strong>. There is no measured adoption, time saved, beneficiary impact or food rescue.</p>
+      <p>A current pass requires the served root HTML, release manifest and receipt to agree, identical retained run bytes and an observation within 24 hours. An older or different-release receipt is historical. Missing, malformed or unreachable proof cannot authorize a changed frontend. This page does not assert overall workflow success; follow the run for its actual conclusion.</p>
+      <p>Backend identity is unavailable because the existing identity route attempts AWS boundary probes. Frontend and backend revisions need not match. This proof neither establishes backend parity nor reruns those probes.</p>
+      <p>Historical testbook entries keep their original evidence and NOT_RUN gaps. Public receipts retain only aggregate counts, revisions, statuses and run references.</p>
+    </section>
+  </main>
+</body>
+</html>

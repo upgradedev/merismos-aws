@@ -17,6 +17,10 @@ jobs:
     needs: verify
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    concurrency:
+      group: merismos-frontend-publication
+      cancel-in-progress: false
+      queue: max
     permissions:
       contents: read
       id-token: write
@@ -46,6 +50,11 @@ jobs:
         with:
           role-to-assume: ${{ vars.FRONTEND_RELEASE_ROLE_ARN }}
           aws-region: eu-west-1
+      - name: Reject stale main dispatch before changing the frontend
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXPECTED_RELEASE: ${{ github.sha }}
+        run: python infra/acceptance_receipt.py guard --sha "$EXPECTED_RELEASE"
       - name: Publish versioned assets and switch HTML last
         run: python infra/frontend_publish.py --sha "${{ github.sha }}" --stack merismos-frontend | tee frontend-release.json
       - name: Verify deployed commit, real assets, headers and honest API errors
@@ -62,6 +71,8 @@ jobs:
     needs: release
     permissions:
       contents: read
+      actions: read
+      id-token: write # Reusable publisher only; both browser jobs restrict this to contents:read.
     uses: ./.github/workflows/aws-uat.yml
     with:
       release_sha: ${{ github.sha }}

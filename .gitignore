@@ -12,6 +12,9 @@ build/
 .screens/
 frontend/test-results/
 frontend/playwright-report/
+frontend/proof-test-results/
+frontend/proof-playwright-report/
+acceptance-proof/
 frontend/coverage/
 frontend/coverage-python.xml
 frontend/tsconfig.tsbuildinfo

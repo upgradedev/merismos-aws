@@ -39,6 +39,8 @@ def build_release(directory, sha):
         if not file.is_file():
             continue
         key = file.relative_to(directory).as_posix()
+        if key == "acceptance.json" or key.startswith("acceptance/"):
+            raise ValueError("acceptance receipts belong only to the post-acceptance publisher")
         if file.suffix.lower() not in SUFFIXES or any(p.startswith(".") for p in Path(key).parts):
             raise ValueError(f"unexpected public artifact: {key}")
         data = file.read_bytes()

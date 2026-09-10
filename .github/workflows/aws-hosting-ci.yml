@@ -1,10 +1,10 @@
 name: AWS hosting contract
 on:
   pull_request:
-    paths: ["infra/frontend*", "infra/test_frontend_hosting.py", ".github/workflows/aws-hosting-ci.yml", ".github/workflows/frontend-deploy.yml", ".github/workflows/aws-uat.yml", "infra/test_frontend_pipeline.py"]
+    paths: ["infra/frontend*", "infra/*acceptance*", "frontend/public/acceptance*", "infra/test_frontend_hosting.py", ".github/workflows/aws-hosting-ci.yml", ".github/workflows/frontend-deploy.yml", ".github/workflows/aws-uat.yml", "infra/test_frontend_pipeline.py"]
   push:
     branches: [main, "codex/**"]
-    paths: ["infra/frontend*", "infra/test_frontend_hosting.py", ".github/workflows/aws-hosting-ci.yml", ".github/workflows/frontend-deploy.yml", ".github/workflows/aws-uat.yml", "infra/test_frontend_pipeline.py"]
+    paths: ["infra/frontend*", "infra/*acceptance*", "frontend/public/acceptance*", "infra/test_frontend_hosting.py", ".github/workflows/aws-hosting-ci.yml", ".github/workflows/frontend-deploy.yml", ".github/workflows/aws-uat.yml", "infra/test_frontend_pipeline.py"]
   workflow_dispatch:
 permissions:
   contents: read
@@ -25,6 +25,10 @@ jobs:
         run: |
           python -m pip install PyYAML==6.0.3
           python infra/test_frontend_pipeline.py
+      - name: Exercise receipt refusal, immutable publication and proof rendering contracts
+        run: |
+          python infra/test_acceptance_receipt.py
+          node --test infra/test_acceptance_ui.mjs
       - name: Render CloudFormation
         run: python infra/frontend_stack.py --product merismos --repository upgradedev/merismos-aws > frontend-stack.json
       - uses: actions/upload-artifact@v4
