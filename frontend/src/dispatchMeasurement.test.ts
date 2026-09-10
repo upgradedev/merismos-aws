@@ -18,6 +18,10 @@ it('reports successful-primary boundaries independently of setup/export and keep
   expect(result.successful_primary_latency?.desktop).toEqual({n: 10, median_ms: 11, p95_ms: 11, min_ms: 11, max_ms: 11});
   expect(result.all_attempts_succeeded).toBe(true);
 });
+it('counts an infrastructure-interrupted started attempt separately from never-run slots', () => {
+  const raw = {...fixture(), attempts: plannedAttempts()}; raw.attempts[0].status = 'running';
+  expect(summarize(raw, identity)).toMatchObject({valid: false, attempted: 1, interrupted: 1, not_run: 19, succeeded: 0, successful_primary_latency: null});
+});
 it('retains failure denominators and null response sizes without inventing zero-latency successes', () => {
   const raw = fixture(), a = raw.attempts[0]; a.status = 'failed'; a.error = 'request_failed'; a.failure_stage = 'setup'; a.stages = []; a.requests[0].end_ms = null; a.requests[0].response_body_bytes = null;
   const result = summarize(raw, identity);

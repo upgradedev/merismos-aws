@@ -43,14 +43,14 @@ export function summarize(measurement: Measurement, expected: Identity) {
   if (!measurement.identity || (Object.keys(expected) as (keyof Identity)[]).some(k => measurement.identity[k] !== expected[k])) issues.push('Source/protocol/run identity mismatch');
   const attempts = Array.isArray(measurement.attempts) ? measurement.attempts : [];
   if (attempts.length !== 20) issues.push('Expected exactly 20 attempt slots');
-  let succeeded = 0, failed = 0, notRun = 0;
+  let succeeded = 0, failed = 0, interrupted = 0, notRun = 0;
   const times: Record<string, number[]> = {desktop: [], mobile: [], overall: []};
   for (const [i, attempt] of attempts.entries()) {
     const label = `Attempt ${i + 1}`;
     if (attempt.ordinal !== i + 1 || attempt.viewport !== (i % 2 === 0 ? 'desktop' : 'mobile')) issues.push(`${label}: duplicate, missing or reordered identity`);
     if (attempt.status === 'success') succeeded++;
     else if (attempt.status === 'failed') failed++;
-    else { notRun++; issues.push(`${label}: not completed`); continue; }
+    else { if (attempt.status === 'running') interrupted++; else notRun++; issues.push(`${label}: not completed`); continue; }
     if (!nonnegative(attempt.elapsed_ms) || attempt.elapsed_ms > 60_000) issues.push(`${label}: invalid elapsed/budget`);
     const stages = attempt.stages;
     if (!Array.isArray(stages) || !Array.isArray(attempt.requests)) { issues.push(`${label}: missing instrumentation`); continue; }
@@ -82,7 +82,7 @@ export function summarize(measurement: Measurement, expected: Identity) {
       }
     }
   }
-  return {valid: issues.length === 0, issues, planned: 20, attempted: succeeded + failed, succeeded, failed, not_run: notRun,
+  return {valid: issues.length === 0, issues, planned: 20, attempted: succeeded + failed + interrupted, succeeded, failed, interrupted, not_run: notRun,
     all_attempts_succeeded: issues.length === 0 && succeeded === 20,
     successful_primary_latency: issues.length ? null : Object.fromEntries(Object.entries(times).map(([view, values]) => [view, latencyStats(values)])),
     request_count: attempts.reduce((n, a) => n + (a.requests?.length || 0), 0),
