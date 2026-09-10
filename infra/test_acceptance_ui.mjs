@@ -11,7 +11,7 @@ const receipt = () => ({ schema_version: 1, application: 'merismos', environment
   observed_at: '2026-09-10T05:59:00Z', preflight: 'SUCCESS', journeys: 'SUCCESS', postflight: 'SUCCESS',
   junit: { total: 24, passed: 24, failed: 0, skipped: 0 }, human_uat: 'NOT_RUN', mode: 'synthetic_scripted',
   limits: LIMITS, workflow_status: 'NOT_ASSERTED' });
-const response = value => ({ ok: true, status: 200, text: async () => JSON.stringify(value) });
+const response = value => ({ ok: true, status: 200, headers: { get: () => 'application/json' }, text: async () => JSON.stringify(value) });
 const request = async path => path === '/' ? { ok: true, status: 200, text: async () => html() } : response(path === '/release.json' ? { commit: sha } : receipt());
 
 test('new receipt distinguishes independently observed backend from unavailable and legacy', async () => {
@@ -22,7 +22,7 @@ test('new receipt distinguishes independently observed backend from unavailable 
   const known = { schema_version: 1, application: 'merismos', commit: other, status: 'known', source: 'ci_package' };
   for (const value of [{ ...known, source: 'environment' }, { ...known, commit: 'fake' }, { ...known, secret: 'hidden' }, null])
     assert.throws(() => backendCommit(value));
-  for (const mode of ['known', 'different', 'changed', 'missing', 'fake']) {
+  for (const mode of ['known', 'different', 'changed', 'missing', 'fake', 'unknown', 'wrong-mime']) {
     let reads = 0;
     const result = await loadProof(async (path, options) => {
       assert.equal(options.redirect, 'error');
@@ -30,6 +30,8 @@ test('new receipt distinguishes independently observed backend from unavailable 
       if (path === '/api/version') {
         reads += 1;
         if (mode === 'missing') return { ok: false, status: 404 };
+        if (mode === 'unknown') return response({ ...known, commit: null, status: 'unknown', source: 'unknown' });
+        if (mode === 'wrong-mime') return { ...response(known), headers: { get: () => 'text/html' } };
         return response({ ...known, commit: mode === 'fake' ? 'fake' : mode === 'different' || (mode === 'changed' && reads > 1) ? sha : other });
       }
       return path.includes('acceptance') ? response(proof) : request(path);

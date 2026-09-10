@@ -64,6 +64,7 @@ export async function loadProof(request = fetch, now = Date.now()) {
     const response = await request(path, { cache: 'no-store', credentials: 'omit', redirect: 'error' });
     if (missing && [403, 404].includes(response.status)) return null;
     if (!response.ok) throw new Error('unavailable');
+    if (path === '/api/version' && response.headers?.get('content-type')?.split(';')[0].trim().toLowerCase() !== 'application/json') throw new Error('backend content type');
     const text = await response.text();
     if (text.length > (raw || path === '/release.json' ? 2_000_000 : 16_384)) throw new Error('oversized');
     return raw ? text : JSON.parse(text);
@@ -80,6 +81,7 @@ export async function loadProof(request = fetch, now = Date.now()) {
     let backend;
     if (result.receipt && knownCommit(receipt.backend_commit)) {
       backend = backendCommit(await read('/api/version'));
+      if (backend === null) throw new Error('backend unknown');
       if (backend !== receipt.backend_commit) return { ...result, state: 'HISTORICAL', reason: 'The answering backend differs from the recorded version. Current acceptance needs a new run.' };
     }
     const after = await read('/release.json');
