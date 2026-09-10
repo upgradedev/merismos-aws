@@ -18,6 +18,7 @@ REPOSITORY = "upgradedev/merismos-aws"
 ORIGIN = "https://d2qnkmlhs7y5fp.cloudfront.net/"
 SHA = re.compile(r"[0-9a-f]{40}")
 NUMBER = re.compile(r"[1-9][0-9]*")
+MIN_PRODUCT_JOURNEYS = 24  # Existing desktop/mobile product suite; added journeys are allowed.
 BACKEND_BASIS = (
     "Unavailable: /identity attempts Secrets Manager reads and S3 PutObject; "
     "no harmless deployed build-identity endpoint exists in the inspected source. "
@@ -56,7 +57,8 @@ def validate(receipt, now=None):
     totals = receipt["junit"]
     require(isinstance(totals, dict) and set(totals) == {"total", "passed", "failed", "skipped"}, "JUnit fields")
     require(all(type(value) is int and value >= 0 for value in totals.values()), "JUnit counts")
-    require(totals["total"] > 0 and totals["total"] == totals["passed"] and totals["failed"] == totals["skipped"] == 0, "JUnit not clean")
+    require(totals["total"] >= MIN_PRODUCT_JOURNEYS and totals["total"] == totals["passed"]
+            and totals["failed"] == totals["skipped"] == 0, "JUnit not clean or below 24 product journeys")
     require(receipt["human_uat"] == "NOT_RUN" and receipt["mode"] == "synthetic_scripted", "mode/signoff")
     require(receipt["limits"] == LIMITS and receipt["workflow_status"] == "NOT_ASSERTED", "limits/workflow")
     observed = receipt["observed_at"]
@@ -75,6 +77,12 @@ def junit_counts(path):
     identities = set()
 
     def identify(element, lineage=()):
+        tag = element.tag.rsplit("}", 1)[-1].lower()
+        require(not any(word in tag for word in ("flaky", "rerun", "retry")), "JUnit contains retry or flaky results")
+        for key, value in element.attrib.items():
+            if key.lower() in {"retries", "retry", "reruns", "flaky"}:
+                require(value.lower() in {"0", "false"}, "JUnit contains retry or flaky metadata")
+        require(element.get("status", "").lower() not in {"flaky", "retry", "rerun"}, "JUnit retry status")
         if element.tag in {"testsuites", "testsuite"}:
             # Project/hostname belongs to the identity: desktop and mobile may
             # intentionally share testcase classname/name.

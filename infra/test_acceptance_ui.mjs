@@ -9,7 +9,7 @@ const receipt = () => ({ schema_version: 1, application: 'merismos', environment
   frontend_commit: sha, backend_commit: 'unavailable', backend_basis: BACKEND_BASIS,
   run_id: '123', run_attempt: '2', run_url: 'https://github.com/upgradedev/merismos-aws/actions/runs/123/attempts/2',
   observed_at: '2026-09-10T05:59:00Z', preflight: 'SUCCESS', journeys: 'SUCCESS', postflight: 'SUCCESS',
-  junit: { total: 2, passed: 2, failed: 0, skipped: 0 }, human_uat: 'NOT_RUN', mode: 'synthetic_scripted',
+  junit: { total: 24, passed: 24, failed: 0, skipped: 0 }, human_uat: 'NOT_RUN', mode: 'synthetic_scripted',
   limits: LIMITS, workflow_status: 'NOT_ASSERTED' });
 const response = value => ({ ok: true, status: 200, text: async () => JSON.stringify(value) });
 const request = async path => path === '/' ? { ok: true, status: 200, text: async () => html() } : response(path === '/release.json' ? { commit: sha } : receipt());
@@ -36,6 +36,12 @@ test('strict schema refuses extra data, malicious links, false numbers and fabri
     { run_id: '../../escape' }, { run_attempt: 1 }, { schema_version: true }, { environment: 'offline' },
     { limits: 'none' }, { workflow_status: 'SUCCESS' }, { backend_basis: 'matching' },
     { junit: { total: 2, passed: 2, failed: 0, skipped: 0, notes: 'private' } }]) assert.equal(validReceipt({ ...receipt(), ...change }), false);
+});
+test('an independent 23-case receipt fails the existing 24-journey product floor', () => {
+  const small = { ...receipt(), junit: { total: 23, passed: 23, failed: 0, skipped: 0 } };
+  assert.equal(validReceipt(small), false);
+  assert.equal(assess({ commit: sha }, small).state, 'UNKNOWN');
+  assert.equal(validReceipt({ ...receipt(), junit: { total: 25, passed: 25, failed: 0, skipped: 0 } }), true);
 });
 test('loader requires identical immutable receipt and checks release again', async () => {
   const paths = [];
@@ -85,7 +91,7 @@ test('render shows validated counts and resets visible proof when subsequent fet
   const nodes = new Map();
   const doc = { getElementById(id) { if (!nodes.has(id)) nodes.set(id, { dataset: {} }); return nodes.get(id); } };
   renderProof(assess({ commit: sha }, receipt(), now), doc);
-  assert.equal(nodes.get('total').textContent, '2');
+  assert.equal(nodes.get('total').textContent, '24');
   assert.equal(nodes.get('backend').textContent, 'unavailable');
   assert.equal(nodes.get('status').dataset.state, 'PASS');
   assert.equal(nodes.get('receipt-link').href, '/acceptance/runs/123-2.json');

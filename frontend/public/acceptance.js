@@ -17,7 +17,7 @@ export function validReceipt(p) {
     && ['preflight', 'journeys', 'postflight'].every(key => p[key] === 'SUCCESS')
     && keys(p.junit, ['total', 'passed', 'failed', 'skipped'])
     && Object.values(p.junit).every(n => Number.isSafeInteger(n) && n >= 0)
-    && p.junit.total > 0 && p.junit.total === p.junit.passed && p.junit.failed === 0 && p.junit.skipped === 0
+    && p.junit.total >= 24 && p.junit.total === p.junit.passed && p.junit.failed === 0 && p.junit.skipped === 0
     && p.human_uat === 'NOT_RUN' && p.mode === 'synthetic_scripted' && p.limits === LIMITS
     && p.workflow_status === 'NOT_ASSERTED' && typeof p.observed_at === 'string'
     && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/.test(p.observed_at)

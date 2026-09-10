@@ -18,9 +18,10 @@ ENV = {"GITHUB_REPOSITORY": proof.REPOSITORY, "GITHUB_REF": "refs/heads/main",
        "GITHUB_SHA": COMMIT, "GITHUB_RUN_ID": "123", "GITHUB_RUN_ATTEMPT": "2",
        "PRODUCER_RUN_ID": "123", "PRODUCER_RUN_ATTEMPT": "2", "PRODUCER_ARTIFACT": "acceptance-proof-123-2",
        "PREFLIGHT": "success", "JOURNEYS": "success", "POSTFLIGHT": "success"}
-XML = ('<testsuites tests="2" failures="0" skipped="0" errors="0">'
-       '<testsuite name="desktop" tests="1"><testcase name="synthetic case A"><system-out>do not publish raw output</system-out></testcase></testsuite>'
-       '<testsuite name="mobile" tests="1"><testcase name="synthetic case B"/></testsuite></testsuites>')
+CASES = ''.join(f'<testcase classname="journey" name="synthetic case {i}"><system-out>do not publish raw output</system-out></testcase>' for i in range(12))
+XML = ('<testsuites tests="24" failures="0" skipped="0" errors="0">'
+       f'<testsuite name="desktop" tests="12">{CASES}</testsuite>'
+       f'<testsuite name="mobile" tests="12">{CASES}</testsuite></testsuites>')
 
 
 def html(sha=COMMIT):
@@ -70,7 +71,7 @@ class ReceiptContract(unittest.TestCase):
         return proof.publish(receipt or self.receipt, env or ENV, main, self.command, self.request, NOW)
 
     def test_real_cases_derive_counts_and_raw_scenarios_never_leave_compiler(self):
-        self.assertEqual(self.receipt["junit"], {"total": 2, "passed": 2, "failed": 0, "skipped": 0})
+        self.assertEqual(self.receipt["junit"], {"total": 24, "passed": 24, "failed": 0, "skipped": 0})
         self.assertEqual(self.receipt["backend_commit"], "unavailable")
         self.assertEqual(self.receipt["workflow_status"], "NOT_ASSERTED")
         data = proof.canonical(self.receipt)
@@ -78,13 +79,32 @@ class ReceiptContract(unittest.TestCase):
             self.assertNotIn(private, data)
 
     def test_failure_skips_empty_malformed_and_disagreeing_junit_refuse_receipt(self):
-        for xml in ("", "<broken", "<testsuites/>", "<html/>", XML.replace('tests="2"', 'tests="999"'),
-                    XML.replace('<testcase name="synthetic case B"/>', '<testcase><failure/></testcase>'),
-                    XML.replace('<testcase name="synthetic case B"/>', '<testcase><error/></testcase>'),
-                    XML.replace('<testcase name="synthetic case B"/>', '<testcase><skipped/></testcase>'),
+        for xml in ("", "<broken", "<testsuites/>", "<html/>", XML.replace('tests="24"', 'tests="999"'),
+                    XML.replace('</testcase>', '<failure/></testcase>', 1),
+                    XML.replace('</testcase>', '<error/></testcase>', 1),
+                    XML.replace('</testcase>', '<skipped/></testcase>', 1),
                     '<!DOCTYPE testsuite><testsuite><testcase/></testsuite>'):
             self.junit.write_text(xml)
             with self.subTest(xml=xml), self.assertRaises((ValueError, proof.ElementTree.ParseError)):
+                proof.build_receipt(self.junit, COMMIT, ENV, NOW)
+
+    def test_independent_23_case_fixture_cannot_create_or_publish_proof(self):
+        self.junit.write_text('<testsuite tests="23">' + ''.join(f'<testcase name="independent-{i}"/>' for i in range(23)) + '</testsuite>')
+        with self.assertRaisesRegex(ValueError, "below 24"):
+            proof.build_receipt(self.junit, COMMIT, ENV, NOW)
+        smaller = {**self.receipt, "junit": {"total": 23, "passed": 23, "failed": 0, "skipped": 0}}
+        with self.assertRaisesRegex(ValueError, "below 24"):
+            self.publish(smaller)
+        self.assertEqual(self.calls, [])
+
+    def test_retry_and_flaky_tags_are_refused_even_with_clean_aggregate_counters(self):
+        for tag in ("flakyFailure", "flakyError", "rerunFailure", "rerunError", "retry"):
+            self.junit.write_text(XML.replace('</testcase>', f'<{tag}>earlier failed attempt</{tag}></testcase>', 1))
+            with self.subTest(tag=tag), self.assertRaisesRegex(ValueError, "retry or flaky"):
+                proof.build_receipt(self.junit, COMMIT, ENV, NOW)
+        for attribute in ('retries="1"', 'flaky="true"', 'status="flaky"'):
+            self.junit.write_text(XML.replace('<testcase ', f'<testcase {attribute} ', 1))
+            with self.subTest(attribute=attribute), self.assertRaises(ValueError):
                 proof.build_receipt(self.junit, COMMIT, ENV, NOW)
 
     def test_every_phase_must_really_succeed(self):

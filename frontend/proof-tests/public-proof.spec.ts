@@ -22,7 +22,7 @@ test('actual served public proof reports its observed state without runtime muta
     expect(retained.status()).toBe(200);
     expect(await retained.json()).toEqual(proof);
     await expect(page.locator('#total')).toHaveText(String(proof.junit.total));
-    expect(proof.junit.total).toBeGreaterThan(0);
+    expect(proof.junit.total).toBeGreaterThanOrEqual(24);
     expect(proof.junit.passed).toBe(proof.junit.total);
     expect(proof.junit.failed).toBe(0);
     expect(proof.junit.skipped).toBe(0);

@@ -173,7 +173,9 @@ malformed proof is pending or unknown; stale or mismatched proof is historical, 
 The page is available after this source is released; no successful live run of this change is claimed here.
 
 Successful preflight, product journeys and postflight produce an allowlisted aggregate from the
-current run's Playwright `test-results/e2e.xml`, with zero failures/skips and nonzero executed cases.
+current run's Playwright `test-results/e2e.xml`, with zero failures/skips and at least the existing
+24 desktop/mobile product journeys (`npm run test:e2e -- --forbid-only`). Retry, rerun and flaky
+result tags are rejected even when summary counters report zero failures.
 Proof-display fixtures have a separate source-only suite and `proof-junit.xml`; their counts never
 enter the AWS product totals. A separate read-only browser job checks the actual published page.
 The receipt says `workflow_status=NOT_ASSERTED`, because publication precedes workflow completion.

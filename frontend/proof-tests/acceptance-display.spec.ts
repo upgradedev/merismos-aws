@@ -10,18 +10,19 @@ function receipt() {
     run_id: '123', run_attempt: '2', run_url: 'https://github.com/upgradedev/merismos-aws/actions/runs/123/attempts/2',
     observed_at: new Date(Date.now() - 1000).toISOString().replace(/\.\d{3}Z$/, 'Z'),
     preflight: 'SUCCESS', journeys: 'SUCCESS', postflight: 'SUCCESS',
-    junit: { total: 2, passed: 2, failed: 0, skipped: 0 }, human_uat: 'NOT_RUN', mode: 'synthetic_scripted',
+    junit: { total: 24, passed: 24, failed: 0, skipped: 0 }, human_uat: 'NOT_RUN', mode: 'synthetic_scripted',
     limits: 'Synthetic scripted-planner/1.0.0 through real Strands and AWS HTTP persistence. Product journeys only; proof-display fixtures and post-publication proof checks are counted separately. No Bedrock model calls, real food rescue, authenticated live-coordinator publication (ME18), or human UAT.',
     workflow_status: 'NOT_ASSERTED',
   };
 }
 
-for (const scenario of ['missing', 'malformed', 'stale', 'mismatch', 'refused', 'immutable-mismatch', 'unreachable', 'root-mismatch', 'root-missing', 'root-changed', 'valid'] as const) {
+for (const scenario of ['missing', 'malformed', 'stale', 'mismatch', 'refused', 'below-floor', 'immutable-mismatch', 'unreachable', 'root-mismatch', 'root-missing', 'root-changed', 'valid'] as const) {
   test(`proof display fixture: ${scenario}`, async ({ page }) => {
     const proof = receipt();
     if (scenario === 'stale') proof.observed_at = '2000-01-01T00:00:00Z';
     if (scenario === 'mismatch') proof.frontend_commit = '2'.repeat(40);
     if (scenario === 'refused') proof.postflight = 'FAILURE';
+    if (scenario === 'below-floor') proof.junit = { total: 23, passed: 23, failed: 0, skipped: 0 };
     await page.route('**/release.json', route => route.fulfill({ json: { commit: sha } }));
     let rootReads = 0;
     await page.route('**/', route => {
@@ -46,7 +47,7 @@ for (const scenario of ['missing', 'malformed', 'stale', 'mismatch', 'refused', 
     await expect(page.locator('#reason')).not.toHaveText('No current pass is asserted until matching proof has been read.');
     await expect(page.locator('#release')).toHaveText(sha);
     if (scenario === 'valid') {
-      await expect(page.locator('#total')).toHaveText('2');
+      await expect(page.locator('#total')).toHaveText('24');
       await expect(page.locator('#failed')).toHaveText('0');
       await expect(page.locator('#skipped')).toHaveText('0');
       await expect(page.locator('#backend')).toHaveText('unavailable');
