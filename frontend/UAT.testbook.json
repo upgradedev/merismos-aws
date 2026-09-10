@@ -1,5 +1,21 @@
 {
   "product": "Merismos",
+  "x1_measurement_protocol": {
+    "id": "merismos-source-hero-v1",
+    "registered_date": "2026-09-10",
+    "status_at_registration": "PROTOCOL_ONLY; no measurements yet",
+    "scope": "GitHub Actions, local real HTTP Python handler and scripted Strands sandbox. No AWS or model network calls; not deployed latency or human benefit.",
+    "attempts": 20,
+    "order": "Ordinal 1 desktop, 2 mobile, alternating through 20; ten per viewport. One worker, zero retries, no warmups or discarded outliers. Fresh browser context and sandbox per attempt; same running CI processes, not AWS cold-start samples.",
+    "fixture": "One new invented120kg produce offer, Demonstration cooperative, collection2026-09-14, use_by2026-09-18, unknown allergens. Same bytes each attempt. Never historical offer4471.",
+    "journey": "CSV preview and selected filing -> allocation -> exact approval -> Omonoia Soup Kitchen claim -> simulated capacity0 disruption -> replan -> fresh exact approval -> first current share claim, schedule one hour ahead and explicit simulated confirmation -> copy/download plain-text manifest.",
+    "timing": "Monotonic milliseconds. Primary interval begins immediately before file selection and ends when Simulation confirmed is visible, after session/page readiness. Separately record setup, each stage, each HTTP request through completion, and local manifest export. Scripted clicks/waits and instrumentation overhead are included; human think-time is absent. Export is outside primary latency.",
+    "bounds": "20 planned attempts; each attempt60s maximum including setup/export, one worker, zero retries, continue after failure. Workflow30min ceiling includes installation/build. Infrastructure cancellation may leave NOT_RUN attempts; never claim a complete20-sample result then.",
+    "failure_policy": "Keep every ordinal, status, failing stage, elapsed time and request outcome. Failed/incomplete attempts are not success latency values and are never silently replaced. Report attempted/planned/success/failure/not-run denominators and validity. Missing, duplicate, reordered, nonfinite, negative, reversed or mismatched-identity measurements invalidate the aggregate.",
+    "statistics": "Per viewport and overall, successful primary latencies: n, median, nearest-rank p95, minimum and maximum. Raw20 attempt slots remain available. No speedup, baseline comparison, human time saved, food rescued or cost saving claim.",
+    "cost": "Request counts and UTF-8/body byte counts are traffic proxies, not billed costs or wire bytes. Model network is prohibited by the source harness. AWS/model dollars, Lambda billed duration and beneficiary impact stay NOT_MEASURED; parent alone controls separate AWS measurement and cost limits.",
+    "identity": "Retain protocol-registration commit, measured source SHA, actual protocol content digest, run ID/attempt, environment and viewport, raw JSON plus summary. Registration commit must be an earlier ancestor than measured commit and contain this exact unchanged protocol. Source-only evidence must not enter AWS acceptance receipts."
+  },
   "intake_dispatch_revision": {
     "checkpoint_date": "2026-09-10",
     "source_status": "PASS_AUTOMATED_SOURCE_ONLY",
