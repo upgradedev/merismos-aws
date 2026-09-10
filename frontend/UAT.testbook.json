@@ -2,7 +2,10 @@
   "product": "Merismos",
   "intake_dispatch_revision": {
     "checkpoint_date": "2026-09-10",
-    "source_status": "PENDING_CI",
+    "source_status": "PASS_AUTOMATED_SOURCE_ONLY",
+    "source_commit": "4944d5c2b96d01b67b56697a71dc3b6444aa12cc",
+    "source_evidence": "2026-09-10: https://github.com/upgradedev/merismos-aws/actions/runs/34470435443 passed 921 Python tests, 93.80% coverage; https://github.com/upgradedev/merismos-aws/actions/runs/34470441019 passed 136 frontend unit tests, 28 desktop/mobile real-HTTP journeys and 32 separate proof-display cases. Synthetic source evidence only, no AWS deployment or human acceptance.",
+    "retained_failure": "https://github.com/upgradedev/merismos-aws/actions/runs/34469803576: broad fairness locator exposed duplicate sibling React keys. Scoped semantic assertion and exactly-one-manifest regression passed after correction. CSV API regressions select each valid logical row after blank rows and preserve padded-false declared allergens.",
     "deployed_at_source_checkpoint": "NOT_RUN; this source checkpoint does not describe later deployments",
     "current_live_acceptance": "/acceptance.html",
     "human_uat": "NOT_RUN",
@@ -31,7 +34,7 @@
     "latest": "/acceptance.json",
     "immutable_runs": "/acceptance/runs/<run-id>-<attempt>.json",
     "source_status": "NOT_RUN",
-    "basis": "Read the current page for observed status; source alone is not deployed acceptance. Product JUnit counts exclude the separate proof-display suite. Missing, malformed, stale or mismatched proof never becomes a current pass. Backend identity is unavailable because /identity performs AWS boundary probes.",
+    "basis": "Read the current page for observed status; source alone is not deployed acceptance. Product JUnit counts exclude the separate proof-display suite. Missing, malformed, stale or mismatched proof never becomes a current pass. Current receipts can independently observe backend identity via safe GET /api/version; missing and historical unknown identities stay unknown. Never use /identity for a version check.",
     "human_uat": "NOT_RUN",
     "real_coordinator_ME18": "NOT_RUN"
   },
