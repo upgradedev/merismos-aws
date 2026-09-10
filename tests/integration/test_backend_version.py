@@ -1,6 +1,9 @@
 """Actual entry surfaces never probe AWS or trust a caller's version claim."""
 
 import json
+import os
+import subprocess
+import sys
 from unittest.mock import Mock
 
 import pytest
@@ -22,7 +25,8 @@ def metadata(monkeypatch, tmp_path):
 @pytest.mark.parametrize("surface", ["http-v2", "rest-v1", "raw-path"])
 @pytest.mark.parametrize("role", ["reader", "writer", "evaluator"])
 def test_version_on_actual_lambda_surfaces_is_read_only(monkeypatch, metadata, path, surface, role):
-    metadata.write_text(json.dumps({"schema_version": 1, "application": "merismos", "commit": COMMIT}))
+    metadata.write_text(json.dumps({
+        "schema_version": 1, "application": "merismos", "commit": COMMIT}))
     monkeypatch.setenv("MERISMOS_ROLE", role)
     monkeypatch.setenv("MERISMOS_BUILD_SHA", OTHER)
     monkeypatch.setenv("GITHUB_SHA", OTHER)
@@ -84,3 +88,24 @@ def test_non_get_does_not_load_metadata_or_probe(monkeypatch, path, method):
     response = handler.handler({"httpMethod": method, "path": path})
     assert response["statusCode"] == 405
     forbidden.assert_not_called()
+
+
+def test_cold_handler_import_and_version_request_do_not_probe_aws():
+    code = """
+import json
+import socket
+import boto3
+def forbidden(*args, **kwargs):
+    raise AssertionError('version must not reach AWS or the network')
+boto3.client = boto3.resource = socket.socket.connect = forbidden
+from merismos.handler import handler
+reply = handler({'httpMethod': 'GET', 'path': '/api/version'})
+assert reply['statusCode'] == 200, reply
+assert json.loads(reply['body']) == {
+    'schema_version': 1, 'application': 'merismos', 'commit': None,
+    'status': 'unknown', 'source': 'unknown'}
+"""
+    result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True,
+                            env={**os.environ, "MERISMOS_BUILD_SHA": COMMIT, "GITHUB_SHA": COMMIT},
+                            timeout=20)
+    assert result.returncode == 0, result.stderr
