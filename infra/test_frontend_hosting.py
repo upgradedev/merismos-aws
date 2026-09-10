@@ -146,6 +146,8 @@ class PublishContract(unittest.TestCase):
 
 class LiveGateContract(unittest.TestCase):
     def request(self, url):
+        if url.endswith("/api/version"):
+            return 404, {}, b"old backend"
         if url.endswith("release.json"):
             return 200, {}, json.dumps({"commit": COMMIT}).encode()
         if "definitely-not" in url:

@@ -62,7 +62,7 @@ data "archive_file" "bundle" {
   type        = "zip"
   output_path = "${path.module}/.build/merismos.zip"
 
-  source_dir = "${path.module}/../src"
+  source_dir = "${path.module}/.build/source"
   excludes   = ["**/__pycache__/**", "**/*.pyc"]
 }
 

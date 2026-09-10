@@ -172,6 +172,16 @@ jobs:
             exit 1
           }
 
+      - name: Retain exact backend code package for separate deployment review
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-code-${{ github.sha }}
+          path: |
+            infra/.build/backend.zip
+            infra/.build/source/merismos/build-info.json
+          retention-days: 90
+          if-no-files-found: error
+
       # The layer cannot be built on Windows: pip resolves mcp's pywin32 marker
       # against the host interpreter even with --platform, and Git Bash has no
       # zip. So the artifact CI produces on Linux is the one a deploy uses,

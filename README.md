@@ -192,10 +192,15 @@ The existing private frontend bucket, uncached static behavior and main-scoped O
 there is no IAM expansion. Both browser jobs have `contents:read` only; credentials live solely in
 the separate publisher. Main release and proof publication share one lock, and stale dispatches fail.
 
-Backend commit is explicitly **unavailable**, with a basis in each receipt: `/identity` attempts
-Secrets Manager and S3 boundary probes, so it is not used as a harmless version read. There is no
-backend parity claim or backend deployment to stamp a frontend SHA. This is scripted synthetic AWS
-software evidence, not a Bedrock model invocation, human acceptance or measured food rescue.
+Backend commit comes only from matching preflight/postflight `GET /api/version` observations of
+CI-packaged metadata. Older deployments remain explicitly **unavailable**, and schema-1 receipts
+retain their original basis. `/identity` attempts Secrets Manager and S3 boundary probes and is
+never used for this version read. Runtime environment values and the frontend SHA cannot supply
+the backend identity. A known commit identifies the answering function, not fleet-wide parity.
+This source change does not prove deployment; the separate
+[code-only integration procedure](docs/deploy-2026-09-02.md#backend-build-identity-pending-deployment-2026-09-10)
+requires parent review and read-only live verification. This is scripted synthetic AWS software
+evidence, not a Bedrock model invocation, human acceptance or measured food rescue.
 
 ## Validation and release
 

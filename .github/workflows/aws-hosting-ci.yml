@@ -27,6 +27,7 @@ jobs:
           python infra/test_frontend_pipeline.py
       - name: Exercise receipt refusal, immutable publication and proof rendering contracts
         run: |
+          python infra/test_backend_version.py
           python infra/test_acceptance_receipt.py
           node --test infra/test_acceptance_ui.mjs
       - name: Render CloudFormation

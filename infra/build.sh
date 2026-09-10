@@ -36,3 +36,6 @@ find "${target}" -name "*.dist-info" -type d -prune -exec rm -rf {} + 2>/dev/nul
 ( cd "${build}" && zip -qr deps.zip python )
 
 printf 'layer: %s (%s)\n' "${build}/deps.zip" "$(du -h "${build}/deps.zip" | cut -f1)"
+
+# Stamp the committed source, never a runtime environment variable or caller SHA.
+python "${here}/package_backend.py"
