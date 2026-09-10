@@ -1115,7 +1115,8 @@ def _draft(
                 + (f"Collection capacity limit {capacities[share.org]:g} {unit}. "
                    if share.org in capacities else
                    "No additional collection capacity limit was established in this unit. ")
-                + "The bounded split starts evenly, then assigns remaining headroom in filing order."
+                + "The bounded split starts evenly, then assigns remaining headroom "
+                "in filing order."
             ),
             "evidence_sources": [path for path in [f"offers/{offer['id']}.json",
                                  "registers/allocation-policy.md",

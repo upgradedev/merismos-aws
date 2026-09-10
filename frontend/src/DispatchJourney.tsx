@@ -76,6 +76,7 @@ export function ReplanComparison({row}: {row: OfferRow}) {
     <p className="notice">{row.plan?.recorded ? 'The new exact plan is approved in the sandbox. Old commitments remain invalid; arrange collection against the new plan.' : row.plan ? 'Replanned against the new constraint. Fresh exact-plan approval is required before new pickup commitments.' : 'Old allocation is no longer actionable. Re-run the fleet to apply the new capacity limit.'} Original {change.before_recorded ? 'recorded' : 'draft'} plan and its evidence are retained.</p>
     <div className="comparison-rows">{rows.map(r => <article key={r.org}><h3>{r.org}</h3><p>Before ({change.unit}): {r.before}</p><p>After ({change.unit}): {r.after}</p></article>)}</div>
     <details><summary>Previous exact plan identity</summary><p>{change.before_key}</p><p className="break-all">{change.before_digest}</p><p>Prior run: {change.before.run_id}. This identity is historical and cannot approve the current plan.</p></details>
+    <details><summary>Previous record text · historical</summary><pre>{change.before.draft_body || 'Previous record text unavailable.'}</pre></details>
   </section>;
 }
 

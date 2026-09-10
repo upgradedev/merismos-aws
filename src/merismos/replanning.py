@@ -8,7 +8,8 @@ from .intake import as_document
 
 def disrupt(state, offer, run, plan, body):
     if state["mode"] != "sandbox":
-        raise ValueError("Disruption rehearsal is sandbox-only. Live evidence is not editable here.")
+        raise ValueError("Disruption rehearsal is sandbox-only. "
+                         "Live evidence is not editable here.")
     if body.get("consent") is not True:
         raise ValueError("Confirm this simulated capacity change before recording it.")
     if run.get("replan_required"):

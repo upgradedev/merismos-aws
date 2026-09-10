@@ -1,5 +1,29 @@
 {
   "product": "Merismos",
+  "intake_dispatch_revision": {
+    "source_status": "PENDING_CI",
+    "deployed_acceptance": "NOT_RUN",
+    "human_uat": "NOT_RUN",
+    "trusted_coordinator_ME18": "NOT_RUN",
+    "cases": [
+      {
+        "id": "CSV-INTAKE",
+        "requirement": "Side-effect-free donor CSV preview and explicitly selected governed intake",
+        "steps": "Add an offer; open Import a donor CSV instead; read schema/sample; upload valid, invalid, duplicate and unselected rows; cancel; preview again; explicitly select valid rows and file; re-preview to observe backend duplicates.",
+        "expected": "No state/version/model/record change during preview or cancel. Invalid and duplicate rows cannot be selected. UTF-8 65,536-byte/50-row bounds, exact headers/types/dates/precision, formula-like cells, personal data and prompt instructions are checked. Selected rows use the existing versioned API, one at a time. Partial failures report confirmed rows and require refresh/re-preview. Unknown allergens remain unknown.",
+        "automation": "tests/unit/test_csv_intake.py; tests/integration/test_csv_and_replan.py; frontend/src/CsvIntake.test.tsx; frontend/src/api.test.ts; frontend/e2e/csv-replan.spec.ts",
+        "human_signoff": "NOT_RUN"
+      },
+      {
+        "id": "DISPATCH-REPLAN",
+        "requirement": "Offer to allocation to disruption to replan to pickup, preserving evidence",
+        "steps": "Import a new synthetic offer, run and approve exact plan, claim a share, simulate lower recipient capacity, reload, re-run, inspect each organisation before/after, give fresh exact consent, claim/schedule/confirm a new pickup, copy/download manifest.",
+        "expected": "Actual capacity and applied rules explain recipients and exclusions. 40% is network policy, not certified fairness. Old plan/run/receipt remain, old commitments are invalid, new approval is unchecked. Live disruption, forged identity, invalid capacity and changes after confirmed collection refuse. Plain-text manifest retains simulation, no-message and no-independent-recipient-proof limits.",
+        "automation": "tests/integration/test_csv_and_replan.py; frontend/src/DispatchJourney.test.tsx; frontend/e2e/csv-replan.spec.ts",
+        "human_signoff": "NOT_RUN"
+      }
+    ]
+  },
   "current_public_proof": {
     "page": "/acceptance.html",
     "latest": "/acceptance.json",

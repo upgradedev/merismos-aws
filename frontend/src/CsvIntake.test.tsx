@@ -78,7 +78,7 @@ it('a new file supersedes a pending read and unmount aborts its preview', async 
   const slow = file(); let resolve!: (value: string) => void;
   vi.mocked(slow.text).mockReturnValue(new Promise(done => {resolve = done;}));
   const view = render(<CsvIntake data={workspace()} busy={false} mutate={vi.fn()}/>);
-  fireEvent.change(screen.getByLabelText('Donor CSV file'), {target: {files: [slow]}});
+  await userEvent.upload(screen.getByLabelText('Donor CSV file'), slow);
   await userEvent.click(screen.getByText('Cancel CSV preview'));
   await act(async () => resolve(CSV_SAMPLE)); expect(api.previewCsv).not.toHaveBeenCalled();
   await userEvent.upload(screen.getByLabelText('Donor CSV file'), file('second.csv'));

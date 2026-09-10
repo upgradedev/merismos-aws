@@ -9,6 +9,7 @@ export async function request<T>(path: string, options: RequestInit = {}): Promi
   const timer = setTimeout(() => controller.abort(), 35_000);
   const cancel = () => controller.abort();
   options.signal?.addEventListener('abort', cancel, { once: true });
+  if (options.signal?.aborted) controller.abort();
   try {
     const response = await fetch(path, { ...options, signal: controller.signal, headers: { 'Content-Type': 'application/json', ...options.headers } });
     const result = await response.json().catch(() => { throw new ApiError('The server returned an unreadable response. Try refreshing.', 502); });

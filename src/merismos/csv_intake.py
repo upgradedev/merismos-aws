@@ -71,7 +71,8 @@ def preview(text: str, existing: list[dict]) -> dict:
     if not isinstance(text, str) or len(text.encode("utf-8")) > MAX_BYTES:
         raise intake.Rejected(f"CSV must be UTF-8 text, at most {MAX_BYTES} bytes.")
     if "\ufffd" in text:
-        raise intake.Rejected("CSV contains invalid UTF-8 replacement characters. Export UTF-8 again.")
+        raise intake.Rejected("CSV contains invalid UTF-8 replacement characters. "
+                              "Export UTF-8 again.")
     digest = hashlib.sha256(text.encode("utf-8")).hexdigest()
     reader = csv.reader(io.StringIO(text.removeprefix("\ufeff"), newline=""), strict=True)
     try:
@@ -98,7 +99,8 @@ def preview(text: str, existing: list[dict]) -> dict:
                 elif key in known:
                     row.update(status="duplicate", detail=f"Already filed as {known[key]}.")
                 else:
-                    row.update(status="valid", offer=offer, detail="Valid intake; not a safety approval.")
+                    row.update(status="valid", offer=offer,
+                               detail="Valid intake; not a safety approval.")
                 seen.setdefault(key, number)
             except intake.Rejected as error:
                 row["detail"] = str(error)

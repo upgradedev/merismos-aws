@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { action, ApiError, loadWorkspace, request, session } from './api';
+import { action, ApiError, loadWorkspace, previewCsv, request, session } from './api';
 import { removePreference } from './storage';
 import { workspace } from './test/fixtures';
 
@@ -49,5 +49,26 @@ describe('HTTP and session boundary', () => {
     const controller = new AbortController();
     const pending = expect(request('/api', {signal:controller.signal})).rejects.toThrow('cancelled');
     controller.abort(); await pending;
+  });
+  it('an already cancelled preview keeps the fetch signal cancelled', async () => {
+    const controller = new AbortController(); controller.abort();
+    const fetcher = vi.fn((_url, init) => { expect(init.signal.aborted).toBe(true); return Promise.reject(new Error('abort')); });
+    vi.stubGlobal('fetch', fetcher);
+    await expect(previewCsv({...workspace(), mode: 'live'}, 'csv', controller.signal)).rejects.toThrow('cancelled');
+  });
+  it('files selected rows sequentially through governed intake with new versions and stable per-row ids', async () => {
+    const fetcher = vi.fn().mockResolvedValueOnce(new Response(JSON.stringify({...workspace(), version: 3}))).mockResolvedValueOnce(new Response(JSON.stringify({...workspace(), version: 5})));
+    vi.stubGlobal('fetch', fetcher);
+    const result = await action(workspace(), '', 'import', {csv: 'data', csv_digest: 'sha', rows: [2, 5]}, 'batch');
+    expect(result.version).toBe(5);
+    expect(fetcher.mock.calls.map(call => call[0])).toEqual(['/api/offers/new', '/api/offers/new']);
+    expect(JSON.parse(fetcher.mock.calls[0][1].body)).toMatchObject({row: 2, version: 1, request_id: 'batch-2', csv_digest: 'sha'});
+    expect(JSON.parse(fetcher.mock.calls[1][1].body)).toMatchObject({row: 5, version: 3, request_id: 'batch-5'});
+  });
+  it.each([400, 409, 502])('a partial CSV import stops on HTTP %s and reports confirmed progress without retry', async status => {
+    const fetcher = vi.fn().mockResolvedValueOnce(new Response(JSON.stringify({...workspace(), version: 3}))).mockResolvedValueOnce(new Response(JSON.stringify({detail: 'Row refused or outcome unknown'}), {status}));
+    vi.stubGlobal('fetch', fetcher);
+    await expect(action(workspace(), '', 'import', {csv: 'data', csv_digest: 'sha', rows: [2, 3, 4]}, 'batch')).rejects.toThrow('after 1 confirmed rows. CSV row 3');
+    expect(fetcher).toHaveBeenCalledTimes(2);
   });
 });
