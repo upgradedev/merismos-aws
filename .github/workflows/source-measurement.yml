@@ -1,5 +1,9 @@
 name: Source-only dispatch measurement
 on:
+  # The new workflow can be verified before it exists on the default branch.
+  # This is an exact source branch, not main or any deployment trigger.
+  push:
+    branches: [codex/dispatch-measurement-20260910]
   workflow_dispatch:
 permissions:
   contents: read
