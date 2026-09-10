@@ -1,7 +1,8 @@
-"""Bounded one-shot Converse transport; not the application's Strands tool loop.
+"""Inert request exporter only; not the application's Strands tool loop.
 
-Export is inert. Collection requires an exact parent-configured grant. No
-CountTokens, tools, repair, fallback, caching request or adaptive thinking.
+Live collection and grant validation are NOT IMPLEMENTED. This module cannot
+invoke a model. Proposed requests have no CountTokens, tools, repair, fallback,
+caching request or adaptive thinking; their bounds still need owner review.
 """
 
 from __future__ import annotations
@@ -73,13 +74,15 @@ def export(source):
                                        case["adapter_input"]["sources"].items()},
                      "request": request, "request_sha256": ev.sha(wire),
                      "request_utf8_bytes": len(wire), "input_token_bound": bound,
-                     "citations": ev.citations(case["adapter_input"])})
+                     "supplied_source_provenance": ev.citations(case["adapter_input"])})
     return {"source_commit": source, "frozen_base": BASE, "hashes": ev.PINS,
             "model_id": MODEL, "region": REGION, "max_output_tokens": MAX_OUTPUT,
             "template_overhead_tokens": TEMPLATE_OVERHEAD,
             "adapter": "ONE_SHOT_CONVERSE_PREOPENED_NOT_STRANDS",
             "citation_semantics": "mechanical supplied-source provenance, NOT model-selected "
                                   "citations or semantic entailment",
+            "candidate_citation_policy": "Only actual model-returned citations or []; never "
+                                         "copy supplied_source_provenance into evaluator citations",
             "input_bound_assumption": "one token per serialized UTF8 byte plus4096 framing; "
                                       "requires parent approval for this exact model",
             "requests": rows, "request_set_sha256": ev.sha(ev.canonical(rows)),
