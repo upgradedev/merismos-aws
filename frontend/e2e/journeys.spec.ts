@@ -158,7 +158,7 @@ test('Safety refusal, empty filters, deep link and live read-only boundary', asy
   await expect(page.getByText('Synthetic demo', { exact: true })).toBeVisible();
 });
 
-test('Real HTTP contract rejects stale consent, session crossover and duplicate collection', async ({ request }) => {
+test('Real HTTP contract rejects stale consent, an unknown session and duplicate collection', async ({ request }) => {
   const create = await request.post('/api/sessions', {data: {}});
   const {session} = await create.json();
   const headers = {'X-Merismos-Session': session};

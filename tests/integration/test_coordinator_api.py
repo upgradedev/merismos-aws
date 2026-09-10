@@ -102,7 +102,7 @@ def test_unknown_stale_and_reused_request_ids_are_refused(client):
     post(client, "approve", {**current, "consent": True}, expected=409)
 
 
-def test_session_isolation_expiry_unknown_routes_and_role(client, monkeypatch):
+def test_missing_unknown_sessions_routes_and_role(client, monkeypatch):
     assert client(token="")[0] == 401
     assert client(token="x" * 43)[0] == 410
     assert client(data={"mode": "unknown"})[0] == 400
@@ -112,6 +112,126 @@ def test_session_isolation_expiry_unknown_routes_and_role(client, monkeypatch):
     assert client("/api/offers/offer-4471")[0] == 200
     monkeypatch.setenv("MERISMOS_ROLE", "writer")
     assert client()[0] == 403
+
+
+def test_two_valid_sandbox_sessions_isolate_state_plans_and_request_replays(client, monkeypatch):
+    """Real handler + SQLite: unknown-token refusal is not session isolation.
+
+    B first stays empty throughout A's intake/run/approval. Then B explicitly
+    files its own different donation at the same session-local offer address,
+    so cross-session refusals must reach plan validation, not just a missing ID.
+    """
+    code, created = client("/api/sessions", "POST")
+    assert code == 201
+    session_a, session_b = client.handle, created["session"]
+    assert session_a != session_b
+    key_a, key_b = map(api.fingerprint, (session_a, session_b))
+
+    def read(token):
+        status, state = client(token=token)
+        assert status == 200, state
+        assert state["mode"] == "sandbox" and state["can_write"] is True
+        return state
+
+    writes = []
+    real_save = WorkspaceStore.save
+
+    def observed_save(store, identifier, state, expected):
+        writes.append(identifier)
+        return real_save(store, identifier, state, expected)
+
+    monkeypatch.setattr(WorkspaceStore, "save", observed_save)
+    baseline_b, stored_b = read(session_b), client.store.get(key_b)
+    assert stored_b is not None
+    assert stored_b["runs"] == stored_b["operations"] == {}
+    assert stored_b["records"] == stored_b["claims"] == []
+    assert all(row["plan"] is None and row["result"] == {} for row in baseline_b["offers"])
+
+    def unchanged_b():
+        assert read(session_b) == baseline_b
+        assert client.store.get(key_b) == stored_b
+
+    def send(token, path, extra=None):
+        payload = {"version": read(token)["version"], "request_id": uuid.uuid4().hex,
+                   **(extra or {})}
+        status, state = client(path, "POST", payload, token=token)
+        assert status == 200, state
+        return state, payload
+
+    today = datetime.now(timezone.utc).date()
+    form = {"title": "Synthetic session bread", "donor": "Demonstration bakery",
+            "quantity": "120.25", "unit": "kg", "category": "ambient",
+            "collection_date": (today + timedelta(days=2)).isoformat(),
+            "use_by": (today + timedelta(days=4)).isoformat(),
+            "allergens": "gluten", "note": "Invented donation; collect before evening."}
+    added_a, _ = send(session_a, "/api/offers/new", {"form": form})
+    offer_id = next(row["offer"]["id"] for row in added_a["offers"]
+                    if row["offer"]["title"] == form["title"])
+    assert offer_id not in {row["offer"]["id"] for row in baseline_b["offers"]}
+    unchanged_b()
+    path = f"/api/offers/{offer_id}"
+    planned_a, run_request = send(session_a, path + "/run")
+    plan_a = next(row["plan"] for row in planned_a["offers"] if row["offer"]["id"] == offer_id)
+    assert plan_a and not plan_a["recorded"]
+    unchanged_b()
+    approved_a, approval_request = send(session_a, path + "/approve",
+                                        {**plan_a, "consent": True})
+    assert len(approved_a["records"]) == 1
+    assert approved_a["records"][0]["content_digest"] == plan_a["digest"]
+    assert approved_a["records"][0]["mode"] == "sandbox"
+    unchanged_b()
+    assert writes and set(writes) == {key_a}
+
+    def refused_without_write(payload, expected=409, action="approve"):
+        before_a = client.store.get(key_a)
+        before_writes = list(writes)
+        status, error = client(path + "/" + action, "POST",
+                               {**payload, "version": baseline_b["version"]}, token=session_b)
+        assert status == expected, error
+        assert error["detail"] == ("No such offer." if expected == 404 else
+                                   "This plan is stale. Refresh and review the allocation again.")
+        # Pass-through spy observes the actual writer lifecycle, not a stubbed response.
+        assert writes == before_writes
+        unchanged_b()
+        assert client.store.get(key_a) == before_a
+
+    refused_without_write(approval_request, expected=404)
+
+    # B's only changes below are these explicit, legitimate positive controls.
+    added_b, _ = send(session_b, "/api/offers/new", {
+        "form": {**form, "title": "Synthetic session vegetables", "quantity": "90.25"}})
+    assert next(row for row in added_b["offers"] if row["offer"]["id"] == offer_id)["plan"] is None
+    baseline_b, stored_b = read(session_b), client.store.get(key_b)
+    assert stored_b["runs"] == {} and stored_b["records"] == stored_b["claims"] == []
+    # Same A approval request ID, exact B version and an existing offer: neither
+    # expired-session, missing-offer nor stale-version rejection can pass this check.
+    refused_without_write(approval_request)
+
+    planned_b, _ = send(session_b, path + "/run")
+    plan_b = next(row["plan"] for row in planned_b["offers"] if row["offer"]["id"] == offer_id)
+    assert plan_b and not plan_b["recorded"]
+    assert plan_a["run_id"] != plan_b["run_id"]
+    assert plan_a["digest"] != plan_b["digest"]
+    # Record addresses are workspace-local, not global authority.
+    assert plan_a["key"] == plan_b["key"]
+    baseline_b, stored_b = read(session_b), client.store.get(key_b)
+    for foreign in (approval_request,
+                    {**plan_b, "run_id": plan_a["run_id"], "consent": True},
+                    {**plan_b, "digest": plan_a["digest"], "consent": True}):
+        refused_without_write({"request_id": uuid.uuid4().hex, **foreign})
+    refused_without_write({**approval_request, "action": "claim", "role": "duty manager",
+                           "org": approved_a["pickups"][0]["org"]}, action="pickup")
+
+    before_a, before_writes = client.store.get(key_a), list(writes)
+    for action, payload in (("run", run_request), ("approve", approval_request)):
+        status, replay = client(path + "/" + action, "POST", payload, token=session_a)
+        assert status == 200 and replay == approved_a
+        assert client.store.get(key_a) == before_a
+        unchanged_b()
+        assert writes == before_writes
+    assert baseline_b["records"] == baseline_b["pickups"] == []
+    assert approval_request["request_id"] not in stored_b["operations"]
+    assert run_request["request_id"] not in stored_b["operations"]
 
 
 def test_anonymous_live_writes_fail_even_with_forged_identity_fields(client):
