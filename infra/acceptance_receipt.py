@@ -13,6 +13,7 @@ from xml.etree import ElementTree
 
 from frontend_publish import aws
 from frontend_smoke import fetch
+from backend_version import UNKNOWN, observe, stable_backend, valid_commit
 
 REPOSITORY = "upgradedev/merismos-aws"
 ORIGIN = "https://d2qnkmlhs7y5fp.cloudfront.net/"
@@ -24,6 +25,8 @@ BACKEND_BASIS = (
     "no harmless deployed build-identity endpoint exists in the inspected source. "
     "No backend probe or SHA parity is claimed."
 )
+UNKNOWN_BACKEND_BASIS = "Backend version unavailable from GET /api/version; no backend commit or fleet parity is claimed."
+KNOWN_BACKEND_BASIS = "Packaged backend commit observed via GET /api/version before and after the journeys; identifies the answering backend only, not every fleet function or frontend parity."
 LIMITS = (
     "Synthetic scripted-planner/1.0.0 through real Strands and AWS HTTP persistence. "
     "Product journeys only; proof-display fixtures and post-publication proof checks are counted separately. "
@@ -46,10 +49,14 @@ def utc_now():
 
 def validate(receipt, now=None):
     require(isinstance(receipt, dict) and set(receipt) == FIELDS, "unexpected receipt fields")
-    require(type(receipt["schema_version"]) is int and receipt["schema_version"] == 1, "schema")
+    require(type(receipt["schema_version"]) is int and receipt["schema_version"] in {1, 2}, "schema")
     require(receipt["application"] == "merismos" and receipt["environment"] == "live_aws", "scope")
     require(isinstance(receipt["frontend_commit"], str) and SHA.fullmatch(receipt["frontend_commit"]), "frontend SHA")
-    require(receipt["backend_commit"] == "unavailable" and receipt["backend_basis"] == BACKEND_BASIS, "backend basis")
+    if receipt["schema_version"] == 1:
+        require(receipt["backend_commit"] == "unavailable" and receipt["backend_basis"] == BACKEND_BASIS, "backend basis")
+    else:
+        require((receipt["backend_commit"] == "unavailable" and receipt["backend_basis"] == UNKNOWN_BACKEND_BASIS)
+                or (valid_commit(receipt["backend_commit"]) and receipt["backend_basis"] == KNOWN_BACKEND_BASIS), "backend basis")
     for key in ("run_id", "run_attempt"):
         require(isinstance(receipt[key], str) and NUMBER.fullmatch(receipt[key]), key)
     require(receipt["run_url"] == f"https://github.com/{REPOSITORY}/actions/runs/{receipt['run_id']}/attempts/{receipt['run_attempt']}", "run URL")
@@ -122,11 +129,14 @@ def source_guard(sha, env, current_main):
     require(env.get("GITHUB_SHA") == sha == current_main, "stale dispatch or source mismatch")
 
 
-def build_receipt(junit, sha, env, now=None):
+def build_receipt(junit, sha, env, now=None, before=None, after=None):
     now = now or utc_now()
+    backend = stable_backend(before if before is not None else UNKNOWN,
+                             after if after is not None else UNKNOWN)
     receipt = {
-        "schema_version": 1, "application": "merismos", "environment": "live_aws",
-        "frontend_commit": sha, "backend_commit": "unavailable", "backend_basis": BACKEND_BASIS,
+        "schema_version": 2, "application": "merismos", "environment": "live_aws",
+        "frontend_commit": sha, "backend_commit": backend or "unavailable",
+        "backend_basis": KNOWN_BACKEND_BASIS if backend else UNKNOWN_BACKEND_BASIS,
         "run_id": env.get("GITHUB_RUN_ID"), "run_attempt": env.get("GITHUB_RUN_ATTEMPT"),
         "run_url": f"https://github.com/{REPOSITORY}/actions/runs/{env.get('GITHUB_RUN_ID')}/attempts/{env.get('GITHUB_RUN_ATTEMPT')}",
         "observed_at": now.strftime("%Y-%m-%dT%H:%M:%SZ"),
@@ -148,7 +158,7 @@ def html_commit(body):
     return matches[0].decode("ascii")
 
 
-def publish(receipt, env, current_main, command=aws, request=fetch, now=None):
+def publish(receipt, env, current_main, command=aws, request=fetch, now=None, version_request=None):
     validate(receipt, now)
     sha = receipt["frontend_commit"]
     source_guard(sha, env, current_main)
@@ -181,6 +191,9 @@ def publish(receipt, env, current_main, command=aws, request=fetch, now=None):
             require(status == 200 and json.loads(body)["commit"] == sha, "deployed release mismatch")
             status, _, body = request(ORIGIN)
             require(status == 200 and html_commit(body) == sha, "served root HTML mismatch")
+            if valid_commit(receipt["backend_commit"]):
+                observed = observe(ORIGIN) if version_request is None else observe(ORIGIN, version_request)
+                require(observed["commit"] == receipt["backend_commit"], "backend changed before publication")
 
         release_matches()
         args = ("s3api", "put-object", "--bucket", bucket, "--body", str(payload),
@@ -209,11 +222,20 @@ if __name__ == "__main__":
     parser.add_argument("--sha", required=True)
     parser.add_argument("--junit", default="frontend/test-results/e2e.xml")
     parser.add_argument("--receipt", default="acceptance-proof/receipt.json")
+    parser.add_argument("--preflight")
+    parser.add_argument("--postflight")
     args = parser.parse_args()
     if args.action == "guard":
         source_guard(args.sha, os.environ, current_main())
     elif args.action == "create":
-        receipt = build_receipt(args.junit, args.sha, os.environ)
+        require(args.preflight and args.postflight, "both flight observations are required")
+        flights = [json.loads(Path(path).read_bytes()) for path in (args.preflight, args.postflight)]
+        for flight in flights:
+            require(flight.get("commit") == args.sha and flight.get("url") == ORIGIN
+                    and flight.get("read_only") is True, "flight release mismatch")
+            require(isinstance(flight.get("backend"), dict), "backend flight observation missing")
+        receipt = build_receipt(args.junit, args.sha, os.environ,
+                                before=flights[0].get("backend"), after=flights[1].get("backend"))
         output = Path(args.receipt)
         output.parent.mkdir(parents=True, exist_ok=True)
         # A rerun uses its own attempt and never consumes a prior JUnit artifact.

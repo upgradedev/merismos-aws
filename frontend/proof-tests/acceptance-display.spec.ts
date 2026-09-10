@@ -16,9 +16,19 @@ function receipt() {
   };
 }
 
-for (const scenario of ['missing', 'malformed', 'stale', 'mismatch', 'refused', 'below-floor', 'immutable-mismatch', 'unreachable', 'root-mismatch', 'root-missing', 'root-changed', 'valid'] as const) {
+for (const scenario of ['missing', 'malformed', 'stale', 'mismatch', 'refused', 'below-floor', 'immutable-mismatch', 'unreachable', 'root-mismatch', 'root-missing', 'root-changed', 'valid', 'known-backend', 'backend-changed', 'backend-malformed'] as const) {
   test(`proof display fixture: ${scenario}`, async ({ page }) => {
     const proof = receipt();
+    const hasBackend = ['known-backend', 'backend-changed', 'backend-malformed'].includes(scenario);
+    if (hasBackend) {
+      proof.schema_version = 2;
+      proof.backend_commit = '2'.repeat(40);
+      proof.backend_basis = 'Packaged backend commit observed via GET /api/version before and after the journeys; identifies the answering backend only, not every fleet function or frontend parity.';
+      await page.route('**/api/version', route => route.fulfill({ json: {
+        schema_version: 1, application: 'merismos', status: 'known', source: 'ci_package',
+        commit: scenario === 'backend-malformed' ? 'fake' : scenario === 'backend-changed' ? sha : proof.backend_commit,
+      } }));
+    }
     if (scenario === 'stale') proof.observed_at = '2000-01-01T00:00:00Z';
     if (scenario === 'mismatch') proof.frontend_commit = '2'.repeat(40);
     if (scenario === 'refused') proof.postflight = 'FAILURE';
@@ -42,15 +52,15 @@ for (const scenario of ['missing', 'malformed', 'stale', 'mismatch', 'refused', 
     });
     await page.goto('/acceptance.html');
     await expect(page.getByRole('heading', { name: 'Automated acceptance', exact: true })).toBeVisible();
-    const state = scenario === 'valid' ? 'PASS' : scenario === 'missing' ? 'PENDING' : ['stale', 'mismatch'].includes(scenario) ? 'HISTORICAL' : 'UNKNOWN';
+    const state = ['valid', 'known-backend'].includes(scenario) ? 'PASS' : scenario === 'missing' ? 'PENDING' : ['stale', 'mismatch', 'backend-changed'].includes(scenario) ? 'HISTORICAL' : 'UNKNOWN';
     await expect(page.locator('#status')).toHaveAttribute('data-state', state);
     await expect(page.locator('#reason')).not.toHaveText('No current pass is asserted until matching proof has been read.');
     await expect(page.locator('#release')).toHaveText(sha);
-    if (scenario === 'valid') {
+    if (state === 'PASS') {
       await expect(page.locator('#total')).toHaveText('24');
       await expect(page.locator('#failed')).toHaveText('0');
       await expect(page.locator('#skipped')).toHaveText('0');
-      await expect(page.locator('#backend')).toHaveText('unavailable');
+      await expect(page.locator('#backend')).toHaveText(proof.backend_commit);
       await expect(page.locator('#root-release')).toHaveText(sha);
       await expect(page.locator('#receipt-link')).toHaveAttribute('href', '/acceptance/runs/123-2.json');
     } else {

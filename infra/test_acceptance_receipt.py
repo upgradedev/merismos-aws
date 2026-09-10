@@ -78,6 +78,48 @@ class ReceiptContract(unittest.TestCase):
         for private in (b"synthetic case", b"do not publish raw output", b"system-out"):
             self.assertNotIn(private, data)
 
+    def test_observed_backend_may_differ_from_frontend_without_inventing_parity(self):
+        known = {"commit": OTHER, "status": "known", "source": "ci_package"}
+        receipt = proof.build_receipt(self.junit, COMMIT, ENV, NOW, known, known)
+        self.assertEqual(receipt["schema_version"], 2)
+        self.assertEqual(receipt["backend_commit"], OTHER)
+        self.assertEqual(receipt["backend_basis"], proof.KNOWN_BACKEND_BASIS)
+        self.assertEqual(receipt["frontend_commit"], COMMIT)
+        self.assertEqual(proof.validate(receipt, NOW), receipt)
+        for after in (proof.UNKNOWN, {**known, "commit": COMMIT}, {**known, "commit": "fake"}):
+            with self.subTest(after=after), self.assertRaises(ValueError):
+                proof.build_receipt(self.junit, COMMIT, ENV, NOW, known, after)
+
+    def test_legacy_unknown_receipts_remain_valid_without_rewriting_their_basis(self):
+        legacy = {**self.receipt, "schema_version": 1, "backend_basis": proof.BACKEND_BASIS}
+        self.assertEqual(proof.validate(legacy, NOW), legacy)
+        with self.assertRaises(ValueError):
+            proof.validate({**legacy, "backend_commit": COMMIT}, NOW)
+
+    def test_known_backend_rechecked_before_each_public_write_and_failure_retains_history(self):
+        known = {"commit": OTHER, "status": "known", "source": "ci_package"}
+        receipt = proof.build_receipt(self.junit, COMMIT, ENV, NOW, known, known)
+        calls = []
+        def version_request(url):
+            calls.append(url)
+            return 200, {"content-type": "application/json"}, json.dumps({
+                "schema_version": 1, "application": "merismos", **known}).encode()
+        proof.publish(receipt, ENV, COMMIT, self.command, self.request, NOW, version_request)
+        self.assertEqual(calls, [proof.ORIGIN + "api/version"] * 2)
+        self.assertEqual(json.loads(self.objects["acceptance.json"])["backend_commit"], OTHER)
+        self.objects.pop("acceptance/runs/123-2.json")
+        self.objects["acceptance.json"] = b"previous latest"
+        calls.clear()
+        def changed(url):
+            status, headers, body = version_request(url)
+            if len(calls) > 1:
+                body = body.replace(OTHER.encode(), COMMIT.encode())
+            return status, headers, body
+        with self.assertRaisesRegex(ValueError, "backend changed"):
+            proof.publish(receipt, ENV, COMMIT, self.command, self.request, NOW, changed)
+        self.assertIn("acceptance/runs/123-2.json", self.objects)
+        self.assertEqual(self.objects["acceptance.json"], b"previous latest")
+
     def test_failure_skips_empty_malformed_and_disagreeing_junit_refuse_receipt(self):
         for xml in ("", "<broken", "<testsuites/>", "<html/>", XML.replace('tests="24"', 'tests="999"'),
                     XML.replace('</testcase>', '<failure/></testcase>', 1),
@@ -246,6 +288,15 @@ class ReceiptContract(unittest.TestCase):
         cli_env = {**os.environ, **ENV, "GITHUB_OUTPUT": str(outputs)}
         command = [sys.executable, str(Path(proof.__file__)), "create", "--sha", COMMIT,
                    "--junit", str(self.junit), "--receipt", str(output)]
+        flight = self.root / "flight.json"
+        flight.write_text(json.dumps({"commit": COMMIT, "url": proof.ORIGIN, "read_only": True,
+                                     "backend": proof.UNKNOWN}))
+        command += ["--preflight", str(flight), "--postflight", str(flight)]
+        missing = self.root / "missing-flight.json"
+        missing.write_text(json.dumps({"commit": COMMIT, "url": proof.ORIGIN, "read_only": True}))
+        invalid = [*command[:-4], "--preflight", str(missing), "--postflight", str(flight)]
+        self.assertNotEqual(subprocess.run(invalid, env=cli_env, capture_output=True).returncode, 0)
+        self.assertFalse(output.exists())
         result = subprocess.run(command, env=cli_env, capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(set(json.loads(output.read_bytes())), proof.FIELDS)

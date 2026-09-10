@@ -2,16 +2,29 @@ const SHA = /^[0-9a-f]{40}$/;
 const NUMBER = /^[1-9][0-9]*$/;
 const REPO = 'https://github.com/upgradedev/merismos-aws';
 export const BACKEND_BASIS = 'Unavailable: /identity attempts Secrets Manager reads and S3 PutObject; no harmless deployed build-identity endpoint exists in the inspected source. No backend probe or SHA parity is claimed.';
+export const UNKNOWN_BACKEND_BASIS = 'Backend version unavailable from GET /api/version; no backend commit or fleet parity is claimed.';
+export const KNOWN_BACKEND_BASIS = 'Packaged backend commit observed via GET /api/version before and after the journeys; identifies the answering backend only, not every fleet function or frontend parity.';
 export const LIMITS = 'Synthetic scripted-planner/1.0.0 through real Strands and AWS HTTP persistence. Product journeys only; proof-display fixtures and post-publication proof checks are counted separately. No Bedrock model calls, real food rescue, authenticated live-coordinator publication (ME18), or human UAT.';
 const FIELDS = ['schema_version', 'application', 'environment', 'frontend_commit', 'backend_commit', 'backend_basis', 'run_id', 'run_attempt', 'run_url', 'observed_at', 'preflight', 'journeys', 'postflight', 'junit', 'human_uat', 'mode', 'limits', 'workflow_status'];
 const object = value => value !== null && typeof value === 'object' && !Array.isArray(value);
 const keys = (value, expected) => object(value) && Object.keys(value).sort().join('|') === [...expected].sort().join('|');
 const sorted = value => JSON.stringify(value, FIELDS.concat(['total', 'passed', 'failed', 'skipped']).sort());
+const knownCommit = value => typeof value === 'string' && value.length === 40 && SHA.test(value) && value !== '0'.repeat(40);
+
+export function backendCommit(value) {
+  if (!keys(value, ['schema_version', 'application', 'commit', 'status', 'source'])
+    || value.schema_version !== 1 || value.application !== 'merismos') throw new Error('backend schema');
+  if (value.commit === null && value.status === 'unknown' && value.source === 'unknown') return null;
+  if (!knownCommit(value.commit) || value.status !== 'known' || value.source !== 'ci_package') throw new Error('backend identity');
+  return value.commit;
+}
 
 export function validReceipt(p) {
-  return keys(p, FIELDS) && p.schema_version === 1 && p.application === 'merismos' && p.environment === 'live_aws'
+  return keys(p, FIELDS) && [1, 2].includes(p.schema_version) && p.application === 'merismos' && p.environment === 'live_aws'
     && typeof p.frontend_commit === 'string' && SHA.test(p.frontend_commit)
-    && p.backend_commit === 'unavailable' && p.backend_basis === BACKEND_BASIS
+    && (p.schema_version === 1 ? p.backend_commit === 'unavailable' && p.backend_basis === BACKEND_BASIS
+      : (p.backend_commit === 'unavailable' && p.backend_basis === UNKNOWN_BACKEND_BASIS)
+        || (knownCommit(p.backend_commit) && p.backend_basis === KNOWN_BACKEND_BASIS))
     && ['run_id', 'run_attempt'].every(key => typeof p[key] === 'string' && NUMBER.test(p[key]))
     && p.run_url === `${REPO}/actions/runs/${p.run_id}/attempts/${p.run_attempt}`
     && ['preflight', 'journeys', 'postflight'].every(key => p[key] === 'SUCCESS')
@@ -42,13 +55,13 @@ export function assess(release, receipt, now = Date.now(), rootCommit) {
   const base = { release: release.commit, html_commit: rootCommit, receipt };
   if (receipt.frontend_commit !== release.commit) return { ...base, state: 'HISTORICAL', reason: 'The recorded frontend differs from the served release. Current acceptance is pending.' };
   if (age > 86_400_000) return { ...base, state: 'HISTORICAL', reason: 'This observation is older than 24 hours. Current acceptance needs a new run.' };
-  return { ...base, state: 'PASS', reason: 'Matching frontend: scripted AWS browser journeys passed. Backend identity remains unavailable; overall workflow conclusion is not asserted.' };
+  return { ...base, state: 'PASS', reason: `Matching frontend: scripted AWS browser journeys passed. ${knownCommit(receipt.backend_commit) ? 'The answering backend commit was observed separately; fleet parity is not asserted.' : 'Backend identity remains unavailable;'} overall workflow conclusion is not asserted.` };
 }
 
 export async function loadProof(request = fetch, now = Date.now()) {
   let release;
   async function read(path, missing = false, raw = false) {
-    const response = await request(path, { cache: 'no-store', credentials: 'omit' });
+    const response = await request(path, { cache: 'no-store', credentials: 'omit', redirect: 'error' });
     if (missing && [403, 404].includes(response.status)) return null;
     if (!response.ok) throw new Error('unavailable');
     const text = await response.text();
@@ -64,9 +77,15 @@ export async function loadProof(request = fetch, now = Date.now()) {
       const retained = await read(`/acceptance/runs/${receipt.run_id}-${receipt.run_attempt}.json`);
       if (!validReceipt(retained) || sorted(retained) !== sorted(receipt)) throw new Error('immutable mismatch');
     }
+    let backend;
+    if (result.receipt && knownCommit(receipt.backend_commit)) {
+      backend = backendCommit(await read('/api/version'));
+      if (backend !== receipt.backend_commit) return { ...result, state: 'HISTORICAL', reason: 'The answering backend differs from the recorded version. Current acceptance needs a new run.' };
+    }
     const after = await read('/release.json');
     const afterRoot = htmlCommit(await read('/', false, true));
     if (!object(after) || after.commit !== release.commit || afterRoot !== rootCommit) throw new Error('release changed');
+    if (backend && backendCommit(await read('/api/version')) !== backend) throw new Error('backend changed');
     return result;
   } catch {
     return { state: 'UNKNOWN', reason: 'Release or retained proof is unreachable, malformed, mismatched or changed during this check. No current pass is asserted.',

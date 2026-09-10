@@ -20,7 +20,7 @@ build-backend = "setuptools.build_meta"
 where = ["src"]
 
 [tool.setuptools.package-data]
-merismos = ["demo_corpus.json"]
+merismos = ["demo_corpus.json", "build-info.json"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]

@@ -47,6 +47,8 @@ def validate(deploy, uat):
     assert "continue-on-error" not in indexed["journeys"]
     assert "frontend_smoke.py" in indexed["preflight"]["run"]
     assert "frontend_smoke.py" in indexed["postflight"]["run"]
+    for phase in ("preflight", "postflight"):
+        assert f"--output acceptance-proof/{phase}.json" in indexed[phase]["run"]
     assert indexed["postflight"]["if"] == "always() && steps.journeys.outcome != 'skipped'"
     assert steps.index(indexed["preflight"]) < steps.index(indexed["journeys"])
     assert steps.index(indexed["postflight"]) > steps.index(indexed["journeys"])
@@ -61,6 +63,8 @@ def validate(deploy, uat):
     assert "acceptance_receipt.py guard" in indexed["preflight"]["run"]
     compiler = next(step for step in steps if "acceptance_receipt.py create" in step.get("run", ""))
     assert compiler["id"] == "receipt"
+    for phase in ("preflight", "postflight"):
+        assert f"--{phase} acceptance-proof/{phase}.json" in compiler["run"]
     assert job["outputs"] == {key: "${{ steps.receipt.outputs." + key + " }}" for key in ("artifact_name", "producer_run_id", "producer_run_attempt")}
     assert compiler["if"] == "steps.preflight.outcome == 'success' && steps.journeys.outcome == 'success' && steps.postflight.outcome == 'success'"
     assert compiler["env"] == {phase: "${{ steps." + phase.lower() + ".outcome }}" for phase in ("PREFLIGHT", "JOURNEYS", "POSTFLIGHT")}
@@ -143,6 +147,14 @@ class MainAcceptanceContract(unittest.TestCase):
         self.uat["permissions"]["id-token"] = "write"
         with self.assertRaises(AssertionError):
             validate(self.deploy, self.uat)
+
+    def test_missing_version_observation_or_source_head_substitution_is_rejected(self):
+        for phase in ("preflight", "postflight"):
+            uat = copy.deepcopy(self.uat)
+            step = next(s for s in uat["jobs"]["acceptance"]["steps"] if s.get("id") == phase)
+            step["run"] = 'python infra/frontend_smoke.py --sha "$GITHUB_SHA"'
+            with self.subTest(phase=phase), self.assertRaises(AssertionError):
+                validate(self.deploy, uat)
 
     def test_browser_job_cannot_inherit_publisher_credentials(self):
         for name in ("acceptance", "proof-browser"):

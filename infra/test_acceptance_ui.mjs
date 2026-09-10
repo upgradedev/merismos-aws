@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { assess as assessProof, htmlCommit, loadProof, renderProof, validReceipt, BACKEND_BASIS, LIMITS } from '../frontend/public/acceptance.js';
+import { assess as assessProof, backendCommit, htmlCommit, loadProof, renderProof, validReceipt, BACKEND_BASIS, UNKNOWN_BACKEND_BASIS, KNOWN_BACKEND_BASIS, LIMITS } from '../frontend/public/acceptance.js';
 
 const sha = '1'.repeat(40), other = '2'.repeat(40), now = Date.parse('2026-09-10T06:00:00Z');
 const html = (commit = sha) => `<html><head><meta name="application-commit" content="${commit}"></head></html>`;
@@ -13,6 +13,31 @@ const receipt = () => ({ schema_version: 1, application: 'merismos', environment
   limits: LIMITS, workflow_status: 'NOT_ASSERTED' });
 const response = value => ({ ok: true, status: 200, text: async () => JSON.stringify(value) });
 const request = async path => path === '/' ? { ok: true, status: 200, text: async () => html() } : response(path === '/release.json' ? { commit: sha } : receipt());
+
+test('new receipt distinguishes independently observed backend from unavailable and legacy', async () => {
+  const proof = { ...receipt(), schema_version: 2, backend_commit: other, backend_basis: KNOWN_BACKEND_BASIS };
+  assert.equal(validReceipt(proof), true);
+  assert.equal(validReceipt({ ...proof, backend_commit: 'unavailable', backend_basis: UNKNOWN_BACKEND_BASIS }), true);
+  for (const commit of [null, '', 'fake', '0'.repeat(40), true, sha + '\n']) assert.equal(validReceipt({ ...proof, backend_commit: commit }), false);
+  const known = { schema_version: 1, application: 'merismos', commit: other, status: 'known', source: 'ci_package' };
+  for (const value of [{ ...known, source: 'environment' }, { ...known, commit: 'fake' }, { ...known, secret: 'hidden' }, null])
+    assert.throws(() => backendCommit(value));
+  for (const mode of ['known', 'different', 'changed', 'missing', 'fake']) {
+    let reads = 0;
+    const result = await loadProof(async (path, options) => {
+      assert.equal(options.redirect, 'error');
+      assert.notEqual(path, '/identity');
+      if (path === '/api/version') {
+        reads += 1;
+        if (mode === 'missing') return { ok: false, status: 404 };
+        return response({ ...known, commit: mode === 'fake' ? 'fake' : mode === 'different' || (mode === 'changed' && reads > 1) ? sha : other });
+      }
+      return path.includes('acceptance') ? response(proof) : request(path);
+    }, now);
+    assert.equal(result.state, mode === 'known' ? 'PASS' : mode === 'different' ? 'HISTORICAL' : 'UNKNOWN', mode);
+    if (mode === 'known') assert.equal(result.receipt.backend_commit, other);
+  }
+});
 
 test('only a current complete receipt is PASS, with backend unavailable and no workflow-success claim', () => {
   const result = assess({ commit: sha }, receipt(), now);

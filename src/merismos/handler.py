@@ -148,6 +148,12 @@ def handler(event: Any, context: Any = None) -> dict[str, Any]:
     me = role()
 
     try:
+        if path in {"/version", "/api/version"}:
+            from .version import build_version
+
+            if method != "GET":
+                return _reply(405, {"detail": "Use GET for build identity."})
+            return _reply(200, build_version())
         if path.startswith("/api/"):
             from .api import route as api_route
 

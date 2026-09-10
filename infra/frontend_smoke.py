@@ -7,6 +7,8 @@ import re
 import urllib.error
 import urllib.request
 
+from backend_version import fetch_version, observe
+
 
 def fetch(url):
     try:
@@ -36,12 +38,22 @@ def check(url, sha, request=fetch):
     assert status in {403, 404} and b'application-commit' not in missing, "missing asset became SPA 200"
     status, _, missing = request(url + "api/definitely-not-a-route")
     assert status in {400, 404, 405} and b'application-commit' not in missing, "API errors became HTML success"
-    return {"url": url, "commit": sha, "assets_checked": len(assets), "read_only": True}
+    backend = observe(url, fetch_version if request is fetch else request)
+    return {"url": url, "commit": sha, "assets_checked": len(assets), "read_only": True,
+            "backend": backend}
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--url", required=True)
     parser.add_argument("--sha", required=True)
+    parser.add_argument("--output")
     args = parser.parse_args()
-    print(json.dumps(check(args.url, args.sha), indent=2))
+    result = json.dumps(check(args.url, args.sha), indent=2)
+    if args.output:
+        from pathlib import Path
+        output = Path(args.output)
+        output.parent.mkdir(parents=True, exist_ok=True)
+        with output.open("x") as stream:
+            stream.write(result + "\n")
+    print(result)

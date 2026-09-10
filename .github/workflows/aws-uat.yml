@@ -46,7 +46,7 @@ jobs:
         run: |
           python -c 'import os,re; assert re.fullmatch("[0-9a-f]{40}", os.environ["EXPECTED_RELEASE"]), "Full release SHA required"'
           python infra/acceptance_receipt.py guard --sha "$EXPECTED_RELEASE"
-          python infra/frontend_smoke.py --url "$MERISMOS_UI_URL" --sha "$EXPECTED_RELEASE"
+          python infra/frontend_smoke.py --url "$MERISMOS_UI_URL" --sha "$EXPECTED_RELEASE" --output acceptance-proof/preflight.json
       - name: Install browser tools on CI only
         working-directory: frontend
         run: |
@@ -61,7 +61,7 @@ jobs:
       - name: Verify the tested release did not change during the journeys
         id: postflight
         if: always() && steps.journeys.outcome != 'skipped'
-        run: python infra/frontend_smoke.py --url "$MERISMOS_UI_URL" --sha "$EXPECTED_RELEASE"
+        run: python infra/frontend_smoke.py --url "$MERISMOS_UI_URL" --sha "$EXPECTED_RELEASE" --output acceptance-proof/postflight.json
       - name: Derive sanitized aggregate receipt from this run's JUnit
         id: receipt
         if: steps.preflight.outcome == 'success' && steps.journeys.outcome == 'success' && steps.postflight.outcome == 'success'
@@ -69,7 +69,7 @@ jobs:
           PREFLIGHT: ${{ steps.preflight.outcome }}
           JOURNEYS: ${{ steps.journeys.outcome }}
           POSTFLIGHT: ${{ steps.postflight.outcome }}
-        run: python infra/acceptance_receipt.py create --sha "$EXPECTED_RELEASE"
+        run: python infra/acceptance_receipt.py create --sha "$EXPECTED_RELEASE" --preflight acceptance-proof/preflight.json --postflight acceptance-proof/postflight.json
       - name: Summarize automated evidence without human signoff
         if: always()
         env:
@@ -90,6 +90,8 @@ jobs:
             frontend/artifacts/browser-junit.xml
             frontend/playwright-report/
             frontend/UAT.testbook.*
+            acceptance-proof/preflight.json
+            acceptance-proof/postflight.json
           retention-days: 90
           if-no-files-found: error
       - name: Transfer only sanitized receipt to the publisher
