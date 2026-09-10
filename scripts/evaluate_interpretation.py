@@ -222,7 +222,8 @@ def evaluate(adapter, directory, source_commit, mode, run_id, model=None, saved_
                    "src/merismos/envelope.py", "scripts/evaluate_interpretation.py")},
               "mode": mode, "actual_model_measurement": "NOT_ESTABLISHED",
               "saved_receipts": deepcopy(saved_receipts),
-              "model": {key: (model or {}).get(key) if (model or {}).get(key) is not None else UNKNOWN
+              "model": {key: (model or {}).get(key)
+                        if (model or {}).get(key) is not None else UNKNOWN
                         for key in ("id", "config", "usage", "cost", "producer_run",
                                     "producer_source_commit")},
               "panels": {}}
