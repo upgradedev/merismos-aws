@@ -190,6 +190,61 @@ keep historical evidence separate from current scope. Changed cases begin at **N
 actual CI evidence exists. Human acceptance remains **NOT_RUN** until a person signs off.
 Offline CI, frontend release identity and live AWS acceptance are three different evidence levels.
 
+### Interpretation evaluation: source preparation, not measured model quality
+
+The [fixed protocol](evaluation/interpretation-protocol.json),
+[14 synthetic inputs](evaluation/interpretation-inputs.json) and
+[separate gold](evaluation/interpretation-gold.json) were registered at
+`ac84e15409aca3b9a1fa349fb40083b501ef214e`, before the instrument. These are
+author-built public development cases, not independent expert labels or held-out accuracy.
+Protocol byte SHA256: `fabd6b3a49088c7bb2b879600566d95a7692c1eccb4041882dce8f4669eef80a`.
+
+The scope is deliberately narrow: the existing `fleet.premises` specialist's
+clear-versus-human-review decision on the same offer, organisation and manifest inputs
+as a future saved model response. It is **not** a claim that an LLM improves allocation,
+knapsack optimization, intake validation or the deterministic safety floor. Raw candidate
+mistakes are scored before `Envelope.union`; the existing never-loosen control is reported
+separately, not credited to the model. Gold and group labels never enter adapter inputs.
+
+The [offline instrument](scripts/evaluate_interpretation.py) reports fixed-denominator
+risk capture (7), false positives on clear cases (3), unsafe clearance (11), abstention (14),
+unknown-evidence capture (4), validity and every error/interruption. Capture means a review
+decision, not proof that its explanation identified the right hazard. A model that refuses
+everything gets full capture and full false positives, not perfect accuracy. Literal source
+citations bind path/hash/quote, not semantic truth. Ungrounded review is counted explicitly.
+
+Existing core CI runs this **fake adapter instrument check**, with no model network adapter:
+
+```bash
+python scripts/evaluate_interpretation.py source-smoke --output evaluation-results
+```
+
+The `interpretation-source-only-<sha>-<run>` artifact retains all baseline/fake slots,
+raw responses and source hashes, even after a failure. Tests deliberately break JSON, citations,
+source identity, unsafe output and durable start ordering. Running is persisted before the
+adapter starts; existing output directories are never overwritten. Artifacts have 90-day
+retention. Source fake results are not actual Bedrock measurements or comparison wins.
+An inert input-only plan can be prepared with `plan --output <new-directory>`; it performs no
+evaluation or model call. `replay --receipts <captured.json> --output <new-directory>` is an
+offline CI path for already-spent bytes only. Receipt hashes, ordered cases, all failures and
+producer identity must be retained. Producer assertions are not authenticated AWS provenance.
+
+The prior-evidence inventory is in the protocol. The historical
+[backend proof](https://github.com/upgradedev/merismos-aws/actions/runs/34380636989)
+at `a438849cd69ba25cb2dcd5679439ec9d1a303dac` contains model-tagged events and enriched
+envelopes for `run-105bea9dede6`; it does not retain complete raw model responses or exact
+contemporaneous read bytes. The dated narrative above is also not a replayable comparison.
+Neither was scored as new quality evidence or re-invoked. Usage, inference configuration and
+dollar cost stay **UNKNOWN** where unmeasured.
+
+**Actual comparable model evaluation: NOT_RUN; C1 remains open.** Before any future collection,
+the owner must separately approve a reviewed collector using the existing `BedrockAnalyst`,
+exact source/model/config/region, call/token/dollar limits and stop conditions. The collector
+must keep raw responses and citation sidecars; missing evidence is not fabricated by this
+replay tool. No live model workflow, model permission, cloud telemetry or runtime change is
+included here. More diverse independent cases and human adjudication remain necessary before
+any general quality claim.
+
 ## Current public acceptance
 
 [Open the anonymous acceptance page](https://d2qnkmlhs7y5fp.cloudfront.net/acceptance.html)
