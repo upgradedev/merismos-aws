@@ -1,0 +1,54 @@
+name: Source-only dispatch measurement
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  measure:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      AWS_ACCESS_KEY_ID: offline-suite-no-account
+      AWS_SECRET_ACCESS_KEY: offline-suite-no-account
+      AWS_EC2_METADATA_DISABLED: 'true'
+      AWS_DEFAULT_REGION: eu-west-1
+      MERISMOS_OFFLINE_HTTP: '1'
+      MERISMOS_WORKSPACE_DB: /tmp/merismos-source-measurement.sqlite
+      MERISMOS_CORPUS_ROOT: ${{ github.workspace }}/corpus
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.18.0'
+      - uses: actions/setup-python@v5
+        with:
+          python-version-file: .python-version
+      - name: Install existing pinned frontend and Python dependencies in CI only
+        run: |
+          npm install --global npm@11.19.1
+          pip install -e '.[dev]'
+          npm ci --prefix frontend
+      - name: Build and run instrumentation negative unit controls under existing floors
+        working-directory: frontend
+        run: |
+          npm run build
+          npm test
+      - name: Install existing browser in CI only
+        working-directory: frontend
+        run: npx playwright install --with-deps chromium
+      - name: Exactly20 preregistered source attempts, never AWS acceptance
+        working-directory: frontend
+        run: npx playwright test --config playwright.measurement.config.ts
+      - name: Preserve raw successes, failures and not-run slots separately from acceptance
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: source-measurement-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            frontend/test-results/source-measurement/
+            frontend/test-results/unit.xml
+            frontend/coverage/coverage-summary.json
+          retention-days: 90
+          if-no-files-found: error
