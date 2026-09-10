@@ -56,6 +56,24 @@
   },
   "cases": [
     {
+      "id": "X2-SESSION-ISOLATION",
+      "persona": "Two independent sandbox coordinators",
+      "requirement": "Two valid sessions isolate donation state, exact-plan authority and request-ID retries",
+      "preconditions": "Two newly created valid sandbox sessions A/B in separate browser contexts; source CI uses real HTTP, SQLite and scripted Strands only",
+      "steps": [
+        "File a new invented offer, run and explicitly approve in A; after each step compare B with its initial empty-work snapshot and reload B history",
+        "Submit A's exact approval request under B's valid handle; verify A-only offer is absent",
+        "Explicit positive control: file a different donation in B at the same session-local offer ID; transplant A approval before and after B's own legitimate run using B's current version",
+        "Transplant the full A plan/run/key/digest, mixed foreign run or digest, and pickup claim; verify refusal with unchanged A/B state and no durable save in the Python integration test",
+        "Replay A's original run and approval request IDs in A; verify no second write and no change to B; B's own plan still needs fresh consent"
+      ],
+      "expected_outcome": "B initially has no runs, approvals, claims or operation entries, and stays unchanged throughout A's work. Later B changes only through its explicit positive controls. Valid-session cross-plan attempts return plan-stale 409, not unknown-session 410 or stale-version errors, and create no record/claim/version/operation write. Record addresses are workspace-local: matching keys alone grant no authority. A retries return its existing state and never populate B.",
+      "negative_recovery_case": "An unknown token is a separate expiry-boundary check, not evidence of two-session isolation. A stale or transplanted plan cannot pre-check B's consent or enable its approval button.",
+      "automation_mapping": "tests/integration/test_coordinator_api.py::test_two_valid_sandbox_sessions_isolate_state_plans_and_request_replays; frontend/e2e/session-isolation.spec.ts (desktop/mobile projects)",
+      "evidence_scope": "2026-09-10 source-only test mapping; execution evidence belongs to the exact-source GitHub Actions runs. Not an AWS acceptance, authenticated coordinator, real publication or model-cost measurement. Current deployed status is delegated to /acceptance.html; prior evidence is retained.",
+      "human_signoff": "NOT_RUN"
+    },
+    {
       "id": "ME00",
       "persona": "Visiting coordinator",
       "requirement": "Recognise the synthetic sandbox and truthful provider",
