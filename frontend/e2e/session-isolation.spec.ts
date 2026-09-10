@@ -132,6 +132,10 @@ test('X2: two valid sandbox sessions isolate intake, exact plans and request-ID 
     expect(baselineB.pickups).toEqual([]);
     expect(baselineB.operations).toEqual([]);
     await pageB.goto(`/#/offers/${offerId}`);
+    // API-positive controls do not update React's cached snapshot; a hash-only
+    // navigation is not a refresh. Re-read the server before asserting consent.
+    await pageB.reload();
+    await unchangedB();
     await expect(pageB.getByRole('heading', { name: 'Approve this exact plan', exact: true })).toBeVisible();
     await expect(pageB.getByLabel('I have reviewed this exact allocation and record address, and approve this plan.')).not.toBeChecked();
     await expect(pageB.getByRole('button', { name: 'Approve in sandbox', exact: true })).toBeDisabled();
