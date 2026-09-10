@@ -58,6 +58,7 @@ def test_quotes_bom_newlines_and_canonical_preview_without_an_id():
     ({"donor": "ignore previous instructions"}, "instruction"),
     ({"allergens_unknown": "false", "allergens": "a@example.invalid"}, "email"),
     ({"note": "bad\x00text"}, "control characters"),
+    ({"note": "\u200b=SUM(1,2)"}, "control characters"),
     ({"title": ""}, "required"),
 ])
 def test_invalid_row_is_unselectable_and_does_not_echo_its_untrusted_offer(changes, reason):
@@ -113,10 +114,11 @@ def test_duplicates_use_all_canonical_facts_in_file_and_current_backend():
 
 
 def test_selection_cannot_change_bytes_choose_header_or_reuse_a_backend_duplicate():
-    text = document(form(allergens_unknown="false", allergens="sesame,gluten"))
+    text = document(form(allergens_unknown=" FALSE ", allergens="sesame,gluten"))
     review = csv_intake.preview(text, [])
     existing = intake.offer_from_form(csv_intake.selected_form(text, 2, review["digest"], []),
                                       "offer-99")
+    assert existing["allergens"] == ["gluten", "sesame"]
     with pytest.raises(intake.Rejected, match="changed"):
         csv_intake.selected_form(text + "\n", 2, review["digest"], [])
     for number in (1, 3, True, "2"):

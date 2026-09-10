@@ -1,8 +1,10 @@
 {
   "product": "Merismos",
   "intake_dispatch_revision": {
+    "checkpoint_date": "2026-09-10",
     "source_status": "PENDING_CI",
-    "deployed_acceptance": "NOT_RUN",
+    "deployed_at_source_checkpoint": "NOT_RUN; this source checkpoint does not describe later deployments",
+    "current_live_acceptance": "/acceptance.html",
     "human_uat": "NOT_RUN",
     "trusted_coordinator_ME18": "NOT_RUN",
     "cases": [

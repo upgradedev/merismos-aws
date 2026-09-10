@@ -32,7 +32,8 @@ Open **Evidence bundle and recovery** to copy the current decision, source refer
 workspace revision, provider/mode, record history, handoff and limits. Copying does not send a
 message, approve anything or change custody status.
 
-**CSV and disruption flow (source implementation; deployment requires separate acceptance):**
+**CSV and disruption flow:** [current AWS acceptance](https://d2qnkmlhs7y5fp.cloudfront.net/acceptance.html)
+reports the served release separately from the dated source checkpoints in the testbook.
 Open **Add an offer → Import a donor CSV instead**. The **CSV schema and sample** panel contains
 a copyable UTF-8 sample. Required columns are `title,donor,quantity,unit,category,collection_date`;
 optional columns are `use_by,allergens,allergens_unknown,hours_unrefrigerated,note`. Headers are

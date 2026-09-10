@@ -38,7 +38,7 @@ export function pickupManifest(row: OfferRow, data: Workspace): string {
     `Policy ceiling: ${row.result.fairness_cap ? `${row.result.fairness_cap.share * 100}% from ${row.result.fairness_cap.source}` : 'unknown in this result'}. Network policy, not universal or certified fairness.`,
     ...(change ? ['DISRUPTION AND REPLAN', `${change.org}: simulated capacity reduced from allocated ${change.previous_quantity} to ${change.capacity} ${change.unit}. Source: ${change.source}.`,
       `Previous ${change.before_recorded ? 'recorded' : 'draft'} plan: ${change.before_key}; digest: ${change.before_digest}. Original evidence retained.`,
-      ...decisionRows(change.before, row.result, !!current).map(r => `${r.org}: before ${r.before}; after ${r.after}`)] : []),
+      ...decisionRows(change.before, row.result, total !== null).map(r => `${r.org}: before ${r.before}; after ${r.after}`)] : []),
     'COLLECTION COMMITMENTS',
     ...data.pickups.filter(p => p.offer_id === row.offer.id).map(p => `${p.org}: ${p.quantity} ${p.unit} · ${p.state} · ${p.role || 'role unassigned'} · ${p.agreed_at || 'time not agreed'} · commitment digest ${p.commitment_digest || p.plan_digest}`),
     'LIMITS',
@@ -57,12 +57,12 @@ export function downloadManifest(text: string) {
 
 export function DispatchJourney({row, data}: {row: OfferRow; data: Workspace}) {
   const changed = !!row.replan;
-  const replanned = changed && !!row.plan;
+  const replanned = changed && allocationTotal(row) !== null;
   const collected = data.pickups.some(p => p.offer_id === row.offer.id && p.state === 'confirmed');
   return <section className="panel padded journey" aria-label="Offer to pickup journey"><h2>From offer to pickup</h2><ol>
     <li>Offer <strong>Filed</strong></li><li>Allocation <strong>{row.plan || changed ? 'Computed' : 'Needs review'}</strong></li>
     <li>Disruption <strong>{changed ? 'Recorded in sandbox' : 'Optional rehearsal'}</strong></li>
-    <li>Replan <strong>{replanned ? row.plan?.recorded ? 'Approved in sandbox' : 'Fresh approval required' : changed ? 'Required' : 'If constraints change'}</strong></li>
+    <li>Replan <strong>{replanned ? row.plan?.recorded ? 'Approved in sandbox' : row.plan ? 'Fresh approval required' : 'No feasible allocation' : changed ? 'Required' : 'If constraints change'}</strong></li>
     <li>Pickup <strong>{collected ? 'Simulation confirmed' : row.plan?.recorded ? 'Arrange and confirm' : 'Not authorized'}</strong></li>
   </ol><p className="small-note">{data.mode === 'sandbox' ? 'Every step here is simulated; no public allocation or real recipient confirmation.' : 'Live records are synthetic demonstrations. Disruption rehearsal is available in Sandbox.'}</p></section>;
 }
@@ -70,10 +70,11 @@ export function DispatchJourney({row, data}: {row: OfferRow; data: Workspace}) {
 export function ReplanComparison({row}: {row: OfferRow}) {
   const change = row.replan;
   if (!change) return null;
-  const rows = decisionRows(change.before, row.result, !!row.plan);
+  const ready = allocationTotal(row) !== null;
+  const rows = decisionRows(change.before, row.result, ready);
   return <section className="panel padded" aria-label="Before and after disruption"><h2>What changed and why</h2>
     <p>{change.org}: simulated collection capacity reduced from an allocation of {change.previous_quantity} to {change.capacity} {change.unit}. Applies to this offer; evidence: {change.source}.</p>
-    <p className="notice">{row.plan?.recorded ? 'The new exact plan is approved in the sandbox. Old commitments remain invalid; arrange collection against the new plan.' : row.plan ? 'Replanned against the new constraint. Fresh exact-plan approval is required before new pickup commitments.' : 'Old allocation is no longer actionable. Re-run the fleet to apply the new capacity limit.'} Original {change.before_recorded ? 'recorded' : 'draft'} plan and its evidence are retained.</p>
+    <p className="notice">{row.plan?.recorded ? 'The new exact plan is approved in the sandbox. Old commitments remain invalid; arrange collection against the new plan.' : row.plan ? 'Replanned against the new constraint. Fresh exact-plan approval is required before new pickup commitments.' : ready ? 'Replan completed with no feasible allocation. No pickup is authorized; review the exclusions below.' : 'Old allocation is no longer actionable. Re-run the fleet to apply the new capacity limit.'} Original {change.before_recorded ? 'recorded' : 'draft'} plan and its evidence are retained.</p>
     <div className="comparison-rows">{rows.map(r => <article key={r.org}><h3>{r.org}</h3><p>Before ({change.unit}): {r.before}</p><p>After ({change.unit}): {r.after}</p></article>)}</div>
     <details><summary>Previous exact plan identity</summary><p>{change.before_key}</p><p className="break-all">{change.before_digest}</p><p>Prior run: {change.before.run_id}. This identity is historical and cannot approve the current plan.</p></details>
     <details><summary>Previous record text · historical</summary><pre>{change.before.draft_body || 'Previous record text unavailable.'}</pre></details>

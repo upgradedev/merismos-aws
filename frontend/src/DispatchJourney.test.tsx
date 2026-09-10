@@ -47,6 +47,15 @@ it('exports original identity, before/after, current commitments and limitations
   expect(screen.getByRole('status')).toHaveTextContent('Select and copy');
   expect(screen.getByLabelText('Pickup manifest')).toHaveValue(text);
 });
+it('a completed zero-allocation replan reports actual exclusions, not a pending computation', () => {
+  const data = changed(); const row = data.offers[0]; row.plan = null;
+  row.status = 'nothing_to_allocate'; row.result.outcome = 'nothing_to_allocate';
+  row.result.draft_allocations = [];
+  render(<><ReplanComparison row={row}/><DispatchJourney row={row} data={data}/></>);
+  expect(screen.getByText(/Replan completed with no feasible allocation/)).toBeVisible();
+  expect(screen.getByText('No feasible allocation')).toBeVisible();
+  expect(pickupManifest(row, data)).toContain('after 0: Collection capacity is zero');
+});
 it('download uses text/plain and a fixed txt name, never CSV/HTML or a data-provided address', async () => {
   const create = vi.fn().mockReturnValue('blob:manifest');
   const revoke = vi.fn();

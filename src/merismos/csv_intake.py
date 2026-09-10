@@ -7,6 +7,7 @@ import hashlib
 import io
 import json
 import re
+import unicodedata
 
 from . import intake
 
@@ -35,7 +36,7 @@ def strict_form(form: dict) -> dict:
             raise intake.Rejected("Every CSV field must be text in the documented schema.")
         if value.lstrip().startswith(("=", "+", "-", "@")):
             raise intake.Rejected(f"{key}: spreadsheet formula-like values are refused.")
-        if any(ord(c) < 32 and c not in "\r\n\t" for c in value):
+        if any(unicodedata.category(c)[0] == "C" and c not in "\r\n\t" for c in value):
             raise intake.Rejected(f"{key}: control characters are not allowed.")
     for key, limit in (("title", 120), ("donor", 120), ("note", 600), ("allergens", 200)):
         if len(form.get(key, "")) > limit:
@@ -119,6 +120,11 @@ def selected_form(text: str, number: int, digest: str, existing: list[dict]) -> 
     row = next((r for r in reviewed["rows"] if type(number) is int and r["number"] == number), None)
     if row is None or row["status"] != "valid":
         raise intake.Rejected(row["detail"] if row else "Select a valid CSV data row.")
-    reader = csv.DictReader(io.StringIO(text.removeprefix("\ufeff"), newline=""), strict=True)
-    form = next(form for index, form in enumerate(reader, 2) if index == number)
-    return {**form, "allergens_unknown": form.get("allergens_unknown", "").lower() != "false"}
+    # DictReader skips blank rows; selection must use the preview's exact logical
+    # row numbering (including empty rows and quoted multi-line cells).
+    reader = csv.reader(io.StringIO(text.removeprefix("\ufeff"), newline=""), strict=True)
+    header = next(reader)
+    cells = next(cells for index, cells in enumerate(reader, 2) if index == number)
+    form = dict(zip(header, cells, strict=True))
+    return {**form, "allergens_unknown":
+            form.get("allergens_unknown", "").strip().lower() != "false"}

@@ -61,6 +61,33 @@ def test_selected_row_only_replay_and_duplicate_facts_are_checked_at_commit(clie
     assert client()[1]["version"] == after["version"]
 
 
+@pytest.mark.parametrize("selected,title", [(3, "Selected first"), (4, "Selected second")])
+def test_selection_after_blank_row_preserves_exact_offer_and_padded_false_allergens(
+    client, selected, title,
+):
+    text = document(form(title="Selected first", allergens="milk; wheat",
+                         allergens_unknown=" FALSE ", note="Quoted\nmultiline note"),
+                    form(title="Selected second", allergens="milk; wheat",
+                         allergens_unknown=" false "))
+    header, rest = text.split("\n", 1)
+    text = header + "\n\n" + rest
+    before = client()[1]
+    code, preview = client("/api/intake/preview", "POST", {"csv": text})
+    assert code == 200
+    assert [r["status"] for r in preview["rows"]] == ["invalid", "valid", "valid"]
+    expected = preview["rows"][selected - 2]["offer"]
+    code, after = client("/api/offers/new", "POST", {
+        "csv": text, "row": selected, "csv_digest": preview["digest"],
+        "version": preview["version"], "request_id": uuid.uuid4().hex})
+    assert code == 200, after
+    new = [o["offer"] for o in after["offers"]
+           if o["offer"]["id"] not in {o["offer"]["id"] for o in before["offers"]}]
+    assert len(new) == 1 and new[0]["title"] == title
+    assert new[0]["allergens"] == expected["allergens"] == ["milk", "wheat"]
+    assert new[0]["note"] == expected["note"]
+    assert after["records"] == before["records"] and after["pickups"] == before["pickups"]
+
+
 @pytest.mark.parametrize("path", ["/api/intake/preview", "/api/offers/new",
                                   "/api/offers/offer-4471/disrupt"])
 def test_live_import_and_disruption_cannot_invent_authority(client, path):
