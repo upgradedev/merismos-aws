@@ -1,9 +1,10 @@
 import { expect, test, devices, type BrowserContext, type Request } from '@playwright/test';
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { allowedRequest, ORIGIN, plannedAttempts, REGISTRATION, summarize, type HttpSample, type Identity, type Measurement, type StageName } from '../src/dispatchMeasurement';
 import type { Workspace } from '../src/types';
+import { measurementWriter, startPersistedAttempt } from './persistence';
 
 test('fixed20 preregistered source-only hero attempts (not20 acceptance tests)', async ({browser}) => {
   const source = execFileSync('git', ['rev-parse', 'HEAD'], {encoding: 'utf8'}).trim();
@@ -18,8 +19,7 @@ test('fixed20 preregistered source-only hero attempts (not20 acceptance tests)',
     backend: 'Real Python handler, scripted Strands, SQLite. External sockets denied by tests/http_server.py.',
     instrumentation: 'Monotonic Node performance.now wall time; browser automation, response-body observation and event-loop overhead included. No human think-time.',
     traffic: 'Browser request bodies and decoded response bodies. Headers, session tokens, bodies and query values are not retained.'};
-  const directory = 'test-results/source-measurement'; mkdirSync(directory, {recursive: true});
-  function persist() { writeFileSync(`${directory}/raw.json`, JSON.stringify({...data, environment, protocol: registered}, null, 2)); writeFileSync(`${directory}/summary.json`, JSON.stringify(summarize(data, identity), null, 2)); }
+  const persist = measurementWriter('test-results/source-measurement', data, identity, {environment, protocol: registered});
   persist(); // Every planned slot exists even if infrastructure stops this job later.
   const csv = 'title,donor,quantity,unit,category,collection_date,use_by,allergens,allergens_unknown,hours_unrefrigerated,note\nBenchmark vegetables,Demonstration cooperative,120,kg,produce,2026-09-14,2026-09-18,,true,,Invented donation for community meals\n';
   for (const attempt of data.attempts) {
@@ -28,7 +28,6 @@ test('fixed20 preregistered source-only hero attempts (not20 acceptance tests)',
     let timer: ReturnType<typeof setTimeout> | undefined;
     let active: StageName = 'setup', unsafe = false;
     const collecting: Promise<void>[] = [], samples = new Map<Request, HttpSample>();
-    attempt.status = 'running';
     async function stage<T>(name: StageName, action: () => Promise<T>): Promise<T> {
       active = name; const item = {name, start_ms: now(), end_ms: 0, status: 'ok' as 'ok' | 'failed'};
       attempt.stages.push(item);
@@ -36,7 +35,7 @@ test('fixed20 preregistered source-only hero attempts (not20 acceptance tests)',
       catch (error) { item.status = 'failed'; throw error; }
       finally { item.end_ms = now(); }
     }
-    const flow = (async () => {
+    const flow = startPersistedAttempt(attempt, persist, async () => {
       let first!: Workspace, approved!: Workspace, originalDigest = '', offerId = '';
       const page = await stage('setup', async () => {
         const context = await browser.newContext(attempt.viewport === 'desktop' ? {...devices['Desktop Chrome'], viewport: {width: 1440, height: 1000}} : {...devices['iPhone 13'], viewport: {width: 390, height: 844}});
@@ -106,7 +105,7 @@ test('fixed20 preregistered source-only hero attempts (not20 acceptance tests)',
         expect(text).toContain(originalDigest); expect(text).toContain('Isolated simulation');
       });
       await stage('download_manifest', async () => { const download = page.waitForEvent('download'); await page.getByRole('button', {name: 'Download pickup manifest'}).click(); const file = await download; expect(file.suggestedFilename()).toBe('merismos-pickup-manifest.txt'); expect(await file.failure()).toBeNull(); });
-    })();
+    });
     try {
       await Promise.race([flow, new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error('attempt_deadline')), 60_000); })]);
       attempt.status = 'success';
