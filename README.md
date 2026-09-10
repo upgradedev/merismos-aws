@@ -5,6 +5,17 @@ Merismos helps a community-food coordinator review a donation split and keep the
 [Open the coordinator workspace](https://d2qnkmlhs7y5fp.cloudfront.net/) — no account or installation for the synthetic sandbox.
 [CI](https://github.com/upgradedev/merismos-aws/actions/workflows/ci.yml) · [Frontend verification](https://github.com/upgradedev/merismos-aws/actions/workflows/frontend-ci.yml) · [MIT licence](LICENSE)
 
+## Contents
+
+- [Try one short flow](#try-one-short-flow)
+- [What is real and what is demonstrated](#what-is-real-and-what-is-demonstrated)
+- [Architecture](#architecture)
+- [Publication and recovery boundaries](#publication-and-recovery-boundaries)
+- [Evidence and honest limits](#evidence-and-honest-limits)
+- [Current public acceptance](#current-public-acceptance)
+- [Validation and release](#validation-and-release)
+- [Pre-existing components and licences](#pre-existing-components-and-licences)
+
 ## Try one short flow
 
 Choose **Add an offer → Try success**, edit the invented fields, submit, and **Work out the split**.
@@ -47,6 +58,42 @@ The configured specialist model remains `eu.anthropic.claude-opus-5` through Ama
 the internal live runner. Configuration is not evidence that a particular run called a model.
 An optional tool-less critic is supported, but an active critic Lambda/model invocation is not
 claimed for the public path. Merismos does not run on AgentCore.
+
+## Architecture
+
+The runtime has four Lambda deployments and three IAM roles: the reader and background runner
+share the reader role. This diagram describes the checked-in implementation and IaC; it does not
+claim that an anonymous sandbox run invokes the internal Bedrock runner or private writer.
+
+```mermaid
+flowchart TB
+    Visitor["Browser coordinator workspace"] --> CDN["CloudFront · uncached API and HTML"]
+    CDN --> Web["Private versioned S3 · React and acceptance proof"]
+    CDN --> Gateway["API Gateway HTTP API"]
+    Gateway --> Reader["Reader Lambda · reader IAM role"]
+    Reader --> Sandbox["Synthetic sandbox · Strands scripted model"]
+    Sandbox --> Workspace["DynamoDB approvals table · isolated workspace state"]
+    Reader -->|"authorized live run · async invoke"| Runner["Runner Lambda · same reader IAM role"]
+    Runner --> Strands["Strands specialists · bounded tool guard"]
+    Strands -->|"configured internal live model"| Bedrock["Amazon Bedrock · Opus 5"]
+    Reader -->|"read"| Corpus["S3 corpus · offers, organisations, registers"]
+    Strands -->|"bounded reads"| Corpus
+    Runner --> Ledger["DynamoDB thread · events, custody heads, receipts"]
+    Reader --> Workspace
+    Reader -->|"trusted coordinator consent · IAM invoke"| Writer["Writer Lambda · separate writer IAM role"]
+    Writer -->|"validate and spend nonce"| Workspace
+    Writer -->|"freshness reads"| Corpus
+    Writer -->|"conditional create · recovery reads"| Records["S3 records · stable public record URLs"]
+    Writer -->|"fairness lane and receipt"| Ledger
+    Evaluator["Evaluator Lambda · separate evaluator IAM role"] -->|"limited thread reads and writes"| Ledger
+```
+
+The evaluator deployment has no corpus or model authority. The public product's draft gate is
+executed in `fleet.run_chore`; an evaluator Lambda invocation is not implied by the diagram.
+The reader cannot write S3 records. Only the trusted writer can create a live record, after exact
+approval; sandbox approval stays in its workspace. See the
+[governed workflow diagram and trust boundaries](docs/BEDROCK_AGENTCORE_ARCHITECTURE.md#governed-agent-and-workflow-flow).
+Source: `infra/main.tf`, `infra/iam.tf`, `infra/frontend_stack.py`, `api.mutate`, `handler.publish`.
 
 ## Publication and recovery boundaries
 
@@ -114,6 +161,35 @@ The [acceptance testbook](frontend/UAT.testbook.html) and [machine-readable case
 keep historical evidence separate from current scope. Changed cases begin at **NOT_RUN** until
 actual CI evidence exists. Human acceptance remains **NOT_RUN** until a person signs off.
 Offline CI, frontend release identity and live AWS acceptance are three different evidence levels.
+
+## Current public acceptance
+
+[Open the anonymous acceptance page](https://d2qnkmlhs7y5fp.cloudfront.net/acceptance.html)
+or [read its latest JSON receipt](https://d2qnkmlhs7y5fp.cloudfront.net/acceptance.json).
+The page compares the served `release.json` frontend commit with the receipt's recorded commit,
+checks the identical retained run receipt and requires an observation within 24 hours. Missing or
+malformed proof is pending or unknown; stale or mismatched proof is historical, never a current pass.
+The page is available after this source is released; no successful live run of this change is claimed here.
+
+Successful preflight, product journeys and postflight produce an allowlisted aggregate from the
+current run's Playwright `test-results/e2e.xml`, with zero failures/skips and nonzero executed cases.
+Proof-display fixtures have a separate source-only suite and `proof-junit.xml`; their counts never
+enter the AWS product totals. A separate read-only browser job checks the actual published page.
+The receipt says `workflow_status=NOT_ASSERTED`, because publication precedes workflow completion.
+Human UAT and the real authenticated coordinator publication/recovery drill **ME18 remain NOT_RUN**.
+
+Each immutable `/acceptance/runs/<run-id>-<attempt>.json` contains sanitized aggregate counts,
+statuses, timestamps, source and run references only. Publication creates it conditionally or
+verifies identical existing bytes, then updates `/acceptance.json` only while the deployed frontend
+still matches. Frontend deployment never deletes history or ships receipt files from its build.
+The existing private frontend bucket, uncached static behavior and main-scoped OIDC role suffice;
+there is no IAM expansion. Both browser jobs have `contents:read` only; credentials live solely in
+the separate publisher. Main release and proof publication share one lock, and stale dispatches fail.
+
+Backend commit is explicitly **unavailable**, with a basis in each receipt: `/identity` attempts
+Secrets Manager and S3 boundary probes, so it is not used as a harmless version read. There is no
+backend parity claim or backend deployment to stamp a frontend SHA. This is scripted synthetic AWS
+software evidence, not a Bedrock model invocation, human acceptance or measured food rescue.
 
 ## Validation and release
 

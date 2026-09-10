@@ -1,5 +1,14 @@
 {
   "product": "Merismos",
+  "current_public_proof": {
+    "page": "/acceptance.html",
+    "latest": "/acceptance.json",
+    "immutable_runs": "/acceptance/runs/<run-id>-<attempt>.json",
+    "source_status": "NOT_RUN",
+    "basis": "Read the current page for observed status; source alone is not deployed acceptance. Product JUnit counts exclude the separate proof-display suite. Missing, malformed, stale or mismatched proof never becomes a current pass. Backend identity is unavailable because /identity performs AWS boundary probes.",
+    "human_uat": "NOT_RUN",
+    "real_coordinator_ME18": "NOT_RUN"
+  },
   "cases": [
     {
       "id": "ME00",

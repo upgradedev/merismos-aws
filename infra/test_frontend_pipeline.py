@@ -26,7 +26,8 @@ def validate(deploy, uat):
     assert acceptance["needs"] == "release"
     assert acceptance["uses"] == "./.github/workflows/aws-uat.yml"
     assert acceptance["with"]["release_sha"] == "${{ github.sha }}"
-    assert acceptance["permissions"] == {"contents": "read"}
+    # The caller permits OIDC for the separate publisher. Browser jobs narrow it explicitly.
+    assert acceptance["permissions"] == {"contents": "read", "actions": "read", "id-token": "write"}
     assert "continue-on-error" not in acceptance
     assert "secrets" not in acceptance
     for trigger in ("workflow_call", "workflow_dispatch"):
@@ -37,6 +38,7 @@ def validate(deploy, uat):
     assert uat["concurrency"]["queue"] == "max"
     assert uat["concurrency"]["cancel-in-progress"] == "false"
     job = uat["jobs"]["acceptance"]
+    assert job["permissions"] == {"contents": "read"}
     assert "continue-on-error" not in job
     assert job["env"]["EXPECTED_RELEASE"] == "${{ inputs.release_sha }}"
     steps = job["steps"]
@@ -49,12 +51,38 @@ def validate(deploy, uat):
     assert steps.index(indexed["preflight"]) < steps.index(indexed["journeys"])
     assert steps.index(indexed["postflight"]) > steps.index(indexed["journeys"])
     assert not any("configure-aws-credentials" in step.get("uses", "") for step in steps)
+    assert not any("AWS_" in str(step.get("env", {})) for step in steps)
     artifact = next(step for step in steps if step.get("uses", "").startswith("actions/upload-artifact@"))
     assert artifact["if"] == "always()"
     assert artifact["with"]["retention-days"] == "90"
     for path in ("frontend/test-results/", "frontend/artifacts/browser-junit.xml",
                  "frontend/playwright-report/", "frontend/UAT.testbook.*"):
         assert path in artifact["with"]["path"].splitlines()
+    assert "acceptance_receipt.py guard" in indexed["preflight"]["run"]
+    compiler = next(step for step in steps if "acceptance_receipt.py create" in step.get("run", ""))
+    assert compiler["if"] == "steps.preflight.outcome == 'success' && steps.journeys.outcome == 'success' && steps.postflight.outcome == 'success'"
+    assert compiler["env"] == {phase: "${{ steps." + phase.lower() + ".outcome }}" for phase in ("PREFLIGHT", "JOURNEYS", "POSTFLIGHT")}
+    transfer = steps[-1]
+    assert transfer["with"]["path"] == "acceptance-proof/receipt.json"
+    assert transfer["with"]["name"] == "acceptance-proof-${{ github.run_id }}-${{ github.run_attempt }}"
+    publisher = uat["jobs"]["publish-proof"]
+    assert publisher["needs"] == "acceptance" and publisher["if"] == "github.ref == 'refs/heads/main'"
+    assert publisher["permissions"] == {"contents": "read", "actions": "read", "id-token": "write"}
+    assert publisher["concurrency"] == jobs["release"]["concurrency"] == {
+        "group": "merismos-frontend-publication", "cancel-in-progress": "false", "queue": "max"}
+    assert publisher["concurrency"]["group"] != deploy["concurrency"]["group"]
+    download = next(step for step in publisher["steps"] if step.get("uses", "").startswith("actions/download-artifact@"))
+    assert download["with"] == {"name": transfer["with"]["name"], "path": "acceptance-proof"}
+    credentials = next(step for step in publisher["steps"] if "configure-aws-credentials" in step.get("uses", ""))
+    assert credentials["with"] == {"role-to-assume": "${{ vars.FRONTEND_RELEASE_ROLE_ARN }}", "aws-region": "eu-west-1"}
+    assert not any("npm" in step.get("run", "") or "playwright" in step.get("run", "") for step in publisher["steps"])
+    rendered = uat["jobs"]["proof-browser"]
+    assert rendered["needs"] == "publish-proof"
+    assert rendered["permissions"] == {"contents": "read"}
+    assert not any("configure-aws-credentials" in step.get("uses", "") for step in rendered["steps"])
+    assert "AWS_" not in str(job["env"]) and "AWS_" not in str(rendered["env"])
+    for candidate in (job, publisher, rendered):
+        assert "continue-on-error" not in candidate
 
 
 class MainAcceptanceContract(unittest.TestCase):
@@ -64,6 +92,20 @@ class MainAcceptanceContract(unittest.TestCase):
 
     def test_checked_in_pipeline(self):
         validate(self.deploy, self.uat)
+
+    def test_proof_fixtures_are_not_product_acceptance_journeys(self):
+        frontend = read_workflow("frontend-ci.yml")
+        commands = [step.get("run", "") for step in frontend["jobs"]["verify"]["steps"]]
+        self.assertIn("npm run test:proof -- --forbid-only", commands)
+        config = (ROOT / "frontend/playwright.proof.config.ts").read_text()
+        self.assertIn("testDir: './proof-tests'", config)
+        self.assertIn("proof-test-results/proof-junit.xml", config)
+        self.assertNotIn("e2e.xml", config.split("reporter:", 1)[1])
+        normal = (ROOT / "frontend/playwright.config.ts").read_text()
+        self.assertIn("testDir: './e2e'", normal)
+        self.assertIn("test-results/e2e.xml", normal)
+        commands = [step.get("run", "") for step in self.uat["jobs"]["proof-browser"]["steps"]]
+        self.assertIn("npm run test:proof -- public-proof.spec.ts --forbid-only", commands)
 
     def test_missing_main_trigger_is_rejected(self):
         self.deploy["on"]["push"]["branches"] = ["dev"]
@@ -94,6 +136,39 @@ class MainAcceptanceContract(unittest.TestCase):
         self.uat["permissions"]["id-token"] = "write"
         with self.assertRaises(AssertionError):
             validate(self.deploy, self.uat)
+
+    def test_browser_job_cannot_inherit_publisher_credentials(self):
+        for name in ("acceptance", "proof-browser"):
+            for breakage in ("oidc", "credentials", "environment"):
+                uat = copy.deepcopy(self.uat)
+                job = uat["jobs"][name]
+                if breakage == "oidc":
+                    job["permissions"]["id-token"] = "write"
+                elif breakage == "credentials":
+                    job["steps"].append({"uses": "aws-actions/configure-aws-credentials@v4"})
+                else:
+                    job["env"]["AWS_ACCESS_KEY_ID"] = "unacceptable"
+                with self.subTest(name=name, breakage=breakage), self.assertRaises(AssertionError):
+                    validate(self.deploy, uat)
+
+    def test_early_unlocked_or_cross_run_publication_is_rejected(self):
+        for breakage in ("early", "branch", "lock", "artifact", "role", "browser"):
+            uat = copy.deepcopy(self.uat)
+            job = uat["jobs"]["publish-proof"]
+            if breakage == "early":
+                job["needs"] = "verify"
+            elif breakage == "branch":
+                job["if"] = "always()"
+            elif breakage == "lock":
+                job["concurrency"]["group"] = "unlocked"
+            elif breakage == "artifact":
+                next(s for s in job["steps"] if "download-artifact" in s.get("uses", ""))["with"]["name"] = "prior-receipt"
+            elif breakage == "role":
+                next(s for s in job["steps"] if "configure-aws" in s.get("uses", ""))["with"]["role-to-assume"] = "backend-role"
+            else:
+                job["steps"].append({"run": "npx playwright test"})
+            with self.subTest(breakage=breakage), self.assertRaises(AssertionError):
+                validate(self.deploy, uat)
 
     def test_missing_postflight_or_failure_artifacts_are_rejected(self):
         for broken in ("postflight", "artifact"):

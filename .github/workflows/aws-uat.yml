@@ -22,6 +22,8 @@ jobs:
   acceptance:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    permissions:
+      contents: read
     env:
       MERISMOS_UI_URL: https://d2qnkmlhs7y5fp.cloudfront.net/
       EXPECTED_RELEASE: ${{ inputs.release_sha }}
@@ -35,8 +37,11 @@ jobs:
           python-version: '3.12'
       - name: Verify real AWS release before any synthetic action
         id: preflight
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           python -c 'import os,re; assert re.fullmatch("[0-9a-f]{40}", os.environ["EXPECTED_RELEASE"]), "Full release SHA required"'
+          python infra/acceptance_receipt.py guard --sha "$EXPECTED_RELEASE"
           python infra/frontend_smoke.py --url "$MERISMOS_UI_URL" --sha "$EXPECTED_RELEASE"
       - name: Install browser tools on CI only
         working-directory: frontend
@@ -53,6 +58,13 @@ jobs:
         id: postflight
         if: always() && steps.journeys.outcome != 'skipped'
         run: python infra/frontend_smoke.py --url "$MERISMOS_UI_URL" --sha "$EXPECTED_RELEASE"
+      - name: Derive sanitized aggregate receipt from this run's JUnit
+        if: steps.preflight.outcome == 'success' && steps.journeys.outcome == 'success' && steps.postflight.outcome == 'success'
+        env:
+          PREFLIGHT: ${{ steps.preflight.outcome }}
+          JOURNEYS: ${{ steps.journeys.outcome }}
+          POSTFLIGHT: ${{ steps.postflight.outcome }}
+        run: python infra/acceptance_receipt.py create --sha "$EXPECTED_RELEASE"
       - name: Summarize automated evidence without human signoff
         if: always()
         env:
@@ -73,5 +85,78 @@ jobs:
             frontend/artifacts/browser-junit.xml
             frontend/playwright-report/
             frontend/UAT.testbook.*
+          retention-days: 90
+          if-no-files-found: error
+      - name: Transfer only sanitized receipt to the publisher
+        uses: actions/upload-artifact@v4
+        with:
+          name: acceptance-proof-${{ github.run_id }}-${{ github.run_attempt }}
+          path: acceptance-proof/receipt.json
+          retention-days: 90
+          if-no-files-found: error
+  publish-proof:
+    needs: acceptance
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+      id-token: write
+    concurrency:
+      group: merismos-frontend-publication
+      cancel-in-progress: false
+      queue: max
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/download-artifact@v4
+        with:
+          name: acceptance-proof-${{ github.run_id }}-${{ github.run_attempt }}
+          path: acceptance-proof
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.FRONTEND_RELEASE_ROLE_ARN }}
+          aws-region: eu-west-1
+      - name: Publish immutable aggregate then latest for the still-deployed frontend
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXPECTED_RELEASE: ${{ inputs.release_sha }}
+        run: python infra/acceptance_receipt.py publish --sha "$EXPECTED_RELEASE"
+  proof-browser:
+    needs: publish-proof
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    env:
+      MERISMOS_UI_URL: https://d2qnkmlhs7y5fp.cloudfront.net/
+      EXPECTED_RELEASE: ${{ inputs.release_sha }}
+      EXPECTED_PROOF_RUN: ${{ github.run_id }}
+      EXPECTED_PROOF_ATTEMPT: ${{ github.run_attempt }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.18.0'
+      - name: Install browser tools on CI only
+        working-directory: frontend
+        run: |
+          npm install --global npm@11.19.1 --ignore-scripts
+          npm ci
+          npm audit --omit=dev --audit-level=low
+          npx playwright install --with-deps chromium
+      - name: Read the actual rendered public proof without cloud credentials
+        working-directory: frontend
+        run: npm run test:proof -- public-proof.spec.ts --forbid-only
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: public-proof-browser-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            frontend/proof-test-results/
+            frontend/proof-playwright-report/
           retention-days: 90
           if-no-files-found: error

@@ -144,6 +144,10 @@ jobs:
         if: ${{ !cancelled() && steps.build.outcome == 'success' && steps.browser.outcome == 'success' }}
         working-directory: frontend
         run: npm run test:e2e
+      - name: Separate source-only proof display and refusal fixtures
+        if: ${{ !cancelled() && steps.build.outcome == 'success' && steps.browser.outcome == 'success' }}
+        working-directory: frontend
+        run: npm run test:proof -- --forbid-only
       - name: Upload verification evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -152,6 +156,8 @@ jobs:
           path: |
             frontend/test-results/
             frontend/playwright-report/
+            frontend/proof-test-results/
+            frontend/proof-playwright-report/
             frontend/coverage/
             frontend/coverage-python.xml
             frontend/UAT.testbook.*

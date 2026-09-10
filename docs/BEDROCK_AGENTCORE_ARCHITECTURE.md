@@ -13,6 +13,47 @@ The deterministic gate is a separate control. The internal runner retains config
 `eu.anthropic.claude-opus-5`; a particular model call needs run evidence. Optional tool-less
 critic support does not establish a deployed or invoked critic Lambda.
 
+## Governed agent and workflow flow
+
+This follows `api.mutate`, `fleet.run_chore`, the Strands tool guard, `approval.authorise` and
+`handler.publish`/`publication_status`. Lambda hosts execution; AgentCore is not deployed.
+
+```mermaid
+flowchart TD
+    Intake["Offer intake · validate untrusted fields"] --> Mode{"Sandbox or authorized live run?"}
+    Mode -->|"sandbox"| Scripted["Strands · scripted-planner · no model network call"]
+    Mode -->|"live coordinator or internal IAM caller"| Runner["Background runner Lambda · Bedrock specialist model"]
+    Scripted --> Guard["BeforeToolCallEvent guard · bounded reads and denied tools"]
+    Runner --> Guard
+    Guard --> Findings["Specialist findings · source references and exclusions"]
+    Findings --> Solver["Deterministic allocation solver · current policy and history"]
+    Solver --> Gate{"Separate deterministic draft gate"}
+    Gate -->|"refused or incomplete"| Stop["Show reasons · no publishable approval"]
+    Gate -->|"passing draft"| Review["Review exact bytes, evidence and workspace revision"]
+    Review --> Consent{"Exact consent and current authority?"}
+    Consent -->|"missing, stale or anonymous live"| Refuse["Refuse mutation · keep history readable"]
+    Consent -->|"sandbox consent"| Sandbox["Record only in isolated workspace"]
+    Consent -->|"trusted live coordinator"| Writer["Separate writer Lambda · validate saved passing plan"]
+    Writer --> Fresh["Hold same-category lane · fresh evidence and receipt-history checks"]
+    Fresh --> Nonce["Recompute digest · spend one-use approval nonce"]
+    Nonce --> Create["S3 conditional create at new record address"]
+    Create --> Receipt["Append DynamoDB receipt and custody event"]
+    Create -->|"uncertain transport outcome"| Unknown["Unknown · retain lane · no blind retry"]
+    Unknown --> Recover["Explicit authenticated recovery · inspect reserved object and digest"]
+    Recover -->|"exact existing object"| Receipt
+    Recover -->|"missing or mismatched"| Investigate["Remain unknown · operator investigation"]
+    Sandbox --> Collection["Separate collection claim, schedule and explicit confirmation"]
+    Receipt --> Collection
+```
+
+A refusal cannot be cleared by a model. Approval records an allocation; it does not prove collection.
+The public sandbox keeps its simulated publications inside its durable workspace and does not call
+the private writer. The authenticated live publication/recovery drill and human UAT remain NOT_RUN.
+The evaluator Lambda is a separately provisioned role; `fleet.run_chore` executes the product's
+deterministic draft gate without implying an evaluator Lambda call.
+See the [architecture diagram](../README.md#architecture) for storage and IAM separation and the
+[anonymous acceptance page](https://d2qnkmlhs7y5fp.cloudfront.net/acceptance.html) for release-bound evidence.
+
 | Boundary | Authority and limit |
 | --- | --- |
 | Public reader / runner role | Corpus reads, bounded agent tools, ledger state and approved internal invocations; no S3 PutObject. Public live changes require a trusted coordinator authorizer. |
@@ -55,3 +96,8 @@ Evidence bundles show public sources, decisions, revision, run/provider/mode, fa
 handoff. Hashes do not prove food safety, delivery, compliance or savings. Time saved, human active
 time and impact are unmeasured. See the README and existing testbook for exact CI/AWS evidence,
 NOT_RUN gaps, retained historical disclosures and dependency licences.
+
+The acceptance publisher is separate from both browser jobs and uses only the existing frontend
+release OIDC role. It writes sanitized receipts to the frontend bucket; it has no backend deploy,
+record publication or model authority. The receipt's backend SHA remains unavailable because the
+existing `/identity` endpoint attempts boundary probes. No frontend/backend parity is fabricated.
