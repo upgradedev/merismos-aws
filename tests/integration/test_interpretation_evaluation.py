@@ -2,6 +2,7 @@
 
 import importlib.util
 import json
+import socket
 import subprocess
 import sys
 from copy import deepcopy
@@ -275,3 +276,36 @@ def test_no_live_mode_and_source_identity_is_mandatory(tmp_path):
     with pytest.raises(ValueError, match="exact source"):
         evaluation.evaluate(evaluation.fake_review, tmp_path / "no-source", "main",
                             "SOURCE_FAKE", "fixture")
+
+
+def test_all_actual_cli_paths_forbid_network_and_model_construction(monkeypatch, tmp_path):
+    import boto3
+    from strands import models
+
+    from merismos import bedrock
+
+    attempted = []
+
+    def forbidden(*_args, **_kwargs):
+        attempted.append("network or model construction")
+        raise AssertionError("source evaluation must not construct or contact a model")
+
+    # No loopback exception here. The instrument reads bytes; even a harmless
+    # socket or an SDK constructor is an unauthorized expansion of this task.
+    monkeypatch.setattr(socket.socket, "connect", forbidden)
+    monkeypatch.setattr(socket.socket, "connect_ex", forbidden)
+    monkeypatch.setattr(socket, "create_connection", forbidden)
+    monkeypatch.setattr(boto3, "client", forbidden)
+    monkeypatch.setattr(bedrock.BedrockAnalyst, "__init__", forbidden)
+    monkeypatch.setattr(bedrock.BedrockCritic, "__init__", forbidden)
+    monkeypatch.setattr(models.BedrockModel, "__init__", forbidden)
+    saved = tmp_path / "synthetic-receipts.json"
+    saved.write_text(json.dumps(bundle()))
+    for mode in ("plan", "source-smoke", "replay"):
+        args = [str(SCRIPT), mode, "--output", str(tmp_path / mode)]
+        if mode == "replay":
+            args.extend(["--receipts", str(saved)])
+        monkeypatch.setattr(sys, "argv", args)
+        assert evaluation.main() == 0
+    # An attempted call caught by the runner must not disappear into an error slot.
+    assert attempted == []
