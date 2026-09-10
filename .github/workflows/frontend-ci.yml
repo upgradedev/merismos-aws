@@ -167,6 +167,8 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ui-screenshots-${{ github.sha }}
-          path: frontend/test-results/**/*.png
+          path: |
+            frontend/test-results/**/*.png
+            frontend/proof-test-results/**/*.png
           retention-days: 90
           if-no-files-found: warn

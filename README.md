@@ -72,7 +72,7 @@ flowchart TB
     CDN --> Gateway["API Gateway HTTP API"]
     Gateway --> Reader["Reader Lambda · reader IAM role"]
     Reader --> Sandbox["Synthetic sandbox · Strands scripted model"]
-    Sandbox --> Workspace["DynamoDB approvals table · isolated workspace state"]
+    Sandbox --> Workspace["DynamoDB thread table · isolated workspace partitions"]
     Reader -->|"authorized live run · async invoke"| Runner["Runner Lambda · same reader IAM role"]
     Runner --> Strands["Strands specialists · bounded tool guard"]
     Strands -->|"configured internal live model"| Bedrock["Amazon Bedrock · Opus 5"]
@@ -80,8 +80,9 @@ flowchart TB
     Strands -->|"bounded reads"| Corpus
     Runner --> Ledger["DynamoDB thread · events, custody heads, receipts"]
     Reader --> Workspace
+    Reader -->|"save exact live approval"| Approvals["DynamoDB approvals table · one-use nonce"]
     Reader -->|"trusted coordinator consent · IAM invoke"| Writer["Writer Lambda · separate writer IAM role"]
-    Writer -->|"validate and spend nonce"| Workspace
+    Writer -->|"validate and spend nonce"| Approvals
     Writer -->|"freshness reads"| Corpus
     Writer -->|"conditional create · recovery reads"| Records["S3 records · stable public record URLs"]
     Writer -->|"fairness lane and receipt"| Ledger
@@ -165,7 +166,7 @@ Offline CI, frontend release identity and live AWS acceptance are three differen
 ## Current public acceptance
 
 [Open the anonymous acceptance page](https://d2qnkmlhs7y5fp.cloudfront.net/acceptance.html)
-or [read its latest JSON receipt](https://d2qnkmlhs7y5fp.cloudfront.net/acceptance.json).
+or [read its latest successful JSON receipt](https://d2qnkmlhs7y5fp.cloudfront.net/acceptance.json).
 The page compares the served `release.json` frontend commit with the receipt's recorded commit,
 checks the identical retained run receipt and requires an observation within 24 hours. Missing or
 malformed proof is pending or unknown; stale or mismatched proof is historical, never a current pass.
