@@ -1,0 +1,57 @@
+{
+  "protocol_id": "merismos-premises-interpretation-dev-v1",
+  "registered_utc": "2026-09-10",
+  "base_source": "f05ab68875b8034ec2388a01f686bbebe4e7b65a",
+  "status": "SOURCE_PREPARED; actual comparable model evaluation NOT_RUN; C1 OPEN",
+  "scope": "One existing premises specialist's clear-versus-human-review interpretation, not allocation optimization, deployment acceptance or independent accuracy.",
+  "authorship": "Fourteen synthetic development cases and gold authored by the implementation worker after inspecting the existing rules. Public, not blinded, independent, randomly sampled or representative of donors. Do not tune and re-report on these as held-out accuracy.",
+  "cases": 14,
+  "inputs": "interpretation-inputs.json",
+  "gold": "interpretation-gold.json",
+  "input_projection": "Each adapter receives only an offer, organisation records and exact source-file text plus current/stale status. No gold, expected answer, group, scoring code or baseline result in the model request. Case IDs are opaque ordinals.",
+  "baseline": "Unmodified merismos.fleet.premises on the same offer/orgs/current manifest, with no analyst. This specialist is the deterministic ingest/constraint floor, not the entire allocator or release safety gate. Solver correctness and 40% policy are not being compared to an LLM.",
+  "model_candidate": "Offline replay of saved final analyst JSON plus separately captured source citations. Reuse merismos.bedrock._parse_answer after strict instrument validation and Envelope.union for the never-loosen control. No live collector or model invocation is supplied; owner must review a version-bound collector using the existing BedrockAnalyst before authorizing any future spend.",
+  "attempts": "Exactly one planned ordinal per adapter per case in fixed case order; no retries, warmups, replacements or best-of selection. All 14 slots persisted before work. Persist running before invoking a fake/offline adapter and final raw result or error immediately afterwards. Preserve interrupted/not-run slots and every failure; existing output directories cannot be overwritten.",
+  "response": "Exact final JSON object with status ok/needs_changes/blocked and string reason. Refusals need a nonempty reason. Extra fields, duplicate keys, prose wrappers, malformed JSON and unsafe personal-data text are invalid. Raw bytes retained even when invalid. ok maps clear; needs_changes/blocked map review, a coarse abstention from clearance, not a claim that a specific risk was correctly explained.",
+  "citations": "Sidecar list of path, source_sha256 and literal nonempty quote. Every supplied citation must match a current source and its exact bytes; absent, stale, wrong-document or wrong-quote citations invalidate that attempt. Clear requires current manifest and organisation citations. Review may have no citations for genuinely absent evidence, reported as ungrounded_review, never proof of correct explanation. Valid literal citations prove provenance only, not semantic entailment.",
+  "metrics": {
+    "capture": "valid review decisions on 7 risk cases / 7 fixed planned risk cases",
+    "false_positive": "valid review decisions on 3 clear cases / 3 fixed planned clear cases",
+    "unsafe_clearance": "valid clear decisions on 11 risk-or-unknown cases / 11 fixed planned nonclear cases",
+    "abstention": "valid review decisions / 14 planned cases",
+    "unknown_capture": "valid review decisions on 4 unknown cases / 4 fixed planned unknown cases",
+    "valid_coverage": "valid results / 14 planned; separately report error, invalid, running, not_run and ungrounded_review counts",
+    "comparison": "No aggregate accuracy, significance, superiority or uplift claim. Publish each numerator/denominator and both raw panels even when incomplete. Invalid/error/not-run is not a correct abstention. Comparable panel requires both 14/14 valid; fake source panels never qualify as actual model measurement."
+  },
+  "identity": "Bind protocol, inputs and gold byte SHA256; registration commit before implementation; evaluated code source SHA; opaque case ID/input digest; adapter/mode; run ID/attempt; raw response/source hashes. Record actual model ID/config/usage/cost or UNKNOWN, never infer zero cost from missing usage. Saved receipts are assertions by their producer, not independently authenticated Bedrock provenance.",
+  "limits": "No model/AWS/network call, IAM/DB/frontend/API change, model permissions/secrets or live workflow. Bounded source fixtures only. Future real collection needs separate owner approval of collector, exact model/config, region, maximum calls/tokens/dollars and stop conditions. No actual model or dollar measurement authorized.",
+  "prior_evidence_inventory": [
+    {
+      "source": "docs/live-run-2026-09-02.md",
+      "mode": "historical narrative reporting one live premises run on offer-4483",
+      "model_reported": "eu.anthropic.claude-opus-5",
+      "reusable_for_comparable_scoring": false,
+      "reason": "Narrative and partial excerpts, no complete model request/response bytes or version-bound full source snapshots. No quality score inferred."
+    },
+    {
+      "run_url": "https://github.com/upgradedev/merismos-aws/actions/runs/34380636989",
+      "source_commit": "a438849cd69ba25cb2dcd5679439ec9d1a303dac",
+      "artifact_id": 10116021647,
+      "artifact_name": "backend-proof-a438849cd69ba25cb2dcd5679439ec9d1a303dac-34380636989",
+      "file": "model-thread.json",
+      "file_sha256": "00d5c0a31f338184907990091ab385b6f3f07f75fd18824cb31b5bd2a6c1a545",
+      "file_bytes": 65196,
+      "live_run_id": "run-105bea9dede6",
+      "mode": "historical live internal runner; not replayed or invoked again",
+      "observed": "Four model-tagged specialist events and model-enriched final envelopes, paths opened and reported model/latency. Count and successful deployment are not quality evidence.",
+      "model_reported": "eu.anthropic.claude-opus-5",
+      "raw_model_response": "NOT_CAPTURED",
+      "exact_read_byte_snapshots": "NOT_CAPTURED",
+      "model_config": "UNKNOWN",
+      "usage": "UNKNOWN",
+      "cost": "UNKNOWN",
+      "reusable_for_comparable_scoring": false,
+      "reason": "No complete raw responses, prompt/transcript or contemporaneous source bytes; merged deterministic/model envelopes cannot recover the independent candidate. Different cases and no frozen comparative gold. Retained for inventory only."
+    }
+  ]
+}

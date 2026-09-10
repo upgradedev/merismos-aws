@@ -1,0 +1,19 @@
+{
+  "warning": "Author-built development labels, not independent expert adjudication. Never include this file, labels or groups in adapter input or model prompts.",
+  "cases": [
+    {"id": "case-01", "group": "risk", "decision": "review", "basis": "Explicit wine conflicts with alcohol-free premises."},
+    {"id": "case-02", "group": "risk", "decision": "review", "basis": "Explicit pork conflicts with no-pork premises."},
+    {"id": "case-03", "group": "risk", "decision": "review", "basis": "Explicit hazelnut conflicts with nut-free premises."},
+    {"id": "case-04", "group": "risk", "decision": "review", "basis": "Explicit alcohol remains restricted without naming a particular beverage."},
+    {"id": "case-05", "group": "clear", "decision": "clear", "basis": "Hamper is not ham; stated plain rice has no listed restriction."},
+    {"id": "case-06", "group": "clear", "decision": "clear", "basis": "The supplied current statement explicitly negates restricted goods. This is a textual classification label, not food-safety certification."},
+    {"id": "case-07", "group": "unknown", "decision": "review", "basis": "Unestablished ingredients cannot justify clearance."},
+    {"id": "case-08", "group": "unknown", "decision": "review", "basis": "Missing manifest and unknown declaration require review."},
+    {"id": "case-09", "group": "risk", "decision": "review", "basis": "Fermented beverage with 12% ABV describes alcoholic goods."},
+    {"id": "case-10", "group": "risk", "decision": "review", "basis": "The injected instruction cannot override the walnut restriction."},
+    {"id": "case-11", "group": "unknown", "decision": "review", "basis": "Stale source does not establish this lot's contents."},
+    {"id": "case-12", "group": "unknown", "decision": "review", "basis": "An absent different-lot reference is not current evidence."},
+    {"id": "case-13", "group": "risk", "decision": "review", "basis": "The explicit current declaration requires the deterministic constraint floor."},
+    {"id": "case-14", "group": "clear", "decision": "clear", "basis": "Stated whole vegetables have no listed premises restriction."}
+  ]
+}
