@@ -32,6 +32,33 @@ Open **Evidence bundle and recovery** to copy the current decision, source refer
 workspace revision, provider/mode, record history, handoff and limits. Copying does not send a
 message, approve anything or change custody status.
 
+**CSV and disruption flow:** [current AWS acceptance](https://d2qnkmlhs7y5fp.cloudfront.net/acceptance.html)
+reports the served release separately from the dated source checkpoints in the testbook.
+Open **Add an offer → Import a donor CSV instead**. The **CSV schema and sample** panel contains
+a copyable UTF-8 sample. Required columns are `title,donor,quantity,unit,category,collection_date`;
+optional columns are `use_by,allergens,allergens_unknown,hours_unrefrigerated,note`. Headers are
+case-sensitive, with no extra or repeated columns. Files are limited to 65,536 bytes and 50 data
+rows. Preview writes nothing. Bad rows name the failing field; exact duplicate intake facts in the
+file or current backend cannot be selected. Spreadsheet formula-like cells are refused.
+Only explicitly selected valid rows are filed, one at a time through the governed intake API.
+If an import stops, earlier confirmed rows remain; refresh and preview again before retrying.
+Cancelling a preview discards its file and selection. Live intake still needs the existing
+authenticated network-coordinator grant; this feature creates no new authentication path.
+
+After a sandbox allocation, open **Rehearse a collection disruption**, choose a recipient and
+record a lower capacity in the offer's unit. **Re-run the fleet** shows actual before/after
+recipients, exclusions and reasons. A zero-capacity organisation receives nothing. Other safety,
+premises, transport and policy limits still apply. The prior exact plan, run and receipt are
+retained; stale pickup commitments become invalid. The new plan needs fresh exact consent before
+claim, schedule and confirmation. Confirmed collections cannot be reallocated. Disruption is
+sandbox-only and changes no live source or historical public record.
+
+**Pickup manifest · copy or download** gives the coordinator a plain-text `.txt` handoff with
+quantities, dates, allergens, reasons, run/plan identity, before/after changes and collection states.
+It sends no message and certifies no recipient receipt. The applied 40% ceiling is this network's
+policy, not a universal or certified definition of fairness. First-use details are collapsed under
+named controls; mode, authorization, next action and simulation limits stay visible.
+
 ## What is real and what is demonstrated
 
 The personas are coordinators serving five **synthetic** community organisations. Donations,

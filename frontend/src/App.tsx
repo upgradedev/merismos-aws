@@ -74,9 +74,9 @@ export function App() {
       const next = await api.action(data, offer, kind, payload, retry.current.id);
       if (current !== generation.current) return false;
       setData(next); setObservedAt(new Date().toLocaleString()); retry.current = null;
-      if (kind === 'add') { const added = next.offers.find(row => !data.offers.some(old => old.offer.id === row.offer.id)); if (added) location.hash = `/offers/${added.offer.id}`; }
+      if (kind === 'add' || kind === 'import') { const added = next.offers.find(row => !data.offers.some(old => old.offer.id === row.offer.id)); if (added) location.hash = `/offers/${added.offer.id}`; }
       return true;
-    } catch (e) { if (current === generation.current) report(e, !(kind === 'add' && e instanceof api.ApiError && e.status === 400)); return false; }
+    } catch (e) { if (current === generation.current) { if (kind === 'import') retry.current = null; report(e, !(kind === 'add' && e instanceof api.ApiError && e.status === 400)); } return false; }
     finally { mutationLock.current = false; setBusy(false); }
   }
   const selectPickup = useCallback((pickup: string) => {

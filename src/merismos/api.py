@@ -18,7 +18,7 @@ from dataclasses import replace
 from datetime import date, datetime, timezone
 from importlib.resources import files
 
-from . import background, bedrock, gate, intake, pickup
+from . import background, bedrock, csv_intake, gate, intake, pickup, replanning
 from .approval import (
     ApprovalStore,
     InMemoryApprovalStore,
@@ -128,7 +128,7 @@ def safe_text(value) -> str:
 
 def public_offer(offer: dict) -> dict:
     keys = ("id", "title", "donor", "category", "quantity", "unit", "collection_date",
-            "use_by", "allergens", "note")
+            "use_by", "allergens", "note", "hours_unrefrigerated")
     return {k: safe_text(offer[k]) if isinstance(offer.get(k), str) else offer.get(k)
             for k in keys}
 
@@ -264,6 +264,9 @@ def view(state: dict, corpus, network: str, event: dict) -> dict:
         if state["mode"] == "live":
             run = live_result(offer, run, network)
         result = public_result(run["result"]) if run.get("result") else {}
+        if run.get("replan_required"):
+            result = {"run_id": run["run_id"], "note": "Collection capacity changed. "
+                      "Run the fleet again and review a new exact plan before any collection."}
         safe_run = {**run, "result": result}
         plan = plan_for(offer, safe_run, records, network)
         status = result.get("outcome", "not_started")
@@ -273,11 +276,19 @@ def view(state: dict, corpus, network: str, event: dict) -> dict:
             status = "running"
         if plan and plan["recorded"]:
             status = "recorded" if state["mode"] == "sandbox" else "published"
+        if run.get("replan_required"):
+            status = "needs_replan"
+        change = state.get("disruptions", {}).get(offer["id"])
+        replan = {**change, "before": public_result(change["before"])} if change else None
         rows.append({"offer": public_offer(offer), "status": status, "result": result,
                      "plan": plan, "progress": run.get("progress"),
+                     "replan": replan,
                      "summary": summary(offer, result, bool(plan and plan["recorded"]),
                                         state["mode"])})
         collections.extend(pickup_rows(offer, safe_run, plan, state["claims"]))
+        if run.get("replan_required"):
+            collections.extend(pickup_rows(offer, run, {"digest": "replan-required",
+                                                      "recorded": False}, state["claims"]))
     try:
         coordinator(event, network)
         can_write = True
@@ -331,7 +342,11 @@ def route(event: dict, method: str, path: str, body: dict) -> dict:
             corpus = corpus_from_env()
         if method == "GET" and path == "/api/workspace":
             return _reply(200, view(state, corpus, NETWORK, event))
-        match = re.fullmatch(r"/api/offers/(offer-[0-9]+)(?:/(run|approve|pickup|recover))?", path)
+        if method == "POST" and path == "/api/intake/preview":
+            return _reply(200, {**csv_intake.preview(body.get("csv"), offers(corpus)),
+                                "version": state["version"], "mode": mode})
+        match = re.fullmatch(
+            r"/api/offers/(offer-[0-9]+)(?:/(run|approve|pickup|recover|disrupt))?", path)
         if not match and path != "/api/offers/new":
             raise ApiError(404, "No such API route.")
         offer_id, action = match.groups() if match else ("new", "add")
@@ -406,19 +421,27 @@ def _mutate(state, corpus, network, offer, action, body, principal, store, ident
     if mode == "live" and action != "add":
         run = live_result(offer, run, network)
     plan = plan_for(offer, run, records, network) if offer else None
-    if action == "run" and any(c["offer_id"] == offer_id and c.get("confirmed_at") is not None
-                               for c in state["claims"]):
+    if action in ("run", "disrupt") and any(
+        c["offer_id"] == offer_id and c.get("confirmed_at") is not None for c in state["claims"]
+    ):
         raise ApiError(409, "A collection is already confirmed. "
                        "This offer cannot be allocated again.")
     if action == "add":
-        if not isinstance(body.get("form"), dict):
+        form = csv_intake.selected_form(body.get("csv"), body.get("row"),
+                                       body.get("csv_digest"), offers(corpus)) \
+            if "csv" in body else body.get("form")
+        if not isinstance(form, dict):
             raise ApiError(400, "Fill in the offer form.")
         offer_id = intake.next_offer_id(offers(corpus))
-        offer = intake.offer_from_form(body["form"], offer_id)
+        offer = intake.offer_from_form(form, offer_id)
         # Allergens are free text too; the existing intake's primary fields are
         # already checked, and this new JSON boundary applies that same check here.
-        intake._refuse_a_person(str(body["form"].get("allergens", "")))
-        intake._refuse_an_instruction(str(body["form"].get("allergens", "")))
+        intake._refuse_a_person(str(form.get("allergens", "")))
+        intake._refuse_an_instruction(str(form.get("allergens", "")))
+        duplicate = next((o for o in offers(corpus) if csv_intake.signature(o) ==
+                          csv_intake.signature(offer)), None)
+        if duplicate:
+            raise ApiError(400, f"This donation is already filed as {duplicate['id']}.")
     if action not in ("run", "add"):
         if not plan or body.get("digest") != plan["digest"] or body.get("run_id") != run.get(
             "run_id"
@@ -444,6 +467,8 @@ def _mutate(state, corpus, network, offer, action, body, principal, store, ident
             raise ApiError(400, "The public-record personal-data check refused this content.")
     if action == "pickup":
         update_pickup(state, offer, run, plan, body)
+    if action == "disrupt":
+        replanning.disrupt(state, offer, run, plan, body)
     # Reserve before any model invocation or writer call. An uncertain outcome
     # remains pending and cannot cause a second external write on retry.
     state["operations"][request_id] = {"signature": signature, "status": "pending",
@@ -457,9 +482,11 @@ def _mutate(state, corpus, network, offer, action, body, principal, store, ident
         else:
             from .handler import _ask_the_writer_to_file
 
-            status, detail = _ask_the_writer_to_file(offer_id, body["form"])
+            status, detail = _ask_the_writer_to_file(offer_id, form)
             if status != 200:
                 raise ApiError(status, detail, "not_written" if status in (400, 409) else "unknown")
+    elif action == "disrupt":
+        corpus.files = state["files"]
     elif action == "run":
         run_id = new_run_id()
         run = {"run_id": run_id, "evidence_digest": evidence_digest(
