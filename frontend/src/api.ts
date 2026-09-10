@@ -34,8 +34,30 @@ export async function loadWorkspace(mode: Mode, signal?: AbortSignal): Promise<W
   return request(`/api/workspace?mode=${mode}`, { signal, headers: { 'X-Merismos-Session': handle } });
 }
 export async function action(workspace: Workspace, offer: string, kind: string, payload: Record<string, unknown>, requestId: string): Promise<Workspace> {
+  if (kind === 'import') {
+    let current = workspace;
+    const rows = payload.rows as number[];
+    for (const [index, row] of rows.entries()) {
+      try {
+        current = await action(current, '', 'add', { csv: payload.csv, csv_digest: payload.csv_digest, row }, `${requestId}-${row}`);
+      } catch (error) {
+        throw new ApiError(`Import stopped after ${index} confirmed rows. CSV row ${row}: ${error instanceof Error ? error.message : 'Outcome unknown.'} Earlier confirmed rows remain filed. Refresh and preview again before selecting any remaining rows.`, error instanceof ApiError ? error.status : 502);
+      }
+    }
+    return current;
+  }
   return request(kind === 'add' ? '/api/offers/new' : `/api/offers/${encodeURIComponent(offer)}/${kind}`, {
     method: 'POST', headers: { 'X-Merismos-Session': workspace.mode === 'sandbox' ? await session() : '' },
     body: JSON.stringify({ ...payload, mode: workspace.mode, version: workspace.version, request_id: requestId }),
   });
+}
+
+export interface CsvPreview {
+  digest: string; version: number; mode: Mode; max_bytes: number; max_rows: number;
+  rows: {number: number; status: 'valid' | 'invalid' | 'duplicate'; detail: string; offer: import('./types').Offer | null}[];
+}
+export async function previewCsv(workspace: Workspace, csv: string, signal: AbortSignal): Promise<CsvPreview> {
+  return request('/api/intake/preview', {method: 'POST', signal,
+    headers: {'X-Merismos-Session': workspace.mode === 'sandbox' ? await session() : ''},
+    body: JSON.stringify({mode: workspace.mode, csv})});
 }

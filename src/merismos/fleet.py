@@ -1098,26 +1098,46 @@ def _draft(
     # whether a share is any use: whether the member can store it. The solver
     # takes the ceiling and the per-member capacity together and returns a
     # feasibility proof with the shares, which is what the gate then re-checks.
+    capacities = _capacities(offer, orgs, receiving)
     solution = solve_allocation(
         total_quantity=quantity,
         eligible_orgs=receiving,
         max_quota_ratio=(ceiling / quantity) if quantity else 0.40,
-        capacities=_capacities(offer, orgs, receiving),
+        capacities=capacities,
     )
     allocations: list[dict[str, Any]] = [
         {
             "org": share.org,
             "quantity": share.quantity,
-            "reason": share.reason,
+            "reason": (
+                "Eligible under the applied safety, premises and rota checks. "
+                f"{share.reason}; ceiling {solution.proof['ceiling_enforced']:g} {unit}. "
+                + (f"Collection capacity limit {capacities[share.org]:g} {unit}. "
+                   if share.org in capacities else
+                   "No additional collection capacity limit was established in this unit. ")
+                + "The bounded split starts evenly, then assigns remaining headroom in filing order."
+            ),
+            "evidence_sources": [path for path in [f"offers/{offer['id']}.json",
+                                 "registers/allocation-policy.md",
+                                 *[f"orgs/{o['id']}.json" for o in orgs
+                                   if o.get("name") == share.org and o.get("id")]]
+                                 if path in corpus.list_paths()],
             "share_of_offer": f"{share.percentage:.1f}%",
         }
         for share in solution.shares
     ]
 
     because = _why_barred(sorted(excluded), envelopes, barred_by)
+    for name in receiving:
+        if not any(a["org"] == name for a in allocations):
+            because[name] = (
+                f"Collection capacity is zero {unit}; no share can be assigned."
+                if capacities.get(name) == 0 else
+                "Eligible, but no quantity remains within the policy ceiling and filing order."
+            )
     supersedes = superseded_by_this_run(str(offer.get("id", "")), published)
     body = _render(
-        offer, allocations, sorted(excluded), unit, envelopes, solution, because, supersedes
+        offer, allocations, sorted(because), unit, envelopes, solution, because, supersedes
     )
     return gate.Draft(
         body=body,
@@ -1188,6 +1208,11 @@ def _capacities(
             limit = float(org.get("walk_in_limit_kg") or 0)
             if limit > 0:
                 caps[name] = limit
+        # A rehearsal may tighten capacity for this offer only. It cannot clear
+        # any specialist exclusion or expand a physical limit from the filing.
+        extra = offer.get("dispatch_capacity_limits", {}).get(name)
+        if type(extra) in (int, float) and 0 <= extra <= float(offer.get("quantity") or 0):
+            caps[name] = min(caps.get(name, extra), extra)
     return caps
 
 

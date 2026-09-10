@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { Mutate } from './OfferDetail';
 import type { Workspace } from './types';
+import { CsvIntake } from './CsvIntake';
 
 const examples = {
   success: { title: 'Synthetic courtyard vegetables', category: 'ambient', note: 'Invented produce for same-day community meals.' },
@@ -24,5 +25,5 @@ export function AddOffer({ data, busy, mutate }: { data: Workspace; busy: boolea
     <div className="form-grid"><label>Quantity<input name="quantity" required type="number" min="0.01" max="100000" step="0.01" defaultValue={seed ? '120' : ''}/></label><label>Unit<select name="unit" defaultValue="kg"><option value="kg">Kilograms (kg)</option><option value="units">Units</option></select></label><label>Food category<select name="category" value={category} onChange={e => setCategory(e.target.value)}>{['ambient', 'chilled', 'frozen', 'produce', 'non-food'].map(c => <option key={c}>{c}</option>)}</select></label><label>Collection date<input type="date" name="collection_date" required defaultValue={seed ? tomorrow : ''}/></label><label>Use by date (if known)<input type="date" name="use_by" defaultValue={seed ? useBy : ''}/></label>{chilled && <label>Hours out of refrigeration<input name="hours_unrefrigerated" type="number" min="0" max="168" step="0.1" required defaultValue={example === 'refusal' ? '8' : ''}/><span className="small-note">Required for chilled or frozen food. Unknown cold-chain evidence cannot pass.</span></label>}</div>
     <label className="check-label"><input type="checkbox" checked={unknown} onChange={e => setUnknown(e.target.checked)}/>Allergens have not been established</label>{!unknown && <label>Declared allergens<input name="allergens" maxLength={200} placeholder="For example, gluten, sesame"/><span className="small-note">Comma-separated. An empty answer is recorded as unknown.</span></label>}
     <label>Donor's food and collection note<textarea name="note" maxLength={600} rows={4} defaultValue={seed?.note} placeholder="Describe the food and collection constraints. No names, addresses or contact details."/></label><div className="form-actions"><button disabled={busy || !data.can_write}>{busy ? 'Filing offer…' : data.mode === 'sandbox' ? 'Add to sandbox' : 'File offer'}</button><a href="#/offers">Cancel</a></div>{!data.can_write && <p className="notice">{data.authorization_note} The sandbox supports the complete intake journey.</p>}
-  </form></section></>;
+  </form></section><details className="panel padded"><summary>Import a donor CSV instead</summary><CsvIntake data={data} busy={busy} mutate={mutate}/></details></>;
 }

@@ -5,6 +5,7 @@ import { localCalendarDate } from './dispatch';
 import { isPending, projection } from './workspaceModel';
 
 export const labels: Record<string, string> = {
+  needs_replan: 'Replan required',
   not_started: 'Needs review', awaiting_approval: 'Awaiting approval', running: 'Fleet working',
   blocked: 'Safety refusal', refused_by_gate: 'Gate refused', nothing_to_allocate: 'No allocation',
   failed: 'Run failed', recorded: 'Sandbox record', published: 'Published', unclaimed: 'Needs a collector',
