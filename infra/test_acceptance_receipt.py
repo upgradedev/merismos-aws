@@ -16,10 +16,15 @@ OTHER = "2" * 40
 NOW = datetime(2026, 9, 10, 6, 0, tzinfo=timezone.utc)
 ENV = {"GITHUB_REPOSITORY": proof.REPOSITORY, "GITHUB_REF": "refs/heads/main",
        "GITHUB_SHA": COMMIT, "GITHUB_RUN_ID": "123", "GITHUB_RUN_ATTEMPT": "2",
+       "PRODUCER_RUN_ID": "123", "PRODUCER_RUN_ATTEMPT": "2", "PRODUCER_ARTIFACT": "acceptance-proof-123-2",
        "PREFLIGHT": "success", "JOURNEYS": "success", "POSTFLIGHT": "success"}
 XML = ('<testsuites tests="2" failures="0" skipped="0" errors="0">'
        '<testsuite name="desktop" tests="1"><testcase name="synthetic case A"><system-out>do not publish raw output</system-out></testcase></testsuite>'
        '<testsuite name="mobile" tests="1"><testcase name="synthetic case B"/></testsuite></testsuites>')
+
+
+def html(sha=COMMIT):
+    return f'<html><head><meta name="application-commit" content="{sha}"></head></html>'.encode()
 
 
 class ReceiptContract(unittest.TestCase):
@@ -30,9 +35,10 @@ class ReceiptContract(unittest.TestCase):
         self.junit = self.root / "e2e.xml"
         self.junit.write_text(XML)
         self.receipt = proof.build_receipt(self.junit, COMMIT, ENV, NOW)
-        self.objects = {"release.json": json.dumps({"commit": COMMIT}).encode()}
+        self.objects = {"release.json": json.dumps({"commit": COMMIT}).encode(), "index.html": html()}
         self.calls = []
         self.origin_sha = COMMIT
+        self.html_sha = COMMIT
         self.change_after_immutable = False
 
     def command(self, *args):
@@ -55,6 +61,8 @@ class ReceiptContract(unittest.TestCase):
         return {}
 
     def request(self, url):
+        if url == proof.ORIGIN:
+            return 200, {}, html(self.html_sha)
         self.assertEqual(url, proof.ORIGIN + "release.json")
         return 200, {}, json.dumps({"commit": self.origin_sha}).encode()
 
@@ -129,6 +137,18 @@ class ReceiptContract(unittest.TestCase):
         self.assertNotIn("delete", str(self.calls).lower())
         self.publish()
 
+    def test_publisher_only_retry_preserves_the_producer_attempt(self):
+        self.publish()
+        original = self.objects["acceptance/runs/123-2.json"]
+        result = self.publish(env={**ENV, "GITHUB_RUN_ATTEMPT": "3"})
+        self.assertEqual(result["receipt_url"], proof.ORIGIN + "acceptance/runs/123-2.json")
+        self.assertEqual(self.objects["acceptance.json"], original)
+        self.assertNotIn("acceptance/runs/123-3.json", self.objects)
+        for change in ({"PRODUCER_RUN_ID": "124"}, {"PRODUCER_RUN_ATTEMPT": "3"},
+                       {"PRODUCER_ARTIFACT": "acceptance-proof-123-3"}, {"PRODUCER_RUN_ATTEMPT": ""}):
+            with self.subTest(change=change), self.assertRaises(ValueError):
+                self.publish(env={**ENV, "GITHUB_RUN_ATTEMPT": "3", **change})
+
     def test_conflicting_immutable_bytes_do_not_replace_history_or_latest(self):
         self.objects["acceptance/runs/123-2.json"] = b"old immutable bytes"
         self.objects["acceptance.json"] = b"previous latest"
@@ -148,12 +168,33 @@ class ReceiptContract(unittest.TestCase):
 
     def test_mismatch_at_origin_or_cdn_and_mid_publication_race_refuse_latest(self):
         for point in ("origin", "cdn", "after-immutable"):
-            self.objects = {"release.json": json.dumps({"commit": OTHER if point == "origin" else COMMIT}).encode()}
+            self.objects = {"release.json": json.dumps({"commit": OTHER if point == "origin" else COMMIT}).encode(), "index.html": html()}
             self.origin_sha = OTHER if point == "cdn" else COMMIT
             self.change_after_immutable = point == "after-immutable"
             with self.subTest(point=point), self.assertRaises(ValueError):
                 self.publish()
             self.assertNotIn("acceptance.json", self.objects)
+
+    def test_manifest_alone_cannot_accept_wrong_missing_or_changed_root_html(self):
+        self.html_sha = OTHER
+        with self.assertRaisesRegex(ValueError, "served root HTML mismatch"):
+            self.publish()
+        self.html_sha = COMMIT
+        for body in (html(OTHER), b"<html>missing marker</html>", html() + html()):
+            self.objects["index.html"] = body
+            with self.subTest(body=body), self.assertRaises(ValueError):
+                self.publish()
+        self.objects["index.html"] = html()
+        reads = 0
+        def changed(url):
+            nonlocal reads
+            if url == proof.ORIGIN:
+                reads += 1
+                return 200, {}, html(OTHER if reads > 1 else COMMIT)
+            return self.request(url)
+        with self.assertRaisesRegex(ValueError, "served root HTML mismatch"):
+            proof.publish(self.receipt, ENV, COMMIT, self.command, changed, NOW)
+        self.assertNotIn("acceptance.json", self.objects)
 
     def test_unexpected_stack_bucket_or_origin_refused(self):
         for field, value in (("FrontendBucket", "another-bucket"), ("FrontendUrl", "https://example.invalid/")):
@@ -181,15 +222,19 @@ class ReceiptContract(unittest.TestCase):
 
     def test_cli_writes_only_aggregate_and_refuses_existing_output_and_missing_junit(self):
         output = self.root / "receipt.json"
+        outputs = self.root / "outputs.txt"
+        cli_env = {**os.environ, **ENV, "GITHUB_OUTPUT": str(outputs)}
         command = [sys.executable, str(Path(proof.__file__)), "create", "--sha", COMMIT,
                    "--junit", str(self.junit), "--receipt", str(output)]
-        result = subprocess.run(command, env={**os.environ, **ENV}, capture_output=True, text=True)
+        result = subprocess.run(command, env=cli_env, capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(set(json.loads(output.read_bytes())), proof.FIELDS)
         self.assertNotIn("synthetic case", output.read_text())
-        self.assertNotEqual(subprocess.run(command, env={**os.environ, **ENV}, capture_output=True).returncode, 0)
+        self.assertIn("artifact_name=acceptance-proof-123-2", outputs.read_text())
+        self.assertIn("producer_run_attempt=2", outputs.read_text())
+        self.assertNotEqual(subprocess.run(command, env=cli_env, capture_output=True).returncode, 0)
         self.junit.unlink()
-        self.assertNotEqual(subprocess.run(command, env={**os.environ, **ENV}, capture_output=True).returncode, 0)
+        self.assertNotEqual(subprocess.run(command, env=cli_env, capture_output=True).returncode, 0)
 
 
 if __name__ == "__main__":

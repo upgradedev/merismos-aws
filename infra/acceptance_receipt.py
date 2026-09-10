@@ -133,11 +133,24 @@ def canonical(receipt):
     return (json.dumps(receipt, sort_keys=True, indent=2) + "\n").encode()
 
 
+def html_commit(body):
+    # frontend_publish emits this exact marker. Missing or duplicate markers fail closed.
+    matches = re.findall(rb'<meta name="application-commit" content="([0-9a-f]{40})">', body)
+    require(len(matches) == 1, "root HTML identity missing or ambiguous")
+    return matches[0].decode("ascii")
+
+
 def publish(receipt, env, current_main, command=aws, request=fetch, now=None):
     validate(receipt, now)
     sha = receipt["frontend_commit"]
     source_guard(sha, env, current_main)
-    require(receipt["run_id"] == env.get("GITHUB_RUN_ID") and receipt["run_attempt"] == env.get("GITHUB_RUN_ATTEMPT"), "artifact is not this run attempt")
+    producer_attempt = env.get("PRODUCER_RUN_ATTEMPT", "")
+    current_attempt = env.get("GITHUB_RUN_ATTEMPT", "")
+    require(NUMBER.fullmatch(producer_attempt) and NUMBER.fullmatch(current_attempt)
+            and int(producer_attempt) <= int(current_attempt), "invalid producer attempt")
+    require(receipt["run_id"] == env.get("GITHUB_RUN_ID") == env.get("PRODUCER_RUN_ID")
+            and receipt["run_attempt"] == producer_attempt, "artifact does not match producer identity")
+    require(env.get("PRODUCER_ARTIFACT") == f"acceptance-proof-{receipt['run_id']}-{producer_attempt}", "artifact name does not match producer")
     reply = command("cloudformation", "describe-stacks", "--stack-name", "merismos-frontend", "--region", "eu-west-1")
     outputs = {item["OutputKey"]: item["OutputValue"] for item in reply["Stacks"][0]["Outputs"]}
     bucket = outputs["FrontendBucket"]
@@ -153,8 +166,13 @@ def publish(receipt, env, current_main, command=aws, request=fetch, now=None):
             release = Path(tmp) / "release.json"
             command("s3api", "get-object", "--bucket", bucket, "--key", "release.json", str(release), "--region", "eu-west-1")
             require(json.loads(release.read_bytes())["commit"] == sha, "S3 release mismatch")
+            index = Path(tmp) / "index.html"
+            command("s3api", "get-object", "--bucket", bucket, "--key", "index.html", str(index), "--region", "eu-west-1")
+            require(html_commit(index.read_bytes()) == sha, "S3 root HTML mismatch")
             status, _, body = request(ORIGIN + "release.json")
             require(status == 200 and json.loads(body)["commit"] == sha, "deployed release mismatch")
+            status, _, body = request(ORIGIN)
+            require(status == 200 and html_commit(body) == sha, "served root HTML mismatch")
 
         release_matches()
         args = ("s3api", "put-object", "--bucket", bucket, "--body", str(payload),
@@ -193,6 +211,11 @@ if __name__ == "__main__":
         # A rerun uses its own attempt and never consumes a prior JUnit artifact.
         with output.open("xb") as stream:
             stream.write(canonical(receipt))
+        # These job outputs survive publisher-only retries. Never relabel the tested attempt.
+        if os.environ.get("GITHUB_OUTPUT"):
+            with Path(os.environ["GITHUB_OUTPUT"]).open("a") as stream:
+                stream.write(f"artifact_name=acceptance-proof-{receipt['run_id']}-{receipt['run_attempt']}\n"
+                             f"producer_run_id={receipt['run_id']}\nproducer_run_attempt={receipt['run_attempt']}\n")
     else:
         receipt = json.loads(Path(args.receipt).read_bytes())
         require(receipt["frontend_commit"] == args.sha, "artifact frontend mismatch")

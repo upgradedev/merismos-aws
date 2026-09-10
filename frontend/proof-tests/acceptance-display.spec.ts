@@ -16,13 +16,20 @@ function receipt() {
   };
 }
 
-for (const scenario of ['missing', 'malformed', 'stale', 'mismatch', 'refused', 'immutable-mismatch', 'unreachable', 'valid'] as const) {
+for (const scenario of ['missing', 'malformed', 'stale', 'mismatch', 'refused', 'immutable-mismatch', 'unreachable', 'root-mismatch', 'root-missing', 'root-changed', 'valid'] as const) {
   test(`proof display fixture: ${scenario}`, async ({ page }) => {
     const proof = receipt();
     if (scenario === 'stale') proof.observed_at = '2000-01-01T00:00:00Z';
     if (scenario === 'mismatch') proof.frontend_commit = '2'.repeat(40);
     if (scenario === 'refused') proof.postflight = 'FAILURE';
     await page.route('**/release.json', route => route.fulfill({ json: { commit: sha } }));
+    let rootReads = 0;
+    await page.route('**/', route => {
+      rootReads += 1;
+      const rootSha = scenario === 'root-mismatch' || (scenario === 'root-changed' && rootReads > 1) ? '2'.repeat(40) : sha;
+      const marker = scenario === 'root-missing' ? '' : `<meta name="application-commit" content="${rootSha}">`;
+      return route.fulfill({ contentType: 'text/html', body: `<html><head>${marker}</head></html>` });
+    });
     await page.route('**/acceptance.json', route => {
       if (scenario === 'missing') return route.fulfill({ status: 404, body: 'missing' });
       if (scenario === 'malformed') return route.fulfill({ contentType: 'text/html', body: '<html>not a receipt</html>' });
@@ -43,6 +50,7 @@ for (const scenario of ['missing', 'malformed', 'stale', 'mismatch', 'refused', 
       await expect(page.locator('#failed')).toHaveText('0');
       await expect(page.locator('#skipped')).toHaveText('0');
       await expect(page.locator('#backend')).toHaveText('unavailable');
+      await expect(page.locator('#root-release')).toHaveText(sha);
       await expect(page.locator('#receipt-link')).toHaveAttribute('href', '/acceptance/runs/123-2.json');
     } else {
       await expect(page.locator('#status')).not.toContainText('PASS');

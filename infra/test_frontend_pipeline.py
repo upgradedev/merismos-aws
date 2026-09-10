@@ -60,6 +60,8 @@ def validate(deploy, uat):
         assert path in artifact["with"]["path"].splitlines()
     assert "acceptance_receipt.py guard" in indexed["preflight"]["run"]
     compiler = next(step for step in steps if "acceptance_receipt.py create" in step.get("run", ""))
+    assert compiler["id"] == "receipt"
+    assert job["outputs"] == {key: "${{ steps.receipt.outputs." + key + " }}" for key in ("artifact_name", "producer_run_id", "producer_run_attempt")}
     assert compiler["if"] == "steps.preflight.outcome == 'success' && steps.journeys.outcome == 'success' && steps.postflight.outcome == 'success'"
     assert compiler["env"] == {phase: "${{ steps." + phase.lower() + ".outcome }}" for phase in ("PREFLIGHT", "JOURNEYS", "POSTFLIGHT")}
     transfer = steps[-1]
@@ -72,12 +74,17 @@ def validate(deploy, uat):
         "group": "merismos-frontend-publication", "cancel-in-progress": "false", "queue": "max"}
     assert publisher["concurrency"]["group"] != deploy["concurrency"]["group"]
     download = next(step for step in publisher["steps"] if step.get("uses", "").startswith("actions/download-artifact@"))
-    assert download["with"] == {"name": transfer["with"]["name"], "path": "acceptance-proof"}
+    assert download["with"] == {"name": "${{ needs.acceptance.outputs.artifact_name }}", "path": "acceptance-proof"}
+    publication = next(step for step in publisher["steps"] if "acceptance_receipt.py publish" in step.get("run", ""))
+    for key, value in (("PRODUCER_ARTIFACT", "artifact_name"), ("PRODUCER_RUN_ID", "producer_run_id"), ("PRODUCER_RUN_ATTEMPT", "producer_run_attempt")):
+        assert publication["env"][key] == "${{ needs.acceptance.outputs." + value + " }}"
     credentials = next(step for step in publisher["steps"] if "configure-aws-credentials" in step.get("uses", ""))
     assert credentials["with"] == {"role-to-assume": "${{ vars.FRONTEND_RELEASE_ROLE_ARN }}", "aws-region": "eu-west-1"}
     assert not any("npm" in step.get("run", "") or "playwright" in step.get("run", "") for step in publisher["steps"])
     rendered = uat["jobs"]["proof-browser"]
-    assert rendered["needs"] == "publish-proof"
+    assert rendered["needs"] == ["acceptance", "publish-proof"]
+    assert rendered["env"]["EXPECTED_PROOF_RUN"] == "${{ needs.acceptance.outputs.producer_run_id }}"
+    assert rendered["env"]["EXPECTED_PROOF_ATTEMPT"] == "${{ needs.acceptance.outputs.producer_run_attempt }}"
     assert rendered["permissions"] == {"contents": "read"}
     assert not any("configure-aws-credentials" in step.get("uses", "") for step in rendered["steps"])
     assert "AWS_" not in str(job["env"]) and "AWS_" not in str(rendered["env"])
@@ -169,6 +176,14 @@ class MainAcceptanceContract(unittest.TestCase):
                 job["steps"].append({"run": "npx playwright test"})
             with self.subTest(breakage=breakage), self.assertRaises(AssertionError):
                 validate(self.deploy, uat)
+
+    def test_publisher_retry_cannot_relabel_producer_identity(self):
+        uat = copy.deepcopy(self.uat)
+        job = uat["jobs"]["publish-proof"]
+        step = next(step for step in job["steps"] if "acceptance_receipt.py publish" in step.get("run", ""))
+        step["env"]["PRODUCER_RUN_ATTEMPT"] = "${{ github.run_attempt }}"
+        with self.assertRaises(AssertionError):
+            validate(self.deploy, uat)
 
     def test_missing_postflight_or_failure_artifacts_are_rejected(self):
         for broken in ("postflight", "artifact"):

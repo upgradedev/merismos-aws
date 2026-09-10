@@ -25,14 +25,21 @@ export function validReceipt(p) {
     && new Date(p.observed_at).toISOString().replace('.000Z', 'Z') === p.observed_at;
 }
 
-export function assess(release, receipt, now = Date.now()) {
+export function htmlCommit(body) {
+  const matches = [...body.matchAll(/<meta name="application-commit" content="([0-9a-f]{40})">/g)];
+  return matches.length === 1 ? matches[0][1] : undefined;
+}
+
+export function assess(release, receipt, now = Date.now(), rootCommit) {
   if (!object(release) || typeof release.commit !== 'string' || !SHA.test(release.commit))
     return { state: 'UNKNOWN', reason: 'Deployed release identity is missing or malformed.' };
-  if (receipt === null) return { state: 'PENDING', reason: 'No receipt is published for inspection. Acceptance is pending or unavailable.', release: release.commit };
+  if (!rootCommit || rootCommit !== release.commit)
+    return { state: 'UNKNOWN', reason: 'Served root HTML identity is missing or disagrees with the manifest. No current pass is asserted.', release: release.commit, html_commit: rootCommit };
+  if (receipt === null) return { state: 'PENDING', reason: 'No receipt is published for inspection. Acceptance is pending or unavailable.', release: release.commit, html_commit: rootCommit };
   if (!validReceipt(receipt)) return { state: 'UNKNOWN', reason: 'Receipt is malformed, incomplete or refused. No current pass is asserted.', release: release.commit };
   const age = now - Date.parse(receipt.observed_at);
   if (age < 0) return { state: 'UNKNOWN', reason: 'Receipt observation is in the future.', release: release.commit };
-  const base = { release: release.commit, receipt };
+  const base = { release: release.commit, html_commit: rootCommit, receipt };
   if (receipt.frontend_commit !== release.commit) return { ...base, state: 'HISTORICAL', reason: 'The recorded frontend differs from the served release. Current acceptance is pending.' };
   if (age > 86_400_000) return { ...base, state: 'HISTORICAL', reason: 'This observation is older than 24 hours. Current acceptance needs a new run.' };
   return { ...base, state: 'PASS', reason: 'Matching frontend: scripted AWS browser journeys passed. Backend identity remains unavailable; overall workflow conclusion is not asserted.' };
@@ -40,24 +47,26 @@ export function assess(release, receipt, now = Date.now()) {
 
 export async function loadProof(request = fetch, now = Date.now()) {
   let release;
-  async function read(path, missing = false) {
+  async function read(path, missing = false, raw = false) {
     const response = await request(path, { cache: 'no-store', credentials: 'omit' });
     if (missing && [403, 404].includes(response.status)) return null;
     if (!response.ok) throw new Error('unavailable');
     const text = await response.text();
-    if (text.length > (path === '/release.json' ? 2_000_000 : 16_384)) throw new Error('oversized');
-    return JSON.parse(text);
+    if (text.length > (raw || path === '/release.json' ? 2_000_000 : 16_384)) throw new Error('oversized');
+    return raw ? text : JSON.parse(text);
   }
   try {
     release = await read('/release.json');
+    const rootCommit = htmlCommit(await read('/', false, true));
     const receipt = await read('/acceptance.json', true);
-    const result = assess(release, receipt, now);
+    const result = assess(release, receipt, now, rootCommit);
     if (result.receipt) {
       const retained = await read(`/acceptance/runs/${receipt.run_id}-${receipt.run_attempt}.json`);
       if (!validReceipt(retained) || sorted(retained) !== sorted(receipt)) throw new Error('immutable mismatch');
     }
     const after = await read('/release.json');
-    if (!object(after) || after.commit !== release.commit) throw new Error('release changed');
+    const afterRoot = htmlCommit(await read('/', false, true));
+    if (!object(after) || after.commit !== release.commit || afterRoot !== rootCommit) throw new Error('release changed');
     return result;
   } catch {
     return { state: 'UNKNOWN', reason: 'Release or retained proof is unreachable, malformed, mismatched or changed during this check. No current pass is asserted.',
@@ -71,6 +80,7 @@ export function renderProof(result, doc = document) {
   doc.getElementById('status').dataset.state = result.state;
   put('reason', result.reason);
   put('release', result.release || 'Unknown');
+  put('root-release', result.html_commit || 'Unknown');
   const p = result.receipt;
   doc.getElementById('details').hidden = !p;
   if (!p) return;

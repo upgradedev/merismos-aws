@@ -1,8 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { assess, loadProof, renderProof, validReceipt, BACKEND_BASIS, LIMITS } from '../frontend/public/acceptance.js';
+import { assess as assessProof, htmlCommit, loadProof, renderProof, validReceipt, BACKEND_BASIS, LIMITS } from '../frontend/public/acceptance.js';
 
 const sha = '1'.repeat(40), other = '2'.repeat(40), now = Date.parse('2026-09-10T06:00:00Z');
+const html = (commit = sha) => `<html><head><meta name="application-commit" content="${commit}"></head></html>`;
+const assess = (release, proof, time = now, root = release?.commit) => assessProof(release, proof, time, root);
 const receipt = () => ({ schema_version: 1, application: 'merismos', environment: 'live_aws',
   frontend_commit: sha, backend_commit: 'unavailable', backend_basis: BACKEND_BASIS,
   run_id: '123', run_attempt: '2', run_url: 'https://github.com/upgradedev/merismos-aws/actions/runs/123/attempts/2',
@@ -10,7 +12,7 @@ const receipt = () => ({ schema_version: 1, application: 'merismos', environment
   junit: { total: 2, passed: 2, failed: 0, skipped: 0 }, human_uat: 'NOT_RUN', mode: 'synthetic_scripted',
   limits: LIMITS, workflow_status: 'NOT_ASSERTED' });
 const response = value => ({ ok: true, status: 200, text: async () => JSON.stringify(value) });
-const request = async path => response(path === '/release.json' ? { commit: sha } : receipt());
+const request = async path => path === '/' ? { ok: true, status: 200, text: async () => html() } : response(path === '/release.json' ? { commit: sha } : receipt());
 
 test('only a current complete receipt is PASS, with backend unavailable and no workflow-success claim', () => {
   const result = assess({ commit: sha }, receipt(), now);
@@ -42,7 +44,20 @@ test('loader requires identical immutable receipt and checks release again', asy
     return request(path);
   }, now);
   assert.equal(result.state, 'PASS');
-  assert.deepEqual(paths, ['/release.json', '/acceptance.json', '/acceptance/runs/123-2.json', '/release.json']);
+  assert.deepEqual(paths, ['/release.json', '/', '/acceptance.json', '/acceptance/runs/123-2.json', '/release.json', '/']);
+});
+test('manifest cannot conceal a missing, conflicting, rolled-back or changing root HTML', async () => {
+  assert.equal(htmlCommit(html()), sha);
+  assert.equal(htmlCommit(html() + html()), undefined);
+  assert.equal(assessProof({ commit: sha }, receipt(), now).state, 'UNKNOWN');
+  assert.equal(assess({ commit: sha }, receipt(), now, other).state, 'UNKNOWN');
+  for (const root of ['<html>missing identity</html>', html(other), html() + html()]) {
+    const result = await loadProof(path => path === '/' ? { ok: true, text: async () => root } : request(path), now);
+    assert.equal(result.state, 'UNKNOWN');
+  }
+  let reads = 0;
+  const result = await loadProof(path => path === '/' ? { ok: true, text: async () => html(++reads === 1 ? sha : other) } : request(path), now);
+  assert.equal(result.state, 'UNKNOWN');
 });
 test('missing or denied latest is pending; inaccessible or mismatched retained bytes are unknown', async () => {
   for (const status of [403, 404]) {

@@ -167,7 +167,7 @@ Offline CI, frontend release identity and live AWS acceptance are three differen
 
 [Open the anonymous acceptance page](https://d2qnkmlhs7y5fp.cloudfront.net/acceptance.html)
 or [read its latest successful JSON receipt](https://d2qnkmlhs7y5fp.cloudfront.net/acceptance.json).
-The page compares the served `release.json` frontend commit with the receipt's recorded commit,
+The page compares the actual served root HTML commit marker and `release.json` with the receipt's recorded commit,
 checks the identical retained run receipt and requires an observation within 24 hours. Missing or
 malformed proof is pending or unknown; stale or mismatched proof is historical, never a current pass.
 The page is available after this source is released; no successful live run of this change is claimed here.
@@ -181,8 +181,11 @@ Human UAT and the real authenticated coordinator publication/recovery drill **ME
 
 Each immutable `/acceptance/runs/<run-id>-<attempt>.json` contains sanitized aggregate counts,
 statuses, timestamps, source and run references only. Publication creates it conditionally or
-verifies identical existing bytes, then updates `/acceptance.json` only while the deployed frontend
-still matches. Frontend deployment never deletes history or ships receipt files from its build.
+verifies identical existing bytes, then updates `/acceptance.json` only while the S3 and served
+root HTML and manifests still match. Manifest-only partial deployments cannot become current proof.
+Producer artifact name and attempt are retained as job outputs: a publisher-only retry uses the
+original tested attempt, rather than relabeling its counts. Frontend deployment never deletes
+history or ships receipt files from its build.
 The existing private frontend bucket, uncached static behavior and main-scoped OIDC role suffice;
 there is no IAM expansion. Both browser jobs have `contents:read` only; credentials live solely in
 the separate publisher. Main release and proof publication share one lock, and stale dispatches fail.

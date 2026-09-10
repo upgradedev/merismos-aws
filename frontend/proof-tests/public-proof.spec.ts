@@ -12,6 +12,7 @@ test('actual served public proof reports its observed state without runtime muta
     // Dedicated post-publication job: read real public JSON and actual rendered pixels.
     await expect(page.locator('#status')).toHaveAttribute('data-state', 'PASS');
     await expect(page.locator('#release')).toHaveText(process.env.EXPECTED_RELEASE!);
+    await expect(page.locator('#root-release')).toHaveText(process.env.EXPECTED_RELEASE!);
     await expect(page.locator('#recorded')).toHaveText(process.env.EXPECTED_RELEASE!);
     await expect(page.locator('#run')).toHaveText(`${process.env.EXPECTED_PROOF_RUN} / ${process.env.EXPECTED_PROOF_ATTEMPT}`);
     const latest = await request.get('/acceptance.json');

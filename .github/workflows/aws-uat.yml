@@ -24,6 +24,10 @@ jobs:
     timeout-minutes: 20
     permissions:
       contents: read
+    outputs:
+      artifact_name: ${{ steps.receipt.outputs.artifact_name }}
+      producer_run_id: ${{ steps.receipt.outputs.producer_run_id }}
+      producer_run_attempt: ${{ steps.receipt.outputs.producer_run_attempt }}
     env:
       MERISMOS_UI_URL: https://d2qnkmlhs7y5fp.cloudfront.net/
       EXPECTED_RELEASE: ${{ inputs.release_sha }}
@@ -59,6 +63,7 @@ jobs:
         if: always() && steps.journeys.outcome != 'skipped'
         run: python infra/frontend_smoke.py --url "$MERISMOS_UI_URL" --sha "$EXPECTED_RELEASE"
       - name: Derive sanitized aggregate receipt from this run's JUnit
+        id: receipt
         if: steps.preflight.outcome == 'success' && steps.journeys.outcome == 'success' && steps.postflight.outcome == 'success'
         env:
           PREFLIGHT: ${{ steps.preflight.outcome }}
@@ -114,7 +119,7 @@ jobs:
           python-version: '3.12'
       - uses: actions/download-artifact@v4
         with:
-          name: acceptance-proof-${{ github.run_id }}-${{ github.run_attempt }}
+          name: ${{ needs.acceptance.outputs.artifact_name }}
           path: acceptance-proof
       - uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -124,9 +129,12 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           EXPECTED_RELEASE: ${{ inputs.release_sha }}
+          PRODUCER_ARTIFACT: ${{ needs.acceptance.outputs.artifact_name }}
+          PRODUCER_RUN_ID: ${{ needs.acceptance.outputs.producer_run_id }}
+          PRODUCER_RUN_ATTEMPT: ${{ needs.acceptance.outputs.producer_run_attempt }}
         run: python infra/acceptance_receipt.py publish --sha "$EXPECTED_RELEASE"
   proof-browser:
-    needs: publish-proof
+    needs: [acceptance, publish-proof]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -134,8 +142,8 @@ jobs:
     env:
       MERISMOS_UI_URL: https://d2qnkmlhs7y5fp.cloudfront.net/
       EXPECTED_RELEASE: ${{ inputs.release_sha }}
-      EXPECTED_PROOF_RUN: ${{ github.run_id }}
-      EXPECTED_PROOF_ATTEMPT: ${{ github.run_attempt }}
+      EXPECTED_PROOF_RUN: ${{ needs.acceptance.outputs.producer_run_id }}
+      EXPECTED_PROOF_ATTEMPT: ${{ needs.acceptance.outputs.producer_run_attempt }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
