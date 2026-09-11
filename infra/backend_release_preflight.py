@@ -12,9 +12,12 @@ import re
 import subprocess
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
+from backend_version import parse_version
+
 ORIGIN = "https://d2qnkmlhs7y5fp.cloudfront.net"
 VERSION_URL = ORIGIN + "/api/version"
-RUNTIME_PATHS = ("src", "pyproject.toml", ".python-version", "requirements*", "uv.lock")
+RUNTIME_PATHS = ("src", "pyproject.toml", ".python-version", "requirements*", "uv.lock",
+                 "infra/build.sh", "infra/package_backend.py")
 SHA = re.compile(r"[a-f0-9]{40}")
 UUID = re.compile(r"[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}")
 LAMBDA_ID = re.compile(r"[A-Za-z0-9-]{16,80}")
@@ -56,11 +59,9 @@ def decode_version(reply):
     lambda_id = one_header(headers, "x-merismos-lambda-request-id")
     require(UUID.fullmatch(request_id) is not None, "Invalid server request ID")
     require(LAMBDA_ID.fullmatch(lambda_id) is not None, "Invalid Lambda request ID")
-    body = json.loads(raw)
-    require(isinstance(body, dict), "Backend version must be an object")
-    require(body.get("application") == "merismos" and body.get("status") == "known"
-            and body.get("source") == "ci_package" and type(body.get("schema_version")) is int
-            and body["schema_version"] == 1, "Unknown backend identity")
+    # Same strict duplicate/schema/zero-SHA rules as post-publication acceptance.
+    body = parse_version(status, dict(headers.items()), raw)
+    require(body.get("status") == "known", "Unknown backend identity")
     commit = body.get("commit")
     require(isinstance(commit, str) and SHA.fullmatch(commit), "Invalid backend commit")
     return {"backend_commit": commit, "request_id": request_id, "lambda_request_id": lambda_id}

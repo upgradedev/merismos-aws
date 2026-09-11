@@ -2,9 +2,11 @@
 
 import importlib.util
 import json
+import sys
 from email.message import Message
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import patch
 
 import pytest
 
@@ -13,7 +15,8 @@ SPEC = importlib.util.spec_from_file_location(
     "release_preflight", ROOT / "infra/backend_release_preflight.py"
 )
 P = importlib.util.module_from_spec(SPEC)
-SPEC.loader.exec_module(P)
+with patch.object(sys, "path", [str(ROOT / "infra"), *sys.path]):
+    SPEC.loader.exec_module(P)
 COMMIT = "a" * 40
 BACKEND = "b" * 40
 
@@ -44,9 +47,12 @@ def test_distinct_lambda_replies_and_equal_runtime_pass_without_writes():
     result = P.inspect(COMMIT, lambda: next(rows), run_git)
     assert result["status"] == "PASSED"
     assert len(result["observations"]) == 2
+    expected_paths = ("src", "pyproject.toml", ".python-version", "requirements*", "uv.lock",
+                      "infra/build.sh", "infra/package_backend.py")
+    assert P.RUNTIME_PATHS == expected_paths
     assert calls == [("rev-parse", "HEAD"),
                      ("merge-base", "--is-ancestor", BACKEND, COMMIT),
-                     ("diff", "--exit-code", BACKEND, COMMIT, "--", *P.RUNTIME_PATHS)]
+                     ("diff", "--exit-code", BACKEND, COMMIT, "--", *expected_paths)]
 
 
 @pytest.mark.parametrize("name", ["content-type", "x-merismos-request-id",
@@ -76,6 +82,19 @@ def test_unknown_version_never_passes(key, value):
 @pytest.mark.parametrize("raw", [b"", b"x" * 4097, b"{}", b"null", b"[]", b"invalid"])
 def test_invalid_body_never_passes(raw):
     status, headers, _ = reply()
+    with pytest.raises(ValueError):
+        P.decode_version((status, headers, raw))
+
+
+@pytest.mark.parametrize("damage", ["duplicate", "extra", "zero_sha"])
+def test_guard_uses_the_post_publication_strict_version_parser(damage):
+    status, headers, raw = reply()
+    if damage == "duplicate":
+        raw = raw[:-1] + b', "application": "merismos"}'
+    elif damage == "extra":
+        raw = raw[:-1] + b', "unexpected": true}'
+    else:
+        raw = raw.replace(BACKEND.encode(), b"0" * 40)
     with pytest.raises(ValueError):
         P.decode_version((status, headers, raw))
 

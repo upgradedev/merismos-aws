@@ -224,7 +224,8 @@ def test_capture_denies_duplicates_but_does_not_retain_private_headers():
     assert "private" not in json.dumps(captured) and "secret" not in json.dumps(captured)
 
 
-@pytest.mark.parametrize("raw", [b"{", b'{"schema":1,"schema":2}', b'{"bad":Infinity}'])
+@pytest.mark.parametrize("raw", [b"{", b'{"schema":1,"schema":2}', b'{"bad":Infinity}',
+                                 b'{"nested":' * 1100 + b'0' + b'}' * 1100])
 def test_invalid_input_retained_before_parse_with_refusal_and_manifest(tmp_path, raw):
     source = tmp_path / "invalid.json"
     source.write_bytes(raw)

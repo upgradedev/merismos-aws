@@ -427,8 +427,16 @@ Input is bounded to10MiB and saved before parsing in a create-only output direct
 result and hash manifest; parse failures retain original bytes. Hashes bind supplied bytes,
 not their AWS origin. Original exports must be retained separately by the parent. Existing
 source timing datasets without Lambda IDs cannot be upgraded into AWS evidence. Focused
-pytest controls are prepared; this sidecar's CI and actual AWS correlation remain **NOT_RUN**.
+pytest controls run in the existing source CI; actual AWS correlation remains **NOT_RUN**.
 No frontend/API behavior, workflow activation, privileges or measurement protocol changes.
+
+Frontend publication separately requires two distinct, correlated version responses from the
+owned AWS origin before obtaining publishing credentials. The guard uses the same strict
+version parser as acceptance and compares runtime source, dependency declarations and build
+scripts against the answering backend commit. Missing headers, ambiguous identities, unknown
+history or a changed backend block publication; they never skip the live Playwright suite.
+This narrow preflight does not attest every fleet function, resolved dependency bytes, model
+quality or human outcomes. A compatible backend promotion remains a separate approval.
 
 ## Current public acceptance
 

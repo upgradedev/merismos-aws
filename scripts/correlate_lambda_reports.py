@@ -266,7 +266,7 @@ def export(source, output):
     write_new(output / "input.json", raw)  # Durable original bytes BEFORE any parse.
     try:
         result = correlate(strict_json(raw))
-    except (ValueError, TypeError, KeyError) as error:
+    except (ValueError, TypeError, KeyError, RecursionError) as error:
         result = {"schema": "merismos-x1-report-result-v1", "complete": False,
                   "status": "INPUT_REFUSED", "error": str(error),
                   "planned_requests": None, "aws_infrastructure_usd": None, "model_usd": None}
