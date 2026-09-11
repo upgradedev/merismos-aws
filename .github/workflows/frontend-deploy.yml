@@ -26,12 +26,18 @@ jobs:
       id-token: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Prove deployed backend ancestry and runtime source parity.
       - uses: actions/setup-node@v4
         with:
           node-version: "22.18.0"
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      - name: Require compatible deployed backend before acquiring publish credentials
+        env:
+          EXPECTED_RELEASE: ${{ github.sha }}
+        run: python infra/backend_release_preflight.py --sha "$EXPECTED_RELEASE"
       - name: Require committed dependency lock and provisioned target
         env:
           ROLE: ${{ vars.FRONTEND_RELEASE_ROLE_ARN }}
