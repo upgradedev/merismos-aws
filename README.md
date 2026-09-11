@@ -190,6 +190,254 @@ keep historical evidence separate from current scope. Changed cases begin at **N
 actual CI evidence exists. Human acceptance remains **NOT_RUN** until a person signs off.
 Offline CI, frontend release identity and live AWS acceptance are three different evidence levels.
 
+### Interpretation evaluation: source preparation, not measured model quality
+
+The [fixed protocol](evaluation/interpretation-protocol.json),
+[14 synthetic inputs](evaluation/interpretation-inputs.json) and
+[separate gold](evaluation/interpretation-gold.json) were registered at
+`ac84e15409aca3b9a1fa349fb40083b501ef214e`, before the instrument. These are
+author-built public development cases, not independent expert labels or held-out accuracy.
+Protocol byte SHA256: `fabd6b3a49088c7bb2b879600566d95a7692c1eccb4041882dce8f4669eef80a`.
+
+The scope is deliberately narrow: the existing `fleet.premises` specialist's
+clear-versus-human-review decision on the same offer, organisation and manifest inputs
+as a future saved model response. It is **not** a claim that an LLM improves allocation,
+knapsack optimization, intake validation or the deterministic safety floor. Raw candidate
+mistakes are scored before `Envelope.union`; the existing never-loosen control is reported
+separately, not credited to the model. Gold and group labels never enter adapter inputs.
+
+The [offline instrument](scripts/evaluate_interpretation.py) reports fixed-denominator
+risk capture (7), false positives on clear cases (3), unsafe clearance (11), abstention (14),
+unknown-evidence capture (4), validity and every error/interruption. Capture means a review
+decision, not proof that its explanation identified the right hazard. A model that refuses
+everything gets full capture and full false positives, not perfect accuracy. Literal source
+citations bind path/hash/quote, not semantic truth. Ungrounded review is counted explicitly.
+
+Existing core CI runs this **fake adapter instrument check**, with no model network adapter:
+
+```bash
+python scripts/evaluate_interpretation.py source-smoke --output evaluation-results
+```
+
+The `interpretation-source-only-<sha>-<run>` artifact retains all baseline/fake slots,
+raw responses and source hashes, even after a failure. Tests deliberately break JSON, citations,
+source identity, unsafe output and durable start ordering. Running is persisted before the
+adapter starts; existing output directories are never overwritten. Artifacts have 90-day
+retention. Source fake results are not actual Bedrock measurements or comparison wins.
+An inert input-only plan can be prepared with `plan --output <new-directory>`; it performs no
+evaluation or model call. `replay --receipts <captured.json> --output <new-directory>` is an
+offline CI path for already-spent bytes only. Receipt hashes, ordered cases, all failures and
+producer identity must be retained. Producer assertions are not authenticated AWS provenance.
+
+The prior-evidence inventory is in the protocol. The historical
+[backend proof](https://github.com/upgradedev/merismos-aws/actions/runs/34380636989)
+at `a438849cd69ba25cb2dcd5679439ec9d1a303dac` contains model-tagged events and enriched
+envelopes for `run-105bea9dede6`; it does not retain complete raw model responses or exact
+contemporaneous read bytes. The dated narrative above is also not a replayable comparison.
+Neither was scored as new quality evidence or re-invoked. Usage, inference configuration and
+dollar cost stay **UNKNOWN** where unmeasured.
+
+**Actual comparable model evaluation: NOT_RUN; C1 remains open.** The frozen protocol is
+unchanged. The separately gated [collector](scripts/collect_interpretation.py) prepares
+14 one-shot, text-only Converse calls to `eu.anthropic.claude-opus-5` in `eu-west-1`,
+max output 768 tokens, thinking disabled, standard tier by omission, no cache fields or tools.
+This is **evaluation-only source preloading, not the application's Strands agent/tool selection**.
+The original premises system brief/instructions/question are preserved; the same frozen input
+projection is supplied as an additional text block. No repair, continuation or fallback occurs.
+Candidate citations are `[]`: the unchanged response contract supplies no model citation
+sidecar. Clear responses without actual model citations therefore fail the frozen evaluator;
+review responses remain visibly ungrounded. `supplied_source_provenance` only records delivered
+bytes and is NEVER passed as candidate proof. The separately preregistered citation candidate
+below changes its own output contract, not this original candidate or ruler.
+
+The [AWS model card](https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-anthropic-claude-opus-5.html)
+supports Converse but not runtime CountTokens. No CountTokens fallback is attempted. The input
+bound is the full canonical serialized request's UTF-8 bytes plus **4096 framing tokens**, capped
+at 16384 per case. This is a conservative byte-token/template **assumption requiring parent
+review**, not measured tokenization or a provider guarantee. Media, tools, cache directives and
+thinking are excluded. Returned usage exceeding either bound, missing request ID/usage, retries
+or cache accounting stop the panel without refund; unknown outcomes retain worst-case cost.
+Reference-only pricing is USD5.50/27.50 per million input/output tokens, from the
+[regional pricing table](https://platform.claude.com/docs/en/about-claude/pricing).
+Those rates and the reference-cost artifact grant NO authority or shared budget allocation.
+
+Source CI runs `python scripts/collect_interpretation.py source-smoke --output bounded-evaluation`.
+This exports exact per-case request bytes/hashes, max/sum sizes and reference-only worst costs,
+then exercises the full durable collector-to-frozen-replay path with a conspicuously fake client.
+The `bounded-evaluation-source-<sha>-<run>` artifact includes every raw synthetic response and
+all 14 slots. Tests prohibit sockets/model construction and break grants, budget, run bindings,
+expiry, writer durability, raw retention and unknown outcomes. No real model quality is inferred.
+
+**Live authority prerequisite at the 2026-09-11 source checkpoint.** Parent's corrected
+read-only inventory found `AWS_DEPLOY_ROLE_ARN` in the existing `aws` environment, not at
+repository scope. Parent traced historical deployment run34380636989 to
+`merismos-github-deploy` and reports its current policy has no Bedrock actions. Unless the
+secret's role identity has changed, missing `InvokeModel` permission blocks live collection.
+The current secret value has not been read here; parent owns exact identity review. A session
+policy can restrict a role, never grant a missing base permission. The existing
+secret/environment names are retained; `FRONTEND_RELEASE_ROLE_ARN` is never a fallback.
+Missing role configuration produces explicit preflight refusal. This patch creates no role,
+trust, permission, secret or variable; budget approval does not authorize provisioning them.
+
+Original status-only candidate activation contract (NOT activated by source CI): after authority review, parent
+can configure repository
+variables `MERISMOS_EVAL_GRANT_JSON` and `MERISMOS_EVAL_GRANT_SHA256`. The latter is SHA256 of
+the former's parsed JSON serialized with sorted keys, compact separators and no nonfinite values.
+The grant uses the `fake_grant` function's documented field shape, but must have authority
+`PARENT_CONFIGURED_SINGLE_RUN`, a fresh grant ID, exact `binding(requests.json)`, conservative
+finite decimal-string rates, an allocated `budget_usd` covering every worst-case call (at most5),
+`byte_bound_approved: true` and `standard_no_extra_charges: true`. The run object pins repository,
+full workflow ref, the intended workflow run number (strings) and `run_attempt: "1"`; expiry
+must be timezone-aware, still future and at most two hours away. Parent must reserve this full
+allocation in the shared cross-app ledger before configuring it. The worker does not infer
+remaining aggregate funds. Changing source, model/config, protocol or request manifest denies it.
+
+Portfolio coordination checkpoint, 2026-09-11: the parent is preparing an **inactive LT-only**
+supervisor around one independently approved immutable plan SHA256, three fixed slices whose
+sum is at most USD5, a first manual run number and a create-once per-budget reservation tag.
+This is not implemented distributed enforcement across all three applications. Merismos and
+Archon activation remain OFF. Any later Merismos approval must derive only its fixed slice
+from that **same** parent plan, never a fresh independent USD5 allocation. The unchanged
+Merismos collector validates its local grant, not that shared plan or reservation tag;
+cross-application authorization/enforcement remains an explicit parent integration gate.
+No actual grant, inference or live verification is established by this source preparation.
+
+After exact-source review, source CI and shared reservation, **parent only** may use:
+
+```bash
+gh workflow run ci.yml --repo upgradedev/merismos-aws --ref <reviewed-branch> \
+  -f eval_grant_sha256=<parent-configured-canonical-grant-sha256>
+```
+
+Without the nonempty configured digest, the manual live job is skipped. Preflight runs before
+credentials; it reuses the existing OIDC role with an inline session policy allowing only this
+model's `bedrock:InvokeModel`, with no IAM/resource changes. The grant also pins the exact checked
+out SHA and rejects dirty tracked code, wrong run number and reruns. A new output journal is
+mandatory. A reservation and full request are create-only/fsynced before any SDK construction;
+`total_max_attempts=1` disables SDK retry. Full decoded SDK response JSON, including AWS usage,
+request ID and response metadata, is fsynced before parsing and flushed to stdout as backup.
+It is not a raw HTTP packet capture. Every error/unknown outcome consumes the reservation;
+actual priced usage is recorded separately and is not an AWS bill. Parent owns pricing,
+the conservative bound assumption, any implicit-cache/account defaults and total-dollar safety.
+
+The `bounded-live-<sha>-<run>-<attempt>` artifact uploads even after failure/cancellation when
+the runner survives; stdout and disk cannot guarantee artifact recovery after infrastructure
+loss. Keep the full reservation charged if evidence is lost. No run or call is auto-resumed.
+Offline CI can reconstruct surviving create-only events without new inference:
+`python scripts/collect_interpretation.py recover --journal <saved-journal> --output <new-directory>`.
+Interrupted slots stay unknown, not not-run; all future slots remain not-run. The unmodified
+evaluator still reports producer evidence as NOT_ESTABLISHED, not authenticated AWS quality.
+The original collector adds no production app, deployment, IAM, DB or model permission changes.
+Independent cases and human adjudication remain necessary before any general quality claim.
+
+### Separately preregistered cited candidate (source preparation only)
+
+[Candidate registration](evaluation/citation-candidate-v1.json) was committed at
+`98f63b7081e0121051c3f6afd057fd5fe3a814c4` before implementation. Its byte SHA256 is
+`415d1bd8f8f3a73cad848747e33afcc502a0c7f9f8f742c85ab4940d3d753ff1`.
+The new hypothesis is narrowly that explicit citation output makes grounded clearance
+representable under the existing ruler. It is not a measured improvement. Old protocol,
+gold, fourteen cases, evaluator, original prompt/collector and all receipts are unchanged.
+Both preregistrations must remain ancestors; do not squash or rebase away this ordering.
+
+The [candidate](scripts/citation_candidate.py) replaces only its own system instructions
+with the registered answer-plus-citations contract. The same allowlisted source input and
+question remain; gold and baseline answers are absent from requests. Source preloading is
+still **evaluation-only Converse, not the application's Strands tool selection**. Model,
+region, max output768, thinking disabled and byte-bound assumptions remain as registered.
+New request bytes/hashes and reference worst-cost plan are exported in source CI; old
+candidate request manifests and grants do not authorize this new hypothesis.
+
+Only fields actually present in a returned response can supply a candidate citation.
+Path, current source hash, exact nonempty quote, strict integer start/end Unicode-character
+span, known organisation and ownership of organisation-source records are checked first.
+Then the model's answer and path/hash/quote projection go through the **unchanged** evaluator.
+Projection never fills a missing citation from `supplied_source_provenance`. Full raw SDK-shaped
+response and its hash precede parsing; original model text/hash and returned citation fields
+remain in receipts. Invalid projection has a separately labelled invalid wrapper for the old
+ruler and retains the original bytes, not a repaired answer or successful abstention.
+Literal provenance still cannot prove semantic entailment: an injected instruction can be
+literally cited yet support a wrong decision. The negative fixture preserves that wrong
+candidate clearance separately from the deterministic governed refusal.
+
+Existing source CI runs only:
+
+```bash
+python scripts/citation_candidate.py source-smoke --output citation-evaluation
+```
+
+The `citation-candidate-source-<sha>-<run>` artifact contains inert requests/reference costs,
+all fourteen planned/started/raw-response slots, conspicuously fake responses and frozen-ruler
+replay. The fake constructs citations solely as a plumbing fixture, never as evidence of model
+selection or quality. `export` performs no evaluation; `replay --journal <source-fake-journal>`
+uses retained source-fake bytes and a fresh output directory, never resumes calls. There is
+**no live CLI or workflow activation for this new candidate**. Its new source verification is
+NOT_RUN at this local-only checkpoint; no result is inferred from the old collector's green CI.
+Parent owns review/push and any separately bounded live transport decision. C1 remains open.
+
+### X1 HTTP correlation (source-only checkpoint, not cloud cost)
+
+API responses now add a server-generated `x-merismos-request-id`, plus
+`x-merismos-lambda-request-id` **only** from the actual Lambda context when available.
+`x-merismos-correlation-mode` distinguishes `lambda-context` from `no-lambda-context`.
+The local real-HTTP harness has no Lambda context and never invents an AWS ID. Caller
+headers, API business request IDs and authorizer values cannot supply these transport IDs.
+A small structured server log records only both IDs, mode and response status; bodies,
+session tokens, user identity and paths are excluded. Logging failure does not change a
+completed business response. Existing response bodies, guards and idempotency stay unchanged.
+
+Source measurement rows retain only these allowlisted response-header fields. Optional
+metadata leaves the preregistered twenty attempts, timing boundary, stages, summary and
+historical datasets unchanged. Missing IDs stay unavailable, not fabricated zero-cost or
+successful correlation. The log/request-ID pair enables a future exact Lambda REPORT join,
+but this patch does not collect cloud logs, cover asynchronous fleet invocations, measure
+Lambda cost, prove an SLA or re-label local timings as AWS performance. Parent owns separate
+code rollout and any cloud evidence. Source unit/integration and real-HTTP checks are prepared;
+new verification and actual AWS correlation are NOT_RUN at this source checkpoint.
+
+The offline [REPORT exporter](scripts/correlate_lambda_reports.py) adapts the portfolio's
+Archon correlation design to Merismos's actual header/log contract. It has no AWS client.
+After parent review, CI can consume an already-saved evidence bundle:
+
+```bash
+python scripts/correlate_lambda_reports.py --input saved-evidence.json --output new-report-directory
+```
+
+Input schema is `merismos-x1-report-input-v1`: independently retained `planned_requests`
+(1..1000), ordered `requests`, exported `events` (at most10000), and `expected_resource`
+containing exact unqualified `function_arn`, numeric or `$LATEST` `function_version`, and
+non-wildcard `log_group_arn`. Each request has `ordinal`, HTTP `status` and `response_headers`
+as name/value **pairs**, preserving duplicates. `capture_response` selects only the three
+Merismos response headers; never pass request headers, cookies or reconstructed missing IDs.
+Each event preserves `message`, `logGroupName`, `logStreamName` and independently exported
+`logGroupArn`. The latter is required: group name alone cannot bind account or region.
+Only standard `/aws/lambda/<function>` groups and version-bearing Lambda stream names are
+supported. Merismos's application log itself does not attest function ARN, version or code SHA.
+
+Exactly one response ID to one structured `merismos.http.correlation` log to one matching
+Lambda text REPORT is required, with matching status/resource/stream. Duplicate, missing,
+wrong-resource and ambiguous evidence is refused, never resolved by choosing the first row.
+Dropped slots remain unmatched against the planned denominator; extra slots invalidate coverage.
+Per-request duration, billed duration, memory and optional init/status fields retain exact
+reported values. HTTP error responses can correlate; coverage is not business success.
+Every row and summary keep USD cost `null`. No all-service cost, async-fleet coverage or SLA
+is inferred. JSON platform reports and unsupported text variants remain incomplete.
+
+Input is bounded to10MiB and saved before parsing in a create-only output directory alongside
+result and hash manifest; parse failures retain original bytes. Hashes bind supplied bytes,
+not their AWS origin. Original exports must be retained separately by the parent. Existing
+source timing datasets without Lambda IDs cannot be upgraded into AWS evidence. Focused
+pytest controls run in the existing source CI; actual AWS correlation remains **NOT_RUN**.
+No frontend/API behavior, workflow activation, privileges or measurement protocol changes.
+
+Frontend publication separately requires two distinct, correlated version responses from the
+owned AWS origin before obtaining publishing credentials. The guard uses the same strict
+version parser as acceptance and compares runtime source, dependency declarations and build
+scripts against the answering backend commit. Missing headers, ambiguous identities, unknown
+history or a changed backend block publication; they never skip the live Playwright suite.
+This narrow preflight does not attest every fleet function, resolved dependency bytes, model
+quality or human outcomes. A compatible backend promotion remains a separate approval.
+
 ## Current public acceptance
 
 [Open the anonymous acceptance page](https://d2qnkmlhs7y5fp.cloudfront.net/acceptance.html)

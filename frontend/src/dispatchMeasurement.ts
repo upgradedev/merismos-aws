@@ -1,11 +1,12 @@
 // Source-only measurement bookkeeping. No production component imports this module.
+import type { RequestCorrelation } from './requestCorrelation';
 export const REGISTRATION = '9ebbafff736ff739fd22ee9c4c845e5b709cc25a';
 export const ORIGIN = 'http://127.0.0.1:4173';
 export const STAGES = ['setup', 'csv_preview', 'file', 'allocate', 'approve_original', 'claim_original', 'disrupt', 'replan', 'approve_new', 'claim_new', 'schedule', 'confirm', 'copy_manifest', 'download_manifest'] as const;
 export type StageName = typeof STAGES[number];
 export type Identity = {source_sha: string; protocol_commit: string; protocol_sha256: string; run_id: string; run_attempt: string};
 export type Stage = {name: StageName; start_ms: number; end_ms: number; status: 'ok' | 'failed'};
-export type HttpSample = {id: number; method: string; path: string; stage: string; start_ms: number; end_ms: number | null; status: number | null; request_body_bytes: number; response_body_bytes: number | null; error: string | null};
+export type HttpSample = {id: number; method: string; path: string; stage: string; start_ms: number; end_ms: number | null; status: number | null; request_body_bytes: number; response_body_bytes: number | null; error: string | null; correlation?: RequestCorrelation};
 export type Attempt = {ordinal: number; viewport: 'desktop' | 'mobile'; status: 'not_run' | 'running' | 'success' | 'failed'; elapsed_ms: number | null; failure_stage: string | null; error: string | null; stages: Stage[]; requests: HttpSample[]};
 export type Measurement = {schema: 1; scope: 'SOURCE_ONLY'; identity: Identity; attempts: Attempt[]};
 

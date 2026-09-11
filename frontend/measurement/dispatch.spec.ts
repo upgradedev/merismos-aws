@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs';
 import { allowedRequest, ORIGIN, plannedAttempts, REGISTRATION, summarize, type HttpSample, type Identity, type Measurement, type StageName } from '../src/dispatchMeasurement';
 import type { Workspace } from '../src/types';
 import { measurementWriter, startPersistedAttempt } from './persistence';
+import { requestCorrelation } from '../src/requestCorrelation';
 
 test('fixed20 preregistered source-only hero attempts (not20 acceptance tests)', async ({browser}) => {
   const source = execFileSync('git', ['rev-parse', 'HEAD'], {encoding: 'utf8'}).trim();
@@ -18,7 +19,7 @@ test('fixed20 preregistered source-only hero attempts (not20 acceptance tests)',
   const environment = {browser: browser.version(), node: process.version, os: process.platform, origin: ORIGIN,
     backend: 'Real Python handler, scripted Strands, SQLite. External sockets denied by tests/http_server.py.',
     instrumentation: 'Monotonic Node performance.now wall time; browser automation, response-body observation and event-loop overhead included. No human think-time.',
-    traffic: 'Browser request bodies and decoded response bodies. Headers, session tokens, bodies and query values are not retained.'};
+    traffic: 'Browser request bodies and decoded response bodies. Only allowlisted server correlation IDs/mode are retained from headers; no session tokens, bodies, other headers or query values. Correlation is not measured Lambda cost.'};
   const persist = measurementWriter('test-results/source-measurement', data, identity, {environment, protocol: registered});
   persist(); // Every planned slot exists even if infrastructure stops this job later.
   const csv = 'title,donor,quantity,unit,category,collection_date,use_by,allergens,allergens_unknown,hours_unrefrigerated,note\nBenchmark vegetables,Demonstration cooperative,120,kg,produce,2026-09-14,2026-09-18,,true,,Invented donation for community meals\n';
@@ -56,7 +57,7 @@ test('fixed20 preregistered source-only hero attempts (not20 acceptance tests)',
           const sample = samples.get(request); if (!sample) return;
           sample.end_ms = now();
           collecting.push((async () => {
-            try { const response = await request.response(); if (response) sample.response_body_bytes = (await response.body()).byteLength; else sample.error = 'response_missing'; }
+            try { const response = await request.response(); if (response) { sample.response_body_bytes = (await response.body()).byteLength; if (sample.path.startsWith('/api/')) sample.correlation = requestCorrelation(response.headers()); } else sample.error = 'response_missing'; }
             catch { sample.error = 'body_unavailable'; }
           })());
         });

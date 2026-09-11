@@ -5,13 +5,19 @@ on:
     branches: [main, "feat/**", "codex/**"]
   pull_request:
   workflow_dispatch:
+    inputs:
+      eval_grant_sha256:
+        description: "Parent-configured one-shot grant digest; empty runs SOURCE ONLY"
+        required: false
+        default: ""
+        type: string
 
 permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  group: ci-${{ inputs.eval_grant_sha256 != '' && github.run_id || github.ref }}
+  cancel-in-progress: ${{ inputs.eval_grant_sha256 == '' }}
 
 jobs:
   # The secret scan runs first and over history, not over the working tree. A
@@ -61,6 +67,8 @@ jobs:
     needs: secrets
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Verify candidate preregistration ancestry before source smoke.
 
       - uses: actions/setup-python@v5
         with:
@@ -71,7 +79,7 @@ jobs:
         run: pip install -e ".[dev]"
 
       - name: Lint
-        run: ruff check src/ tests/
+        run: ruff check src/ tests/ scripts/evaluate_interpretation.py scripts/collect_interpretation.py scripts/citation_candidate.py
 
       # The offline suite needs no AWS account and no credentials. That is the
       # claim the README makes to a judge, so CI runs it with none configured
@@ -82,6 +90,54 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ""
           AWS_DEFAULT_REGION: eu-west-1
         run: pytest -q
+
+      - name: Source-only interpretation instrument, no model or network adapter
+        env:
+          AWS_ACCESS_KEY_ID: ""
+          AWS_SECRET_ACCESS_KEY: ""
+          AWS_EC2_METADATA_DISABLED: "true"
+        run: python scripts/evaluate_interpretation.py source-smoke --output evaluation-results
+
+      - name: Retain every interpretation instrument attempt, including failures
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: interpretation-source-only-${{ github.sha }}-${{ github.run_id }}
+          path: evaluation-results/
+          retention-days: 90
+          if-no-files-found: warn
+
+      - name: Inert export and full fake collector to frozen replay (no AWS credentials)
+        env:
+          AWS_ACCESS_KEY_ID: ""
+          AWS_SECRET_ACCESS_KEY: ""
+          AWS_EC2_METADATA_DISABLED: "true"
+        run: python scripts/collect_interpretation.py source-smoke --output bounded-evaluation
+
+      - name: Retain exact inert request sizes and hashes
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bounded-evaluation-source-${{ github.sha }}-${{ github.run_id }}
+          path: bounded-evaluation/
+          retention-days: 90
+          if-no-files-found: warn
+
+      - name: Separate preregistered citation candidate, offline fixtures only
+        env:
+          AWS_ACCESS_KEY_ID: ""
+          AWS_SECRET_ACCESS_KEY: ""
+          AWS_EC2_METADATA_DISABLED: "true"
+        run: python scripts/citation_candidate.py source-smoke --output citation-evaluation
+
+      - name: Retain cited candidate requests, raw fixtures and frozen-ruler replay
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: citation-candidate-source-${{ github.sha }}-${{ github.run_id }}
+          path: citation-evaluation/
+          retention-days: 90
+          if-no-files-found: warn
 
       # A suite that skips is a claim nobody checked. The guard is the entry's
       # load-bearing control and its test is guarded by importorskip, so a CI
@@ -99,6 +155,60 @@ jobs:
             echo "::error::expected 3 guard assertions, including the disabled-guard control"
             exit 1
           }
+
+  # Absent a separately configured exact grant this job cannot obtain credentials.
+  # Parent owns aggregate budget reservations and the one-shot manual dispatch.
+  bounded-collection:
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      inputs.eval_grant_sha256 != '' &&
+      inputs.eval_grant_sha256 == vars.MERISMOS_EVAL_GRANT_SHA256
+    needs: [secrets, test]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: aws
+    concurrency:
+      group: merismos-bounded-model-collection
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      MERISMOS_EVAL_GRANT_JSON: ${{ vars.MERISMOS_EVAL_GRANT_JSON }}
+      MERISMOS_EVAL_GRANT_SHA256: ${{ vars.MERISMOS_EVAL_GRANT_SHA256 }}
+      MERISMOS_EVAL_ROLE_ARN: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+      AWS_EC2_METADATA_DISABLED: "true"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version-file: .python-version
+      - run: pip install -e .
+      - name: Refuse unbound or unaffordable grant BEFORE AWS credentials
+        run: python scripts/collect_interpretation.py preflight --output bounded-live
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: eu-west-1
+          role-duration-seconds: 900
+          retry-max-attempts: 1
+          inline-session-policy: >-
+            {"Version":"2012-10-17","Statement":[{"Effect":"Allow",
+            "Action":"bedrock:InvokeModel","Resource":[
+            "arn:aws:bedrock:eu-west-1:*:inference-profile/eu.anthropic.claude-opus-5",
+            "arn:aws:bedrock:eu-*::foundation-model/anthropic.claude-opus-5"]}]}
+      - name: One reserved SDK attempt per frozen case; no retry or continuation
+        run: python scripts/collect_interpretation.py collect --output bounded-live
+      - name: Retain every request reservation, full raw response and failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bounded-live-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: bounded-live/
+          retention-days: 90
+          if-no-files-found: warn
 
   # Proof the guard has teeth, run as its own job so the result is visible
   # rather than buried. The hook is removed and the same model must then reach

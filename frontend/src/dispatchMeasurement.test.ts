@@ -18,6 +18,11 @@ it('reports successful-primary boundaries independently of setup/export and keep
   expect(result.successful_primary_latency?.desktop).toEqual({n: 10, median_ms: 11, p95_ms: 11, min_ms: 11, max_ms: 11});
   expect(result.all_attempts_succeeded).toBe(true);
 });
+it('optional correlation does not rewrite historical measurements or frozen timing metrics', () => {
+  const raw = fixture(), historical = summarize(raw, identity);
+  raw.attempts[0].requests[0].correlation = {request_id: '12345678-1234-1234-1234-123456789012', lambda_request_id: null, mode: 'no-lambda-context'};
+  expect(summarize(raw, identity)).toEqual(historical);
+});
 it('counts an infrastructure-interrupted started attempt separately from never-run slots', () => {
   const raw = {...fixture(), attempts: plannedAttempts()}; raw.attempts[0].status = 'running';
   expect(summarize(raw, identity)).toMatchObject({valid: false, attempted: 1, interrupted: 1, not_run: 19, succeeded: 0, successful_primary_latency: null});
