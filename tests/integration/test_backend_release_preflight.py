@@ -49,7 +49,7 @@ def test_distinct_lambda_replies_and_equal_runtime_pass_without_writes():
     assert len(result["observations"]) == 2
     expected_paths = ("src", "pyproject.toml", ".python-version", "requirements*", "uv.lock",
                       "infra/build.sh", "infra/package_backend.py")
-    assert P.RUNTIME_PATHS == expected_paths
+    assert expected_paths == P.RUNTIME_PATHS
     assert calls == [("rev-parse", "HEAD"),
                      ("merge-base", "--is-ancestor", BACKEND, COMMIT),
                      ("diff", "--exit-code", BACKEND, COMMIT, "--", *expected_paths)]
