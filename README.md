@@ -395,6 +395,41 @@ Lambda cost, prove an SLA or re-label local timings as AWS performance. Parent o
 code rollout and any cloud evidence. Source unit/integration and real-HTTP checks are prepared;
 new verification and actual AWS correlation are NOT_RUN at this source checkpoint.
 
+The offline [REPORT exporter](scripts/correlate_lambda_reports.py) adapts the portfolio's
+Archon correlation design to Merismos's actual header/log contract. It has no AWS client.
+After parent review, CI can consume an already-saved evidence bundle:
+
+```bash
+python scripts/correlate_lambda_reports.py --input saved-evidence.json --output new-report-directory
+```
+
+Input schema is `merismos-x1-report-input-v1`: independently retained `planned_requests`
+(1..1000), ordered `requests`, exported `events` (at most10000), and `expected_resource`
+containing exact unqualified `function_arn`, numeric or `$LATEST` `function_version`, and
+non-wildcard `log_group_arn`. Each request has `ordinal`, HTTP `status` and `response_headers`
+as name/value **pairs**, preserving duplicates. `capture_response` selects only the three
+Merismos response headers; never pass request headers, cookies or reconstructed missing IDs.
+Each event preserves `message`, `logGroupName`, `logStreamName` and independently exported
+`logGroupArn`. The latter is required: group name alone cannot bind account or region.
+Only standard `/aws/lambda/<function>` groups and version-bearing Lambda stream names are
+supported. Merismos's application log itself does not attest function ARN, version or code SHA.
+
+Exactly one response ID to one structured `merismos.http.correlation` log to one matching
+Lambda text REPORT is required, with matching status/resource/stream. Duplicate, missing,
+wrong-resource and ambiguous evidence is refused, never resolved by choosing the first row.
+Dropped slots remain unmatched against the planned denominator; extra slots invalidate coverage.
+Per-request duration, billed duration, memory and optional init/status fields retain exact
+reported values. HTTP error responses can correlate; coverage is not business success.
+Every row and summary keep USD cost `null`. No all-service cost, async-fleet coverage or SLA
+is inferred. JSON platform reports and unsupported text variants remain incomplete.
+
+Input is bounded to10MiB and saved before parsing in a create-only output directory alongside
+result and hash manifest; parse failures retain original bytes. Hashes bind supplied bytes,
+not their AWS origin. Original exports must be retained separately by the parent. Existing
+source timing datasets without Lambda IDs cannot be upgraded into AWS evidence. Focused
+pytest controls are prepared; this sidecar's CI and actual AWS correlation remain **NOT_RUN**.
+No frontend/API behavior, workflow activation, privileges or measurement protocol changes.
+
 ## Current public acceptance
 
 [Open the anonymous acceptance page](https://d2qnkmlhs7y5fp.cloudfront.net/acceptance.html)
