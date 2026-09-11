@@ -67,6 +67,8 @@ jobs:
     needs: secrets
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Verify candidate preregistration ancestry before source smoke.
 
       - uses: actions/setup-python@v5
         with:
@@ -77,7 +79,7 @@ jobs:
         run: pip install -e ".[dev]"
 
       - name: Lint
-        run: ruff check src/ tests/ scripts/evaluate_interpretation.py scripts/collect_interpretation.py
+        run: ruff check src/ tests/ scripts/evaluate_interpretation.py scripts/collect_interpretation.py scripts/citation_candidate.py
 
       # The offline suite needs no AWS account and no credentials. That is the
       # claim the README makes to a judge, so CI runs it with none configured
@@ -118,6 +120,22 @@ jobs:
         with:
           name: bounded-evaluation-source-${{ github.sha }}-${{ github.run_id }}
           path: bounded-evaluation/
+          retention-days: 90
+          if-no-files-found: warn
+
+      - name: Separate preregistered citation candidate, offline fixtures only
+        env:
+          AWS_ACCESS_KEY_ID: ""
+          AWS_SECRET_ACCESS_KEY: ""
+          AWS_EC2_METADATA_DISABLED: "true"
+        run: python scripts/citation_candidate.py source-smoke --output citation-evaluation
+
+      - name: Retain cited candidate requests, raw fixtures and frozen-ruler replay
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: citation-candidate-source-${{ github.sha }}-${{ github.run_id }}
+          path: citation-evaluation/
           retention-days: 90
           if-no-files-found: warn
 

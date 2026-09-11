@@ -247,8 +247,8 @@ projection is supplied as an additional text block. No repair, continuation or f
 Candidate citations are `[]`: the unchanged response contract supplies no model citation
 sidecar. Clear responses without actual model citations therefore fail the frozen evaluator;
 review responses remain visibly ungrounded. `supplied_source_provenance` only records delivered
-bytes and is NEVER passed as candidate proof. A future citation-producing candidate would need
-separate preregistration/review, not a change to this ruler to make results pass.
+bytes and is NEVER passed as candidate proof. The separately preregistered citation candidate
+below changes its own output contract, not this original candidate or ruler.
 
 The [AWS model card](https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-anthropic-claude-opus-5.html)
 supports Converse but not runtime CountTokens. No CountTokens fallback is attempted. The input
@@ -268,14 +268,18 @@ The `bounded-evaluation-source-<sha>-<run>` artifact includes every raw syntheti
 all 14 slots. Tests prohibit sockets/model construction and break grants, budget, run bindings,
 expiry, writer durability, raw retention and unknown outcomes. No real model quality is inferred.
 
-**Live authority NOT VERIFIED at the 2026-09-11 source checkpoint.** Parent's corrected
+**Live authority prerequisite at the 2026-09-11 source checkpoint.** Parent's corrected
 read-only inventory found `AWS_DEPLOY_ROLE_ARN` in the existing `aws` environment, not at
-repository scope. Its actual Bedrock permissions still need parent review. The existing
+repository scope. Parent traced historical deployment run34380636989 to
+`merismos-github-deploy` and reports its current policy has no Bedrock actions. Unless the
+secret's role identity has changed, missing `InvokeModel` permission blocks live collection.
+The current secret value has not been read here; parent owns exact identity review. A session
+policy can restrict a role, never grant a missing base permission. The existing
 secret/environment names are retained; `FRONTEND_RELEASE_ROLE_ARN` is never a fallback.
 Missing role configuration produces explicit preflight refusal. This patch creates no role,
 trust, permission, secret or variable; budget approval does not authorize provisioning them.
 
-Parent activation contract (NOT activated by source CI): after authority review, parent
+Original status-only candidate activation contract (NOT activated by source CI): after authority review, parent
 can configure repository
 variables `MERISMOS_EVAL_GRANT_JSON` and `MERISMOS_EVAL_GRANT_SHA256`. The latter is SHA256 of
 the former's parsed JSON serialized with sorted keys, compact separators and no nonfinite values.
@@ -287,6 +291,16 @@ full workflow ref, the intended workflow run number (strings) and `run_attempt: 
 must be timezone-aware, still future and at most two hours away. Parent must reserve this full
 allocation in the shared cross-app ledger before configuring it. The worker does not infer
 remaining aggregate funds. Changing source, model/config, protocol or request manifest denies it.
+
+Portfolio coordination checkpoint, 2026-09-11: the parent is preparing an **inactive LT-only**
+supervisor around one independently approved immutable plan SHA256, three fixed slices whose
+sum is at most USD5, a first manual run number and a create-once per-budget reservation tag.
+This is not implemented distributed enforcement across all three applications. Merismos and
+Archon activation remain OFF. Any later Merismos approval must derive only its fixed slice
+from that **same** parent plan, never a fresh independent USD5 allocation. The unchanged
+Merismos collector validates its local grant, not that shared plan or reservation tag;
+cross-application authorization/enforcement remains an explicit parent integration gate.
+No actual grant, inference or live verification is established by this source preparation.
 
 After exact-source review, source CI and shared reservation, **parent only** may use:
 
@@ -313,8 +327,73 @@ Offline CI can reconstruct surviving create-only events without new inference:
 `python scripts/collect_interpretation.py recover --journal <saved-journal> --output <new-directory>`.
 Interrupted slots stay unknown, not not-run; all future slots remain not-run. The unmodified
 evaluator still reports producer evidence as NOT_ESTABLISHED, not authenticated AWS quality.
-No production app, deployment, IAM, DB, model permission or cloud telemetry changes are included.
+The original collector adds no production app, deployment, IAM, DB or model permission changes.
 Independent cases and human adjudication remain necessary before any general quality claim.
+
+### Separately preregistered cited candidate (source preparation only)
+
+[Candidate registration](evaluation/citation-candidate-v1.json) was committed at
+`98f63b7081e0121051c3f6afd057fd5fe3a814c4` before implementation. Its byte SHA256 is
+`415d1bd8f8f3a73cad848747e33afcc502a0c7f9f8f742c85ab4940d3d753ff1`.
+The new hypothesis is narrowly that explicit citation output makes grounded clearance
+representable under the existing ruler. It is not a measured improvement. Old protocol,
+gold, fourteen cases, evaluator, original prompt/collector and all receipts are unchanged.
+Both preregistrations must remain ancestors; do not squash or rebase away this ordering.
+
+The [candidate](scripts/citation_candidate.py) replaces only its own system instructions
+with the registered answer-plus-citations contract. The same allowlisted source input and
+question remain; gold and baseline answers are absent from requests. Source preloading is
+still **evaluation-only Converse, not the application's Strands tool selection**. Model,
+region, max output768, thinking disabled and byte-bound assumptions remain as registered.
+New request bytes/hashes and reference worst-cost plan are exported in source CI; old
+candidate request manifests and grants do not authorize this new hypothesis.
+
+Only fields actually present in a returned response can supply a candidate citation.
+Path, current source hash, exact nonempty quote, strict integer start/end Unicode-character
+span, known organisation and ownership of organisation-source records are checked first.
+Then the model's answer and path/hash/quote projection go through the **unchanged** evaluator.
+Projection never fills a missing citation from `supplied_source_provenance`. Full raw SDK-shaped
+response and its hash precede parsing; original model text/hash and returned citation fields
+remain in receipts. Invalid projection has a separately labelled invalid wrapper for the old
+ruler and retains the original bytes, not a repaired answer or successful abstention.
+Literal provenance still cannot prove semantic entailment: an injected instruction can be
+literally cited yet support a wrong decision. The negative fixture preserves that wrong
+candidate clearance separately from the deterministic governed refusal.
+
+Existing source CI runs only:
+
+```bash
+python scripts/citation_candidate.py source-smoke --output citation-evaluation
+```
+
+The `citation-candidate-source-<sha>-<run>` artifact contains inert requests/reference costs,
+all fourteen planned/started/raw-response slots, conspicuously fake responses and frozen-ruler
+replay. The fake constructs citations solely as a plumbing fixture, never as evidence of model
+selection or quality. `export` performs no evaluation; `replay --journal <source-fake-journal>`
+uses retained source-fake bytes and a fresh output directory, never resumes calls. There is
+**no live CLI or workflow activation for this new candidate**. Its new source verification is
+NOT_RUN at this local-only checkpoint; no result is inferred from the old collector's green CI.
+Parent owns review/push and any separately bounded live transport decision. C1 remains open.
+
+### X1 HTTP correlation (source-only checkpoint, not cloud cost)
+
+API responses now add a server-generated `x-merismos-request-id`, plus
+`x-merismos-lambda-request-id` **only** from the actual Lambda context when available.
+`x-merismos-correlation-mode` distinguishes `lambda-context` from `no-lambda-context`.
+The local real-HTTP harness has no Lambda context and never invents an AWS ID. Caller
+headers, API business request IDs and authorizer values cannot supply these transport IDs.
+A small structured server log records only both IDs, mode and response status; bodies,
+session tokens, user identity and paths are excluded. Logging failure does not change a
+completed business response. Existing response bodies, guards and idempotency stay unchanged.
+
+Source measurement rows retain only these allowlisted response-header fields. Optional
+metadata leaves the preregistered twenty attempts, timing boundary, stages, summary and
+historical datasets unchanged. Missing IDs stay unavailable, not fabricated zero-cost or
+successful correlation. The log/request-ID pair enables a future exact Lambda REPORT join,
+but this patch does not collect cloud logs, cover asynchronous fleet invocations, measure
+Lambda cost, prove an SLA or re-label local timings as AWS performance. Parent owns separate
+code rollout and any cloud evidence. Source unit/integration and real-HTTP checks are prepared;
+new verification and actual AWS correlation are NOT_RUN at this source checkpoint.
 
 ## Current public acceptance
 

@@ -102,6 +102,28 @@ def test_unknown_stale_and_reused_request_ids_are_refused(client):
     post(client, "approve", {**current, "consent": True}, expected=409)
 
 
+def test_correlation_is_not_business_idempotency_or_coordinator_authority(client):
+    current = plan(client)
+    _, state = client()
+    payload = {"mode": "sandbox", "version": state["version"],
+               "request_id": uuid.uuid4().hex, **current, "consent": True}
+    event = {"httpMethod": "POST", "path": "/api/offers/offer-4471/approve",
+             "headers": {"x-merismos-session": client.handle,
+                         "x-merismos-request-id": "caller-correlation-not-authority",
+                         "x-merismos-lambda-request-id": "caller-correlation-not-authority"},
+             "body": json.dumps(payload)}
+    first, replay = handler.handler(event), handler.handler(event)
+    assert first["statusCode"] == replay["statusCode"] == 200
+    assert json.loads(first["body"]) == json.loads(replay["body"])
+    assert first["headers"]["x-merismos-request-id"] != replay["headers"][
+        "x-merismos-request-id"]
+    assert "x-merismos-lambda-request-id" not in replay["headers"]
+    assert len(client()[1]["records"]) == 1
+    event["body"] = json.dumps({**payload, "mode": "live"})
+    assert handler.handler(event)["statusCode"] == 403
+    assert len(client()[1]["records"]) == 1
+
+
 def test_missing_unknown_sessions_routes_and_role(client, monkeypatch):
     assert client(token="")[0] == 401
     assert client(token="x" * 43)[0] == 410

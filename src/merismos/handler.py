@@ -133,6 +133,13 @@ def _route(event: Any) -> tuple[str, str, dict]:
 
 def handler(event: Any, context: Any = None) -> dict[str, Any]:
     """The Lambda entry point for every deployment."""
+    from .correlation import attach
+
+    return attach(event, context, _dispatch(event, context))
+
+
+def _dispatch(event: Any, context: Any = None) -> dict[str, Any]:
+    """Existing routes and guards; correlation metadata cannot change their inputs."""
     # A scheduled wake arrives as a plain payload rather than an HTTP event.
     if isinstance(event, dict) and event.get("source") == "merismos.deferral":
         return _reply(200, _wake(event))
