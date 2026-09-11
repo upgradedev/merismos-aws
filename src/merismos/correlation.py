@@ -22,12 +22,16 @@ def attach(event, context, response):
     if not isinstance(lambda_id, str) or not re.fullmatch(r"[A-Za-z0-9-]{16,80}", lambda_id):
         lambda_id = None
     mode = "lambda-context" if lambda_id else "no-lambda-context"
-    headers = {**response.get("headers", {}), "x-merismos-request-id": request_id,
+    reserved = {"x-merismos-request-id", "x-merismos-lambda-request-id",
+                "x-merismos-correlation-mode"}
+    original = {key: value for key, value in response.get("headers", {}).items()
+                if key.lower() not in reserved}
+    headers = {**original, "x-merismos-request-id": request_id,
                "x-merismos-correlation-mode": mode}
     if lambda_id:
         headers["x-merismos-lambda-request-id"] = lambda_id
     # Lost optional telemetry must not change a completed business response.
-    with suppress(OSError):
+    with suppress(OSError, ValueError):
         print(json.dumps({"event": "merismos.http.correlation", "request_id": request_id,
                           "lambda_request_id": lambda_id, "mode": mode,
                           "status": response["statusCode"]}, sort_keys=True), flush=True)

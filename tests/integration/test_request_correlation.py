@@ -1,6 +1,8 @@
 """Source-only correlation controls. Context IDs below are synthetic fixtures."""
 
+import io
 import json
+import sys
 from types import SimpleNamespace
 from uuid import UUID
 
@@ -69,3 +71,41 @@ def test_unavailable_log_sink_does_not_change_completed_response(monkeypatch):
     response = handler.handler(event())
     assert response["statusCode"] == 200
     assert response["headers"]["x-merismos-correlation-mode"] == "no-lambda-context"
+
+
+def test_actual_closed_log_stream_preserves_completed_mutation_status_and_body(monkeypatch):
+    completed = {"statusCode": 201, "headers": {"cache-control": "no-store"},
+                 "body": '{"committed":true,"version":1}'}
+    mutations = []
+
+    def committed(_event, _context):
+        mutations.append("completed")
+        return completed
+
+    monkeypatch.setattr(handler, "_dispatch", committed)
+    closed = io.StringIO()
+    closed.close()
+    with pytest.raises(ValueError, match="closed"):
+        print("negative control", file=closed)
+    with monkeypatch.context() as patch:
+        patch.setattr(sys, "stdout", closed)
+        response = handler.handler(event(method="POST"))
+    assert mutations == ["completed"]
+    assert response["statusCode"] == completed["statusCode"]
+    assert response["body"] == completed["body"]
+    assert response["headers"]["cache-control"] == "no-store"
+
+
+def test_reserved_headers_are_replaced_case_insensitively_without_lambda_context():
+    original = {"statusCode": 200, "body": "unchanged", "headers": {
+        "X-Merismos-Lambda-Request-ID": "preexisting-fake-lambda-id",
+        "X-Merismos-Request-ID": "preexisting-fake-request-id",
+        "X-Merismos-Correlation-Mode": "lambda-context", "Cache-Control": "no-store"}}
+    response = correlation.attach(event(), None, original)
+    assert response["body"] == original["body"]
+    assert response["headers"]["Cache-Control"] == "no-store"
+    assert set(response["headers"]) == {
+        "Cache-Control", "x-merismos-request-id", "x-merismos-correlation-mode"}
+    assert response["headers"]["x-merismos-correlation-mode"] == "no-lambda-context"
+    assert response["headers"]["x-merismos-request-id"] != "preexisting-fake-request-id"
+    assert original["headers"]["X-Merismos-Lambda-Request-ID"] == "preexisting-fake-lambda-id"
