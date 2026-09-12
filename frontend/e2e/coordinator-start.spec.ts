@@ -41,6 +41,7 @@ test('UX-ME-10S: cold coordinator entry to named offer, reasoned approval and se
   await page.getByRole('button', {name: 'Approve in sandbox', exact: true}).focus(); await page.keyboard.press('Enter');
   const approval = await approvalResponse; expect(approval.status()).toBe(200);
   const approved: Workspace = await approval.json();
+  expect(approved.pickups).toHaveLength(5);
   expect(approved.pickups.every(p => p.state !== 'confirmed')).toBe(true);
   await expect(stages).toContainText('Exact allocation recorded');
   await expect(stages).toContainText('Departure not recorded');
@@ -55,10 +56,10 @@ test('UX-ME-10S: cold coordinator entry to named offer, reasoned approval and se
   await expect(stages).toContainText('No receipt confirmed');
   await tasks.getByLabel('This collection actually happened in the simulation.').focus(); await page.keyboard.press('Space');
   await tasks.getByRole('button', {name: 'Confirm collection'}).focus(); await page.keyboard.press('Enter');
-  await expect(stages).toContainText('1 of 2 shares confirmed in simulation');
+  await expect(stages).toContainText('1 of 5 shares confirmed in simulation');
   await page.reload();
   await expect(page.getByRole('heading', {name: title, exact: true})).toBeVisible();
-  await expect(stages).toContainText('1 of 2 shares confirmed in simulation');
+  await expect(stages).toContainText('1 of 5 shares confirmed in simulation');
   await page.getByText('Pickup manifest · copy or download', {exact: true}).focus(); await page.keyboard.press('Enter');
   await expect(page.getByLabel('Pickup manifest', {exact: true})).toContainText(title);
   await expect(page.getByLabel('Pickup manifest', {exact: true})).toContainText('not a recipient receipt');

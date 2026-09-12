@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { Mutate } from './OfferDetail';
 import type { OfferRow, Result, Workspace } from './types';
-import { allocationTotal } from './workspaceModel';
+import { allocationTotal, projection } from './workspaceModel';
 
 export function decisionRows(before: Result, after: Result, ready: boolean) {
   const names = [...new Set([
@@ -58,9 +58,9 @@ export function downloadManifest(text: string) {
 export function DispatchJourney({row, data}: {row: OfferRow; data: Workspace}) {
   const changed = !!row.replan;
   const replanned = changed && allocationTotal(row) !== null;
-  const collected = data.pickups.some(p => p.offer_id === row.offer.id && p.state === 'confirmed');
-  const currentPickups = data.pickups.filter(p => p.offer_id === row.offer.id && p.plan_digest === row.plan?.digest && p.state !== 'invalidated');
+  const currentPickups = projection(data).pickups.filter(p => row.plan?.recorded && p.offer_id === row.offer.id && p.plan_digest === row.plan.digest && p.run_id === row.plan.run_id && p.state !== 'invalidated');
   const received = currentPickups.filter(p => p.state === 'confirmed').length;
+  const collected = received > 0;
   const scheduled = currentPickups.filter(p => p.state === 'scheduled').length;
   return <section className="panel padded journey" aria-label="Offer to pickup journey"><div className="section-heading"><h2>From offer to pickup</h2><button className="secondary" onClick={() => document.getElementById('next-decision')?.focus()}>Go to next decision ↓</button></div>
     <p>{row.offer.quantity} {row.offer.unit} · Collect {row.offer.collection_date || 'date not provided'} · {row.offer.title}</p>

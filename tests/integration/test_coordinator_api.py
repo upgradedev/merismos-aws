@@ -146,7 +146,8 @@ def test_aged_session_boundary_preserves_bytes_and_requires_explicit_restart(
             assert client("/api/offers/new", "POST", {"request_id": uuid.uuid4().hex})[0] == 410
         assert saves == []
     with client.store.connection() as db:
-        assert db.execute("SELECT * FROM workspace WHERE id = ?", (identifier,)).fetchone() == before
+        after = db.execute("SELECT * FROM workspace WHERE id = ?", (identifier,)).fetchone()
+        assert after == before
     code, new_session = client("/api/sessions", "POST")
     assert code == 201 and new_session["session"] != client.handle
     code, fresh = client(token=new_session["session"])
@@ -161,7 +162,8 @@ def test_withdrawn_workspace_access_does_not_recreate_or_write(client, monkeypat
     original_get = WorkspaceStore.get
     original_state = client.store.get(identifier)
     with monkeypatch.context() as withdrawn:
-        withdrawn.setattr(WorkspaceStore, "get", lambda self, key: None if key == identifier else original_get(self, key))
+        withdrawn.setattr(WorkspaceStore, "get", lambda self, key: (
+            None if key == identifier else original_get(self, key)))
         assert client()[0] == 410
         assert client("/api/offers/new", "POST", {"request_id": uuid.uuid4().hex})[0] == 410
     assert client.store.get(identifier) == original_state

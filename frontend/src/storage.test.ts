@@ -23,3 +23,12 @@ it('a refused removal remains removed in this tab rather than resurrecting a sta
   removePreference('refused-removal');
   expect(readPreference('refused-removal')).toBeNull();
 });
+it('never resurrects a handle whose external deletion was already observed before storage fails', () => {
+  localStorage.setItem('externally-removed-session', 'previous-valid-handle');
+  expect(readPreference('externally-removed-session')).toBe('previous-valid-handle');
+  // Removal is independent of our helper, like another tab or browser settings.
+  localStorage.removeItem('externally-removed-session');
+  expect(readPreference('externally-removed-session')).toBeNull();
+  vi.spyOn(window, 'localStorage', 'get').mockImplementation(() => { throw new DOMException('SecurityError'); });
+  expect(readPreference('externally-removed-session')).toBeNull();
+});

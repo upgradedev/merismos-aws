@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { expect, it, vi } from 'vitest';
 import { decisionRows, DispatchJourney, DisruptionControl, downloadManifest, ManifestExport, pickupManifest, ReplanComparison } from './DispatchJourney';
@@ -110,4 +110,16 @@ it('journey and manifest keep unknown, draft, replan and recorded states distinc
   view.rerender(<DispatchJourney row={next.offers[0]} data={next}/>);
   expect(screen.getByText('Approved in sandbox')).toBeVisible();
   expect(pickupManifest(next.offers[0], next)).toContain('Allocation recorded by the server');
+});
+it('receipt progress includes only unambiguous shares for the approved current plan and run', () => {
+  const data = workspace(); const row = data.offers[0]; row.plan!.recorded = true;
+  const share = {offer_id: row.offer.id, title: row.offer.title, org: 'Kitchen', quantity: 20, unit: 'kg', role: 'duty manager', state: 'confirmed', agreed_at: '', plan_digest: row.plan!.digest, run_id: row.plan!.run_id};
+  data.pickups = [share, {...share, org: 'Other', state: 'scheduled'}, {...share, org: 'Prior plan', plan_digest: 'old'}, {...share, org: 'Prior run', run_id: 'old'}, {...share, org: 'Cancelled', state: 'invalidated'}];
+  const view = render(<DispatchJourney row={row} data={data}/>);
+  const stages = within(screen.getByRole('list', {name: 'Allocation and collection status'}));
+  expect(stages.getByText('1 of 2 shares confirmed in simulation')).toBeVisible();
+  expect(stages.getByText('Departure not recorded')).toBeVisible();
+  row.plan!.recorded = false; view.rerender(<DispatchJourney row={row} data={data}/>);
+  expect(stages.getByText('No receipt confirmed')).toBeVisible();
+  expect(stages.getByText('Not approved')).toBeVisible();
 });
