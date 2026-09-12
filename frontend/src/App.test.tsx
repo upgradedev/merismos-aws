@@ -44,6 +44,10 @@ it('does not automatically retry failed mutations and reuses the request id on e
   expect(button).toBeDisabled();
   await userEvent.click(screen.getByText('Refresh and review'));
   await waitFor(() => expect(button).toBeEnabled());
+  expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  expect(screen.queryByText(/saved view may be stale/)).not.toBeInTheDocument();
+  expect(api.action).toHaveBeenCalledTimes(1);
+  expect(api.startIsolatedWorkspace).not.toHaveBeenCalled();
   await userEvent.click(button); await waitFor(() => expect(api.action).toHaveBeenCalledTimes(2));
   expect(vi.mocked(api.action).mock.calls[0][4]).toBe(vi.mocked(api.action).mock.calls[1][4]);
 });
