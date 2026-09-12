@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { Mutate } from './OfferDetail';
 import type { OfferRow, Result, Workspace } from './types';
-import { allocationTotal } from './workspaceModel';
+import { allocationTotal, projection } from './workspaceModel';
 
 export function decisionRows(before: Result, after: Result, ready: boolean) {
   const names = [...new Set([
@@ -58,13 +58,24 @@ export function downloadManifest(text: string) {
 export function DispatchJourney({row, data}: {row: OfferRow; data: Workspace}) {
   const changed = !!row.replan;
   const replanned = changed && allocationTotal(row) !== null;
-  const collected = data.pickups.some(p => p.offer_id === row.offer.id && p.state === 'confirmed');
-  return <section className="panel padded journey" aria-label="Offer to pickup journey"><h2>From offer to pickup</h2><ol>
+  const currentPickups = projection(data).pickups.filter(p => row.plan?.recorded && p.offer_id === row.offer.id && p.plan_digest === row.plan.digest && p.run_id === row.plan.run_id && p.state !== 'invalidated');
+  const received = currentPickups.filter(p => p.state === 'confirmed').length;
+  const collected = received > 0;
+  const scheduled = currentPickups.filter(p => p.state === 'scheduled').length;
+  return <section className="panel padded journey" aria-label="Offer to pickup journey"><div className="section-heading"><h2>From offer to pickup</h2><button className="secondary" onClick={() => document.getElementById('next-decision')?.focus()}>Go to next decision ↓</button></div>
+    <p>{row.offer.quantity} {row.offer.unit} · Collect {row.offer.collection_date || 'date not provided'} · {row.offer.title}</p>
+    <ol className="decision-stages" aria-label="Allocation and collection status">
+      <li>Proposed<strong>{row.plan ? 'Allocation computed' : changed ? 'Capacity correction needs a new plan' : 'Calculate the split'}</strong></li>
+      <li>Approved<strong>{row.plan?.recorded ? 'Exact allocation recorded' : 'Not approved'}</strong></li>
+      <li>Dispatched<strong>Departure not recorded</strong><span>{scheduled} pickups scheduled; a time is not proof of departure.</span></li>
+      <li>Received<strong>{received ? `${received} of ${currentPickups.length} shares confirmed${data.mode === 'sandbox' ? ' in simulation' : ''}` : 'No receipt confirmed'}</strong></li>
+    </ol><p className="small-note">The service records claims, agreed collection times and explicit confirmation. It has no departure event. Approval, scheduling and a copied manifest never prove physical receipt.</p>
+    <div className="small-note"><ol>
     <li>Offer <strong>Filed</strong></li><li>Allocation <strong>{row.plan || changed ? 'Computed' : 'Needs review'}</strong></li>
     <li>Disruption <strong>{changed ? 'Recorded in sandbox' : 'Optional rehearsal'}</strong></li>
     <li>Replan <strong>{replanned ? row.plan?.recorded ? 'Approved in sandbox' : row.plan ? 'Fresh approval required' : 'No feasible allocation' : changed ? 'Required' : 'If constraints change'}</strong></li>
     <li>Pickup <strong>{collected ? 'Simulation confirmed' : row.plan?.recorded ? 'Arrange and confirm' : 'Not authorized'}</strong></li>
-  </ol><p className="small-note">{data.mode === 'sandbox' ? 'Every step here is simulated; no public allocation or real recipient confirmation.' : 'Live records are synthetic demonstrations. Disruption rehearsal is available in Sandbox.'}</p></section>;
+  </ol></div><p className="small-note">{data.mode === 'sandbox' ? 'Every step here is simulated; no public allocation or real recipient confirmation.' : 'Live records are synthetic demonstrations. Disruption rehearsal is available in Sandbox.'}</p></section>;
 }
 
 export function ReplanComparison({row}: {row: OfferRow}) {

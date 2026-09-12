@@ -119,6 +119,8 @@ test('ME12: expired session and missing offer recover without selecting another 
   await page.reload();
   await expect(page.getByRole('alert')).toContainText('expired');
   await page.getByRole('button', { name: 'Start a new sandbox' }).click();
+  await expect(page.getByRole('alert')).toContainText('Previous offers, approvals');
+  await page.getByRole('button', { name: 'Create isolated workspace' }).click();
   await expect(page.getByRole('heading', { name: 'Offer not found' })).toBeVisible();
   await page.locator('.offer-select').filter({ hasText: 'End of day bread and vegetables' }).click();
   await expect(page.getByRole('heading', { name: 'End of day bread and vegetables', exact: true })).toBeVisible();

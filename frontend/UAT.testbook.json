@@ -56,6 +56,30 @@
   },
   "cases": [
     {
+      "id": "ME7-SESSION-RECOVERY-20260912",
+      "persona": "Returning volunteer coordinator",
+      "requirement": "Explicit recovery for missing, expired, unknown or withdrawn session access without silent deletion, identity transplant or replay",
+      "preconditions": "Only newly created isolated synthetic workspaces; no production offer mutation",
+      "steps": ["Read the unavailable-session explanation, refresh passively, cancel restart, then explicitly create an isolated replacement", "Check prior workspace bytes and retained handle, reload/back boundaries, empty replacement operations and no mutation replay", "Deny browser storage; file a synthetic offer in the current tab; reload and require explicit restart"],
+      "expected_outcome": "No replacement before explicit confirmation. Creation/read failure preserves old selection. Missing handle and changed browser session never create a session on an action or CSV preview. Old links do not silently select a replacement decision.",
+      "negative_recovery_case": "Actual persisted TTL at one second before, exactly at, and 137 seconds after expiry is tested through the real handler in CI. Store-withdrawn access preserves original bytes. HTTP 401/403/404/410 UI classification is tested separately. Browser unknown-token proof is not a claim of an aged AWS session.",
+      "automation_mapping": "frontend/e2e/session-recovery.spec.ts; frontend/src/api.test.ts; frontend/src/storage.test.ts; frontend/src/SessionRecovery.test.tsx; tests/integration/test_coordinator_api.py::test_aged_session_boundary_preserves_bytes_and_requires_explicit_restart; test_withdrawn_workspace_access_does_not_recreate_or_write",
+      "evidence_scope": "Exact-head source CI required. Existing release suite includes all added browser cases. Deployed SHA/time/pair proof belongs to coordinator-run existing AWS acceptance; freshness policy and prior cases unchanged.",
+      "human_signoff": "NOT_RUN"
+    },
+    {
+      "id": "UX-ME-10S-20260912",
+      "persona": "Volunteer food coordinator",
+      "requirement": "Cold entry names user, donation, outcome and next action; proposed/approved/dispatched/received stay distinct",
+      "preconditions": "Clean browser; synthetic named offer created through the existing API",
+      "steps": ["Read the named-offer first screen; add an editable donation by keyboard", "Calculate allocation, read recipient reasons and approve the exact plan", "Claim, schedule and explicitly confirm one share; reload and read the plain-text handoff", "Use existing CSV disruption/replan journey to verify capacity correction preserves offer, original evidence and fresh consent"],
+      "expected_outcome": "A decision or scheduled time never counts as receipt. Dispatched explicitly says departure is not recorded because the existing API has no departure event. Current-plan confirmed shares remain separate from all other shares.",
+      "negative_recovery_case": "Existing empty, blocked, refused-input, capacity, stale-consent and missing-offer assertions remain. No new solver, CSV implementation or API contract.",
+      "automation_mapping": "frontend/e2e/coordinator-start.spec.ts; frontend/e2e/csv-replan.spec.ts; frontend/e2e/intake.spec.ts; frontend/e2e/workspaces.spec.ts; frontend/src/DispatchJourney.test.tsx",
+      "evidence_scope": "CI retains cold/completion screenshots, traces and API outcome attachments for desktop/mobile. Independent ten-second comprehension study must be recorded in C3; Playwright does not establish human understanding.",
+      "human_signoff": "NOT_RUN"
+    },
+    {
       "id": "X2-SESSION-ISOLATION",
       "persona": "Two independent sandbox coordinators",
       "requirement": "Two valid sessions isolate donation state, exact-plan authority and request-ID retries",

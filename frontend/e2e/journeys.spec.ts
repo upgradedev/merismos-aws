@@ -111,7 +111,9 @@ test('ME01/02/03: exact sandbox approval, persistent claim, scheduled and confir
   await page.reload();
   await expect(page.locator('.record-list').getByRole('link', { name: 'records/offer-4471.md', exact: true })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-  expect(await page.evaluate(() => Object.keys(localStorage).sort())).toEqual(['merismos.session']);
+  expect(await page.evaluate(() => Object.keys(localStorage).sort())).toEqual(['merismos.session', 'merismos.session.context', 'merismos.session.seen']);
+  expect(await page.evaluate(() => localStorage.getItem('merismos.session.seen'))).toBe('true');
+  expect(await page.evaluate(() => localStorage.getItem('merismos.session.context'))).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
   expect(errors).toEqual([]);
 });
 
