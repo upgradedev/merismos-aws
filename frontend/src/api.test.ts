@@ -1,9 +1,10 @@
-import { describe, expect, it, vi } from 'vitest';
-import { action, ApiError, loadWorkspace, previewCsv, request, session } from './api';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { action, ApiError, loadWorkspace, previewCsv, request, session, SessionError, startIsolatedWorkspace } from './api';
 import { removePreference } from './storage';
 import { workspace } from './test/fixtures';
 
 describe('HTTP and session boundary', () => {
+  beforeEach(() => { localStorage.setItem('merismos.session', 'existing-test-session'); });
   it('deduplicates session creation and stores only the handle', async () => {
     removePreference('merismos.session');
     const fetcher = vi.fn().mockResolvedValue(new Response(JSON.stringify({session:'handle'})));
@@ -70,5 +71,63 @@ describe('HTTP and session boundary', () => {
     vi.stubGlobal('fetch', fetcher);
     await expect(action(workspace(), '', 'import', {csv: 'data', csv_digest: 'sha', rows: [2, 3, 4]}, 'batch')).rejects.toThrow('after 1 confirmed rows. CSV row 3');
     expect(fetcher).toHaveBeenCalledTimes(2);
+  });
+  it.each([401, 403, 404, 410])('classifies a refused workspace read (%s) without replacing its handle', async status => {
+    const fetcher = vi.fn().mockResolvedValue(new Response(JSON.stringify({detail: 'Workspace unavailable'}), {status}));
+    vi.stubGlobal('fetch', fetcher);
+    await expect(loadWorkspace('sandbox')).rejects.toBeInstanceOf(SessionError);
+    expect(localStorage.getItem('merismos.session')).toBe('existing-test-session');
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+  it('refuses a missing returning handle and never creates a session for a mutation or CSV preview', async () => {
+    removePreference('merismos.session');
+    localStorage.setItem('merismos.session.seen', 'true');
+    const fetcher = vi.fn(); vi.stubGlobal('fetch', fetcher);
+    await expect(loadWorkspace('sandbox')).rejects.toThrow('missing');
+    await expect(action(workspace(), 'offer-9000', 'approve', {consent: true}, 'old-request')).rejects.toThrow('No action was sent');
+    await expect(previewCsv(workspace(), 'csv', new AbortController().signal)).rejects.toThrow('No action was sent');
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+  it('refuses transplanting a loaded snapshot when another tab changes the session', async () => {
+    const fetcher = vi.fn().mockResolvedValue(new Response(JSON.stringify(workspace()))); vi.stubGlobal('fetch', fetcher);
+    const snapshot = await loadWorkspace('sandbox');
+    localStorage.setItem('merismos.session', 'different-session');
+    await expect(action(snapshot, 'offer-9000', 'approve', {consent: true}, 'request')).rejects.toThrow('session changed');
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+  it('switches only after a replacement is readable and retains the previous handle', async () => {
+    const fetcher = vi.fn().mockResolvedValueOnce(new Response(JSON.stringify({session: 'new-session'})))
+      .mockResolvedValueOnce(new Response(JSON.stringify(workspace())));
+    vi.stubGlobal('fetch', fetcher);
+    const next = await startIsolatedWorkspace();
+    expect(next.mode).toBe('sandbox');
+    expect(localStorage.getItem('merismos.session')).toBe('new-session');
+    expect(localStorage.getItem('merismos.retained-session.existing-test-session')).toBe('existing-test-session');
+    expect(fetcher.mock.calls.map(call => call[0])).toEqual(['/api/sessions', '/api/workspace?mode=sandbox']);
+    expect(fetcher.mock.calls[1][1].headers['X-Merismos-Session']).toBe('new-session');
+    expect(history.state.merismosSandboxVisited).toBe(true);
+  });
+  it.each(['creation', 'read'])('a failed replacement %s preserves the previous session', async stage => {
+    const fetcher = vi.fn();
+    if (stage === 'read') fetcher.mockResolvedValueOnce(new Response(JSON.stringify({session: 'unreadable-new-session'})));
+    fetcher.mockRejectedValueOnce(new Error('Connection lost')); vi.stubGlobal('fetch', fetcher);
+    await expect(startIsolatedWorkspace()).rejects.toThrow('Connection lost');
+    expect(localStorage.getItem('merismos.session')).toBe('existing-test-session');
+  });
+  it.each(['read', 'restart', 'action', 'creation'])('a superseded async %s response cannot select the previous session', async kind => {
+    let finish!: (value: Response) => void;
+    const fetcher = vi.fn();
+    if (kind === 'restart') fetcher.mockResolvedValueOnce(new Response(JSON.stringify({session: 'candidate'})));
+    if (kind === 'creation') removePreference('merismos.session');
+    fetcher.mockImplementationOnce(() => new Promise<Response>(resolve => { finish = resolve; }));
+    vi.stubGlobal('fetch', fetcher);
+    const pending = kind === 'read' ? loadWorkspace('sandbox') : kind === 'restart' ? startIsolatedWorkspace() : kind === 'creation' ? session() : action(workspace(), 'offer-9000', 'approve', {consent: true}, 'once');
+    const rejected = expect(pending).rejects.toBeInstanceOf(SessionError);
+    await vi.waitFor(() => expect(finish).toBeTypeOf('function'));
+    localStorage.setItem('merismos.session', 'selected-by-another-tab');
+    finish(new Response(JSON.stringify(kind === 'creation' ? {session: 'late'} : workspace())));
+    await rejected;
+    expect(localStorage.getItem('merismos.session')).toBe('selected-by-another-tab');
+    expect(fetcher).toHaveBeenCalledTimes(kind === 'restart' ? 2 : 1);
   });
 });

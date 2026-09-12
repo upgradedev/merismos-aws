@@ -124,6 +124,49 @@ def test_correlation_is_not_business_idempotency_or_coordinator_authority(client
     assert len(client()[1]["records"]) == 1
 
 
+@pytest.mark.parametrize("seconds_after_expiry,expected", [(-1, 200), (0, 410), (137, 410)])
+def test_aged_session_boundary_preserves_bytes_and_requires_explicit_restart(
+        client, monkeypatch, seconds_after_expiry, expected):
+    """Age actual persisted session expiry, not a browser label or an unknown token."""
+    identifier = api.fingerprint(client.handle)
+    state = client.store.get(identifier)
+    with client.store.connection() as db:
+        before = db.execute("SELECT * FROM workspace WHERE id = ?", (identifier,)).fetchone()
+    with monkeypatch.context() as aged:
+        aged.setattr(time, "time", lambda: state["expires_at"] + seconds_after_expiry)
+        saves = []
+
+        def refuse_save(*args, **kwargs):
+            saves.append(args)
+            raise AssertionError("Reading or refusing expired access must never save")
+
+        aged.setattr(WorkspaceStore, "save", refuse_save)
+        assert client()[0] == expected
+        if expected == 410:
+            assert client("/api/offers/new", "POST", {"request_id": uuid.uuid4().hex})[0] == 410
+        assert saves == []
+    with client.store.connection() as db:
+        assert db.execute("SELECT * FROM workspace WHERE id = ?", (identifier,)).fetchone() == before
+    code, new_session = client("/api/sessions", "POST")
+    assert code == 201 and new_session["session"] != client.handle
+    code, fresh = client(token=new_session["session"])
+    assert code == 200
+    assert fresh["records"] == fresh["pickups"] == fresh["operations"] == []
+    assert client.store.get(identifier) == state
+
+
+def test_withdrawn_workspace_access_does_not_recreate_or_write(client, monkeypatch):
+    """Store-level absent access shares the existing unknown/expired contract."""
+    identifier = api.fingerprint(client.handle)
+    original_get = WorkspaceStore.get
+    original_state = client.store.get(identifier)
+    with monkeypatch.context() as withdrawn:
+        withdrawn.setattr(WorkspaceStore, "get", lambda self, key: None if key == identifier else original_get(self, key))
+        assert client()[0] == 410
+        assert client("/api/offers/new", "POST", {"request_id": uuid.uuid4().hex})[0] == 410
+    assert client.store.get(identifier) == original_state
+
+
 def test_missing_unknown_sessions_routes_and_role(client, monkeypatch):
     assert client(token="")[0] == 401
     assert client(token="x" * 43)[0] == 410

@@ -10,3 +10,16 @@ it('keeps the tab usable when browser storage is blocked', () => {
   expect(readPreference('absent')).toBeNull(); expect(storageBlocked()).toBe(true);
   removePreference('blocked-session'); expect(readPreference('blocked-session')).toBeNull();
 });
+it('a refused write cannot make readable stale storage override the current tab handle', () => {
+  localStorage.setItem('partial-refusal-session', 'previous');
+  vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new DOMException('Quota exceeded'); });
+  writePreference('partial-refusal-session', 'replacement');
+  expect(localStorage.getItem('partial-refusal-session')).toBe('previous');
+  expect(readPreference('partial-refusal-session')).toBe('replacement');
+});
+it('a refused removal remains removed in this tab rather than resurrecting a stale handle', () => {
+  localStorage.setItem('refused-removal', 'previous');
+  vi.spyOn(Storage.prototype, 'removeItem').mockImplementation(() => { throw new DOMException('Refused'); });
+  removePreference('refused-removal');
+  expect(readPreference('refused-removal')).toBeNull();
+});

@@ -5,8 +5,8 @@ import { App } from './App';
 import * as api from './api';
 import { removePreference } from './storage';
 import { workspace } from './test/fixtures';
-vi.mock('./api', async original => ({...await original<typeof api>(),loadWorkspace:vi.fn(),action:vi.fn()}));
-beforeEach(() => { vi.clearAllMocks(); removePreference('merismos.mode'); vi.mocked(api.loadWorkspace).mockResolvedValue(workspace()); vi.mocked(api.action).mockResolvedValue(workspace()); });
+vi.mock('./api', async original => ({...await original<typeof api>(),loadWorkspace:vi.fn(),action:vi.fn(),startIsolatedWorkspace:vi.fn()}));
+beforeEach(() => { vi.clearAllMocks(); removePreference('merismos.mode'); vi.mocked(api.loadWorkspace).mockResolvedValue(workspace()); vi.mocked(api.action).mockResolvedValue(workspace()); vi.mocked(api.startIsolatedWorkspace).mockResolvedValue(workspace()); });
 async function navigate(path: string) { await act(async () => { location.hash=path; window.dispatchEvent(new HashChangeEvent('hashchange')); }); }
 it('loads, navigates with durable URLs, switches mode and refreshes', async () => {
   const user=userEvent.setup(); render(<App/>); expect(screen.getByText(/Loading your coordinator/)).toBeVisible();
@@ -27,7 +27,10 @@ it('loads, navigates with durable URLs, switches mode and refreshes', async () =
 it('reports a failed request and recovers an expired sandbox', async () => {
   vi.mocked(api.loadWorkspace).mockRejectedValueOnce(new api.ApiError('Session expired',410));
   render(<App/>); expect(await screen.findByRole('alert')).toHaveTextContent('Session expired');
-  await userEvent.click(screen.getByText('Start a new sandbox')); await screen.findByRole('heading',{name:'Dashboard'});
+  await userEvent.click(screen.getByText('Start a new sandbox'));
+  expect(api.startIsolatedWorkspace).not.toHaveBeenCalled();
+  await userEvent.click(screen.getByText('Create isolated workspace')); await screen.findByRole('heading',{name:'Dashboard'});
+  expect(api.action).not.toHaveBeenCalled();
 });
 it('refreshes on ordinary failures and safely handles non-Error failures', async () => {
   vi.mocked(api.loadWorkspace).mockRejectedValueOnce('bad'); render(<App/>);
