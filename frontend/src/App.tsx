@@ -20,7 +20,6 @@ function currentAddress() {
   const previous = history.state?.merismosContext;
   const current = readPreference('merismos.session.context');
   if (previous && current && previous !== current) return '/previous-workspace';
-  if (location.hash && location.hash.length > 1) return location.hash.slice(1);
   const search = new URLSearchParams(location.search);
   const page = search.get('page') || search.get('tab');
   if (page) {
@@ -32,6 +31,7 @@ function currentAddress() {
     if (pickup) params.set('pickup', pickup);
     return `${clean}${params.size ? `?${params}` : ''}`;
   }
+  if (location.hash && location.hash.length > 1) return location.hash.slice(1);
   return '';
 }
 
@@ -140,11 +140,39 @@ export function App() {
     } catch (e) { if (current === generation.current) report(e); }
     finally { mutationLock.current = false; setBusy(false); }
   }
-  const navigateTo = useCallback((dest: string) => {
-    const next = routeLink(dest, { offer: selected, pickup: route.pickup });
-    history.pushState({ ...history.state, merismosContext: readPreference('merismos.session.context'), merismosSandboxVisited: true }, '', next);
-    setAddress(next.slice(1));
+  const cleanLink = useCallback((dest: string) => {
+    const pageName = dest.replace(/^\//, '');
+    const params = new URLSearchParams();
+    if (selected) params.set('offer', selected);
+    if (route.pickup) params.set('pickup', route.pickup);
+    const search = params.size ? `?${params}` : '';
+    if (pageName === 'dashboard' || pageName === 'landing' || pageName === 'overview') {
+      return search ? `/${search}` : window.location.pathname;
+    }
+    return `?page=${pageName}${search ? `&${params}` : ''}`;
   }, [selected, route.pickup]);
+
+  const navigateTo = useCallback((dest: string) => {
+    const next = cleanLink(dest);
+    history.pushState({ ...history.state, merismosContext: readPreference('merismos.session.context'), merismosSandboxVisited: true }, '', next);
+    setAddress(dest + (next.includes('?') ? '?' + next.split('?')[1] : ''));
+  }, [cleanLink]);
+
+  useEffect(() => {
+    if (location.hash && location.hash.length > 1) {
+      const r = parseRoute(location.hash.slice(1));
+      const pageName = r.page;
+      const params = new URLSearchParams();
+      if (r.offer) params.set('offer', r.offer);
+      if (r.pickup) params.set('pickup', r.pickup);
+      const search = params.size ? `?${params}` : '';
+      const cleanUrl = pageName === 'dashboard' || pageName === 'landing' || pageName === 'overview'
+        ? (search ? `/${search}` : window.location.pathname)
+        : `?page=${pageName}${search ? `&${params}` : ''}`;
+      history.replaceState({ ...history.state, merismosContext: readPreference('merismos.session.context'), merismosSandboxVisited: true }, '', cleanUrl);
+    }
+  }, []);
+
   const nav = [
     ['/overview', 'Overview', '00', 'landing'],
     ['/dashboard', 'Dashboard', '01', 'dashboard'],
@@ -157,9 +185,9 @@ export function App() {
   ];
   const unavailable = busy || loading || actionBlocked || expired || (!!error && route.page !== 'intake');
   return <div className="app-shell"><a href="#main" className="skip-link" onClick={e => { e.preventDefault(); document.getElementById('main')?.focus(); }}>Skip to main content</a>
-    <aside className="sidebar"><a href={routeLink('/dashboard', { offer: selected, pickup: route.pickup })} className="brand"><span className="brand-icon" aria-hidden="true">μ</span><span>merismos<small>CIVIC DISPATCH</small></span></a><div className="network-label"><span aria-hidden="true">◉</span> Kypseli network<small>Five synthetic community organisations</small></div>
-      <nav aria-label="Main navigation">{nav.map(([path, label, number, page]) => <a href={routeLink(path, { offer: selected, pickup: route.pickup })} key={path} onClick={e => { e.preventDefault(); navigateTo(path); }} aria-current={route.page === page || page === 'workspace' && ['pickups', 'intake'].includes(route.page) ? 'page' : undefined}><span aria-hidden="true">{number}</span>{label}</a>)}</nav>
-      <div className="sidebar-bottom"><p>Consider the split.<br/>Keep the reasons.<br/>Close the collection.</p><a href={routeLink('/pickups', { offer: selected, pickup: route.pickup })}>Collection tasks</a><a href="/UAT.testbook.html" target="_blank" rel="noreferrer">Acceptance testbook ↗</a><a href="https://efnt6e0kv7.execute-api.eu-west-1.amazonaws.com/offer/offer-4471" target="_blank" rel="noreferrer">Legacy offer view ↗</a></div></aside>
+    <aside className="sidebar"><a href={cleanLink('/dashboard')} onClick={e => { e.preventDefault(); navigateTo('/dashboard'); }} className="brand"><span className="brand-icon" aria-hidden="true">μ</span><span>merismos<small>CIVIC DISPATCH</small></span></a><div className="network-label"><span aria-hidden="true">◉</span> Kypseli network<small>Five synthetic community organisations</small></div>
+      <nav aria-label="Main navigation">{nav.map(([path, label, number, page]) => <a href={cleanLink(path)} key={path} onClick={e => { e.preventDefault(); navigateTo(path); }} aria-current={route.page === page || page === 'workspace' && ['pickups', 'intake'].includes(route.page) ? 'page' : undefined}><span aria-hidden="true">{number}</span>{label}</a>)}</nav>
+      <div className="sidebar-bottom"><p>Consider the split.<br/>Keep the reasons.<br/>Close the collection.</p><a href={cleanLink('/pickups')} onClick={e => { e.preventDefault(); navigateTo('/pickups'); }}>Collection tasks</a><a href="/UAT.testbook.html" target="_blank" rel="noreferrer">Acceptance testbook ↗</a><a href="https://efnt6e0kv7.execute-api.eu-west-1.amazonaws.com/offer/offer-4471" target="_blank" rel="noreferrer">Legacy offer view ↗</a></div></aside>
     <div className="workspace"><header className="topbar"><span>Community coordination</span><div className="mode-control"><label htmlFor="mode">Workspace</label><select id="mode" value={mode} onChange={e => changeMode(e.target.value as Mode)} disabled={busy}><option value="sandbox">Sandbox</option><option value="live">Live records</option></select></div></header>
       <div className="demo-banner"><span className="demo-dot" aria-hidden="true"/><strong>Synthetic demo</strong><span>{mode === 'sandbox' ? 'Your isolated sandbox. No public publication, real collection or model network call.' : 'Live backend view of synthetic demonstrations. Public records remain separate from sandbox activity.'}</span></div>
       <main id="main" tabIndex={-1}><div className="workspace-tools"><details><summary>Session and service details</summary><span className="small-note">{data?.provider || 'Connecting to the coordinator service'}{observedAt && <span className="observed-at">Snapshot as of {observedAt}{actionBlocked ? ' · Refresh failed' : loading ? ' · Refreshing' : ''}</span>}</span></details><button className="text-button" onClick={() => void refresh()} disabled={loading || busy}>Refresh workspace</button></div>
