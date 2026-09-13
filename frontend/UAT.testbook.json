@@ -105,7 +105,7 @@
       "steps": [
         "Open /",
         "read the banner and provider label",
-        "switch between My sandbox and Shared demo records (read-only)"
+        "switch between My sandbox and Shared demo records"
       ],
       "expected_outcome": "Sandbox names scripted-planner and a real Strands loop; live configuration is separately labelled",
       "negative_recovery_case": "Blocked storage keeps the tab usable and displays a recovery note",

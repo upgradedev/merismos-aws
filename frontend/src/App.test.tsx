@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, expect, it, vi } from 'vitest';
 import { App } from './App';
 import * as api from './api';
-import { removePreference } from './storage';
+import { removePreference, writePreference } from './storage';
 import { workspace } from './test/fixtures';
 vi.mock('./api', async original => ({...await original<typeof api>(),loadWorkspace:vi.fn(),action:vi.fn(),startIsolatedWorkspace:vi.fn()}));
 beforeEach(() => { vi.clearAllMocks(); removePreference('merismos.mode'); vi.mocked(api.loadWorkspace).mockResolvedValue(workspace()); vi.mocked(api.action).mockResolvedValue(workspace()); vi.mocked(api.startIsolatedWorkspace).mockResolvedValue(workspace()); });
@@ -153,4 +153,17 @@ it.each([
   await navigate(path);
   expect(screen.getByRole('heading',{level:1,name:heading})).toBeInTheDocument();
   expect(document.body.textContent).not.toMatch(/Sklavenitis|Veneti|Vassilopoulos|Panteleimon|Homeless Shelter|Refugee Solidarity|Elderly Care|Youth Community|Gini|CO₂|Diverted|vs\. last week|Telemetry|Executive|👑|arbitrat|negotiat|real-time|tamper|HMAC|Object Lock|Graviton|Non-Repudiation|45 Minutes|Too Good/);
+});
+
+it('labels shared records read-only unless the loaded live workspace can write', async () => {
+  writePreference('merismos.mode', 'live');
+  vi.mocked(api.loadWorkspace).mockResolvedValue({...workspace(), mode: 'live' as const, can_write: false});
+  render(<App/>); await screen.findByRole('heading',{name:'Dashboard'});
+  expect(api.loadWorkspace).toHaveBeenCalledWith('live');
+  expect(screen.getByText('Shared demo records · read-only · synthetic data')).toBeVisible();
+  expect(screen.getByRole('option',{name:'Shared demo records'})).toBeInTheDocument();
+  vi.mocked(api.loadWorkspace).mockResolvedValue({...workspace(), mode: 'live' as const, can_write: true});
+  await userEvent.click(screen.getByText('Refresh workspace'));
+  expect(await screen.findByText('Shared records · synthetic data · your approval publishes a public record')).toBeVisible();
+  expect(screen.queryByText('Shared demo records · read-only · synthetic data')).not.toBeInTheDocument();
 });
