@@ -1,0 +1,246 @@
+{
+  "started_utc": "2026-09-13T18:22:25.561266+00:00",
+  "samples": 10,
+  "spacing_seconds": 15.0,
+  "client": "python urllib, one TLS connection per request, from the owner's workstation",
+  "served_frontend_commit": "cb97c9e08f5ee9afda02ce2f7e1f1114a8667b9c",
+  "backend_version": {
+    "application": "merismos",
+    "commit": "cb97c9e08f5ee9afda02ce2f7e1f1114a8667b9c",
+    "schema_version": 1,
+    "source": "ci_package",
+    "status": "known"
+  },
+  "page": {
+    "html_ms": 294,
+    "html_status": 200,
+    "html_bytes": 1040,
+    "script": "assets/index-Dt6ZhFsu.js",
+    "script_ms": 56,
+    "script_status": 200,
+    "script_bytes": 311158
+  },
+  "steps": {
+    "session": {
+      "n": 10,
+      "min": 306,
+      "median": 337,
+      "max": 1224
+    },
+    "workspace": {
+      "n": 10,
+      "min": 157,
+      "median": 317,
+      "max": 469
+    },
+    "run": {
+      "n": 10,
+      "min": 348,
+      "median": 426,
+      "max": 2628
+    }
+  },
+  "failures": [],
+  "rows": [
+    {
+      "sample": 1,
+      "at": "2026-09-13T18:22:26.961584+00:00",
+      "session": {
+        "ms": 1224,
+        "status": 201,
+        "lambda_request": "b034cb3e-f179-43d9-8372-7e18f745b1ef"
+      },
+      "workspace": {
+        "ms": 157,
+        "status": 200,
+        "lambda_request": "6b0b279a-ff8e-4b73-bb53-bc033c8d8e6f"
+      },
+      "run": {
+        "ms": 2628,
+        "status": 200,
+        "lambda_request": "6377dd46-01c6-4925-9d3e-78049c2daeb2",
+        "offer_status_after": "awaiting_approval"
+      }
+    },
+    {
+      "sample": 2,
+      "at": "2026-09-13T18:22:45.972618+00:00",
+      "session": {
+        "ms": 310,
+        "status": 201,
+        "lambda_request": "eb5e0614-c6dd-4ce2-bbbc-8e6f73242122"
+      },
+      "workspace": {
+        "ms": 299,
+        "status": 200,
+        "lambda_request": "1c41e67b-91ea-49b0-8b79-4ff45f7f67f7"
+      },
+      "run": {
+        "ms": 375,
+        "status": 200,
+        "lambda_request": "cf0894be-1df1-42a9-9685-ba881feb5767",
+        "offer_status_after": "awaiting_approval"
+      }
+    },
+    {
+      "sample": 3,
+      "at": "2026-09-13T18:23:01.958643+00:00",
+      "session": {
+        "ms": 311,
+        "status": 201,
+        "lambda_request": "6f14b90f-1822-4edc-83ef-35a229b79763"
+      },
+      "workspace": {
+        "ms": 318,
+        "status": 200,
+        "lambda_request": "a2612123-0be4-473d-8145-0aff687b31a9"
+      },
+      "run": {
+        "ms": 520,
+        "status": 200,
+        "lambda_request": "e359c805-4780-493c-8180-54035e6065fd",
+        "offer_status_after": "awaiting_approval"
+      }
+    },
+    {
+      "sample": 4,
+      "at": "2026-09-13T18:23:18.108091+00:00",
+      "session": {
+        "ms": 340,
+        "status": 201,
+        "lambda_request": "ab0dcba7-9088-415c-9867-896205e76136"
+      },
+      "workspace": {
+        "ms": 320,
+        "status": 200,
+        "lambda_request": "5d3011ca-0422-4326-85fc-b864ad0d7dbd"
+      },
+      "run": {
+        "ms": 570,
+        "status": 200,
+        "lambda_request": "fc954696-4a42-404c-a179-7ca3ac95dcfb",
+        "offer_status_after": "awaiting_approval"
+      }
+    },
+    {
+      "sample": 5,
+      "at": "2026-09-13T18:23:34.339466+00:00",
+      "session": {
+        "ms": 334,
+        "status": 201,
+        "lambda_request": "b861aef5-a6c5-428f-ab55-65b26fd2f591"
+      },
+      "workspace": {
+        "ms": 285,
+        "status": 200,
+        "lambda_request": "728cfdab-4c7b-4c66-9abc-05b74bd61de1"
+      },
+      "run": {
+        "ms": 455,
+        "status": 200,
+        "lambda_request": "7b2c65bb-4693-4a2c-bef7-272062dbbd58",
+        "offer_status_after": "awaiting_approval"
+      }
+    },
+    {
+      "sample": 6,
+      "at": "2026-09-13T18:23:50.414780+00:00",
+      "session": {
+        "ms": 346,
+        "status": 201,
+        "lambda_request": "8ede20b5-8669-4cf8-9e12-5c157133343a"
+      },
+      "workspace": {
+        "ms": 292,
+        "status": 200,
+        "lambda_request": "3ad98666-7cfb-48b7-a411-627e7559f712"
+      },
+      "run": {
+        "ms": 348,
+        "status": 200,
+        "lambda_request": "1bd7e9eb-276e-4aab-a3f2-b6699d055013",
+        "offer_status_after": "awaiting_approval"
+      }
+    },
+    {
+      "sample": 7,
+      "at": "2026-09-13T18:24:06.402828+00:00",
+      "session": {
+        "ms": 396,
+        "status": 201,
+        "lambda_request": "785564ea-091c-4b44-a301-195f859cce82"
+      },
+      "workspace": {
+        "ms": 469,
+        "status": 200,
+        "lambda_request": "88898c23-31da-4498-8227-679c2bec434f"
+      },
+      "run": {
+        "ms": 397,
+        "status": 200,
+        "lambda_request": "60948cb3-f5e1-4fb1-80ca-17e75d6edf73",
+        "offer_status_after": "awaiting_approval"
+      }
+    },
+    {
+      "sample": 8,
+      "at": "2026-09-13T18:24:22.666630+00:00",
+      "session": {
+        "ms": 318,
+        "status": 201,
+        "lambda_request": "3f1a52fd-8ecf-48ef-bd6f-68ffac5b2c4d"
+      },
+      "workspace": {
+        "ms": 349,
+        "status": 200,
+        "lambda_request": "d29175c5-c73e-4df6-8cc1-47365d954b09"
+      },
+      "run": {
+        "ms": 398,
+        "status": 200,
+        "lambda_request": "411550bf-ebdd-4bff-af1e-9d1a941abbf9",
+        "offer_status_after": "awaiting_approval"
+      }
+    },
+    {
+      "sample": 9,
+      "at": "2026-09-13T18:24:38.739415+00:00",
+      "session": {
+        "ms": 413,
+        "status": 201,
+        "lambda_request": "f3e33891-4e0a-44c3-ad21-a60d9899f8ae"
+      },
+      "workspace": {
+        "ms": 316,
+        "status": 200,
+        "lambda_request": "018169d3-124e-4fcc-89b2-169f13839afb"
+      },
+      "run": {
+        "ms": 531,
+        "status": 200,
+        "lambda_request": "9784eb9e-f2a8-4fec-bb45-d64f8d6822ea",
+        "offer_status_after": "awaiting_approval"
+      }
+    },
+    {
+      "sample": 10,
+      "at": "2026-09-13T18:24:55.000912+00:00",
+      "session": {
+        "ms": 306,
+        "status": 201,
+        "lambda_request": "0b8588ae-768c-4e4e-bed2-97f2e5c0a6bf"
+      },
+      "workspace": {
+        "ms": 366,
+        "status": 200,
+        "lambda_request": "89003c3c-b75c-407e-90f8-97cc21af4929"
+      },
+      "run": {
+        "ms": 352,
+        "status": 200,
+        "lambda_request": "3737bf01-6498-45ec-bd85-a037e400ffdd",
+        "offer_status_after": "awaiting_approval"
+      }
+    }
+  ]
+}

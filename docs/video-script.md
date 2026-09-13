@@ -12,7 +12,7 @@ exact-SHA acceptance; an edited wait must disclose the elapsed time removed.
 
 | Beat | Actual product to capture |
 | --- | --- |
-| hook | Synthetic banner, coordinator persona and dashboard. No staged customer story. |
+| hook | Banner "Sandbox · synthetic data · nothing is published", the Dashboard’s next donation and **Start with this offer →**. No staged customer story. |
 | surface | Editable success preset, real request and returned status. |
 | trigger | Explicit run button and progress. Scheduled escalation support is separate, not a recorded schedule firing. |
 | live | Refused cold chain; no approval. Refused intake with retained fields, correction and successful resubmission. Passing exact consent and separate collection confirmation. |

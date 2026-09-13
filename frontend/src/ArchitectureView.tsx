@@ -43,7 +43,7 @@ const NODES: ArchitectureNode[] = [
     description: 'Four functions (reader, evaluator, writer, runner) built from one package by for_each, with a shared dependency layer; the runner executes under the reader role. Reader: 1024 MB, 60 s. Runner: 1024 MB, 900 s. Evaluator and writer: 512 MB, 30 s.',
     securityControls: 'Three IAM role policies (reader, evaluator, writer). Only the writer can publish; the others are denied the publish credential by policy.',
     costProfile: NOT_MEASURED,
-    resilienceMechanism: 'Reserved concurrency in separate pools: at most 5 readers and 4 background runners at once, so a busy run queues instead of taking the site down. No automatic retries on the reader. CloudWatch alarms at 5 reader errors in 5 minutes and 500 reader invocations in an hour. Logs are kept 14 days.',
+    resilienceMechanism: 'Reserved concurrency in separate pools: at most 5 readers and 4 background runners at once, so a busy run queues instead of taking the site down. No automatic retries on the reader. CloudWatch alarms at 5 reader errors in 5 minutes and 500 reader invocations in an hour; they notify nobody, because no notification target is configured. Logs are kept 14 days.',
   },
   {
     id: 'identity',
