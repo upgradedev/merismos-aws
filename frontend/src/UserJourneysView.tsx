@@ -23,70 +23,71 @@ const JOURNEYS: JourneyStep[] = [
   {
     id: 'intake',
     number: '01',
-    title: 'Surplus Donation Ingest & Safety Classification',
-    summary: 'Donors register available inventory. Merismos validates hygiene guidelines, expiry dates, and thermal constraints.',
-    actor: 'Food Donor (Supermarket Manager / Baker)',
-    timeToComplete: '< 60 seconds',
+    title: 'Intake',
+    summary: 'A donor or the coordinator types the offer. Merismos refuses personal data and instruction-like text at the door and says which field it refused.',
+    actor: 'Donor or coordinator typing the offer',
+    timeToComplete: 'a form',
     constraints: [
-      'Expiry date must be >= today',
-      'Storage category (ambient, refrigerated, frozen) verified',
-      'Quantity and packaging units strictly enforced',
-      'Collection window must be clearly bounded',
+      'Personal data is refused: phone numbers, IBANs, card numbers, national IDs, named households',
+      'Instruction-like text is refused; donor and organisation names are carried as untrusted text',
+      'Use-by must not be before the collection date',
+      'A chilled or frozen offer must say how many hours it has been out of the fridge; without that figure it is refused',
     ],
-    awsServices: ['API Gateway', 'AWS Lambda (Intake Service)', 'Amazon DynamoDB'],
-    artifactProduced: 'Structured Offer Entity (`offer-4471`) with safety tags',
-    deepDive: 'When a donor submits an offer, the intake validator checks that perishable chilled goods (like yoghurt or fresh meat) are flagged with immediate refrigeration requirements. If an offer has already expired or lacks safe packaging, it is rejected at the gate with actionable feedback.',
+    awsServices: ['Amazon API Gateway HTTP API', 'AWS Lambda', 'Workspace session: DynamoDB in AWS, SQLite in CI'],
+    artifactProduced: 'The offer JSON: title, donor, quantity + unit, category (ambient / chilled / frozen), collection date, use-by, hours unrefrigerated, allergens, manifest, note',
+    deepDive: 'The intake form takes the fields above and nothing else. If a field contains a phone number, an IBAN, a card number, a national ID, a named household, or text that reads like an instruction, the offer is refused and the response names the field. Donor and organisation names are carried as untrusted text, not as instructions.',
   },
   {
-    id: 'arbitration',
+    id: 'checks',
     number: '02',
-    title: 'Multi-Agent Equity & Capacity Arbitration',
-    summary: 'AWS Strands agents independently evaluate community shelter needs, distance, and historical fair-share quotas.',
-    actor: 'AWS Strands Multi-Agent Fleet',
-    timeToComplete: '< 3 seconds',
+    title: 'The checks',
+    summary: 'Four Strands specialists read the network’s registers through bounded tools; a guard cancels anything outside the corpus; a bounded solver proposes the split.',
+    actor: 'Four Strands specialists (food safety, capacity, equity, premises) and the guard',
+    timeToComplete: 'not measured',
     constraints: [
-      'Shelter refrigeration capacity cannot be exceeded',
-      'Same-day delivery constraints strictly honored',
-      'Fair-share equity index: organisations skipped recently receive priority',
-      'Zero unaccounted surplus: all kilos allocated or declared unallocated',
+      'Storage is a veto',
+      'Transport is a cap',
+      'The network’s 40% ceiling is network policy, not a universal or certified fairness definition',
+      'Food-safety refusals are final: a broken cold chain is refused in full, never reduced',
+      'A block that turns on something changeable is parked with a reason and a one-shot wake',
     ],
-    awsServices: ['AWS Strands Agents SDK', 'Amazon Bedrock (Semantic Constraints)', 'AWS Lambda'],
-    artifactProduced: 'Candidate Allocation Plan with mathematical justifications per recipient',
-    deepDive: 'Rather than a black-box greedy algorithm, Merismos uses a fleet of agentic evaluators representing the five distinct community organisations. Each agent evaluates its shelter’s current pantry level and volunteer capacity, negotiating an equitable division that maximizes community benefit.',
+    awsServices: ['Strands Agents SDK', 'AWS Lambda', 'Amazon Bedrock (live mode only)', 'Scripted planner (sandbox and CI)'],
+    artifactProduced: 'A proposed split: one line per organisation with a reason, plus the stated remainder (what nobody can take)',
+    deepDive: 'Each specialist reads the organisations register, the allocation policy, the retention policy and the manifests through bounded read-only tools with a budget of distinct paths. A BeforeToolCallEvent hook cancels any tool call outside the allowed corpus; the swap test shows the demo stops when the SDK is replaced. A deterministic gate checks the draft record for personal data before it can be approved. In the sandbox the model is scripted-planner/1.0.0: a real Strands agent loop with scripted responses and no Bedrock call. In live mode the model is Amazon Bedrock.',
   },
   {
     id: 'approval',
     number: '03',
-    title: 'Coordinator Review & Return-of-Control',
-    summary: 'The human coordinator verifies the rationale, reviews recipient breakdowns, and signs off before any action is taken.',
-    actor: 'Volunteer Coordinator (Human in the Loop)',
-    timeToComplete: '< 30 seconds',
+    title: 'Human approval',
+    summary: 'A person approves the exact plan, or does not. Approval is consent to the exact record digest and address.',
+    actor: 'The network coordinator',
+    timeToComplete: 'one explicit consent',
     constraints: [
-      'Human must explicitly review recipient reasons',
-      'Single-click approval with cryptographic consent hash',
-      'Option to re-run with modified constraints or reject allocation',
-      'Zero automated dispatches without human authorization',
+      'Consent is to the exact record digest and address',
+      'A stale plan is refused',
+      'Sandbox approval records the decision inside the isolated session and publishes nothing',
+      'Live approval needs the network-coordinator grant (merismos:coordinate) in the API Gateway authorizer context; no authorizer is deployed on the public API, so public writes are refused, and no header or body value can confer the grant',
     ],
-    awsServices: ['CloudFront (Authenticated Operations Cockpit)', 'AWS Lambda (Approval Guard)'],
-    artifactProduced: 'Approved Dispatch Execution Record with HMAC Signature',
-    deepDive: 'No food is promised and no driver is dispatched without explicit human consent. The coordinator sees why each shelter was selected and why others were excluded (e.g. "Kypseli Shelter excluded: no refrigerated transport available for chilled poultry").',
+    awsServices: ['AWS Lambda', 'Amazon DynamoDB (thread, approvals)', 'Amazon S3 records bucket (live mode)', 'AWS Secrets Manager (publish credential, writer only)'],
+    artifactProduced: 'An approval entry in the append-only ledger; in live mode, a Markdown record at a stable public address',
+    deepDive: 'The coordinator sees every line and its reason before approving. Approval names the record digest and address it applies to; if the plan has changed since, the approval is refused. In the public sandbox the decision is recorded inside the session and nothing is published. In live mode the writer Lambda, the only identity holding the publish credential, publishes a Markdown record to the records bucket. Corrections are new records at the next address that name what they replaced; the superseded record stays served with a notice.',
   },
   {
-    id: 'proof',
+    id: 'collection',
     number: '04',
-    title: 'Public S3 Proof Ledger & Community Custody',
-    summary: 'The finalized allocation is sealed and published to a public Amazon S3 bucket for immutable community transparency.',
-    actor: 'Community & Donor Network',
-    timeToComplete: 'Immediate (< 1s)',
+    title: 'Collection',
+    summary: 'A claim, an agreed time and an explicit “collection confirmed” are three separate recorded facts. Merismos sends nothing.',
+    actor: 'The organisation’s collector and the coordinator',
+    timeToComplete: 'three separate facts',
     constraints: [
-      'Record is content-addressed and tamper-evident',
-      'Available publicly via HTTPS without login',
-      'Pickup confirmation is recorded as a separate immutable event',
-      'Full audit trail preserved across session restarts',
+      'A claim, an agreed time and an explicit confirmation are three separate recorded facts',
+      'No message, notification or email is sent by Merismos',
+      'No vehicle is dispatched and there is no departure event',
+      'A no-show can only be recorded after the agreed time has passed',
     ],
-    awsServices: ['Amazon S3 (Public Proof Bucket)', 'Amazon EventBridge', 'Amazon SES'],
-    artifactProduced: 'Public Markdown Proof Record (e.g. `offer-4471.md` on S3)',
-    deepDive: 'Transparency eliminates neighborhood suspicion and political favoritism. Every resident, donor, and NGO director can audit the exact distribution schedule, verifying that donated food went to feed vulnerable people rather than disappearing into private hands.',
+    awsServices: ['Amazon DynamoDB thread ledger', 'Amazon EventBridge Scheduler (parked decisions)', 'Amazon SQS dead-letter queue (wakes)'],
+    artifactProduced: '`pickup.claimed` and `pickup.confirmed` entries in the thread ledger',
+    deepDive: 'Collection is recorded, not inferred. An organisation claims its share; a collection time is agreed; someone explicitly confirms that the food was collected. Each is its own ledger entry with a body digest and a parent link, and the custody summary reports what it cannot see. Decisions parked on something changeable get a one-shot EventBridge Scheduler wake, with an SQS dead-letter queue for wakes that fail.',
   },
 ];
 
@@ -98,12 +99,12 @@ export function UserJourneysView({ data }: UserJourneysViewProps) {
     <div className="journeys-view" style={{ maxWidth: '1280px', margin: '0 auto', padding: '16px 0 48px' }}>
       <div className="page-heading">
         <div>
-          <p className="eyebrow">STEP-BY-STEP USER LIFECYCLE</p>
-          <h1>Civic Food Rescue Journeys</h1>
-          <p>How Merismos coordinates donors, multi-agent arbitration, human approval, and public verification.</p>
+          <p className="eyebrow">FROM OFFER TO COLLECTION</p>
+          <h1>How a donation moves through Merismos</h1>
+          <p>Intake, the checks, human approval and collection: what each stage records and what it refuses.</p>
         </div>
         <a className="button" href={routeLink('/workspace')}>
-          Open Active Workspace →
+          Open the workspace →
         </a>
       </div>
 
@@ -145,24 +146,24 @@ export function UserJourneysView({ data }: UserJourneysViewProps) {
       <section className="panel padded" aria-labelledby="active-journey-title">
         <div className="section-heading" style={{ borderBottom: '1px solid var(--border)', paddingBottom: '16px', marginBottom: '20px' }}>
           <div>
-            <span className="eyebrow">STAGE {activeJourney.number} DEEP DIVE</span>
+            <span className="eyebrow">STAGE {activeJourney.number}</span>
             <h2 id="active-journey-title" style={{ fontSize: '1.6rem', marginTop: '4px' }}>{activeJourney.title}</h2>
             <p style={{ color: 'var(--secondary)', margin: '4px 0 0', fontSize: '1rem' }}>{activeJourney.summary}</p>
           </div>
           <div style={{ textAlign: 'right' }}>
-            <span style={{ fontSize: '0.875rem', color: 'var(--secondary)', display: 'block' }}>Primary Actor:</span>
+            <span style={{ fontSize: '0.875rem', color: 'var(--secondary)', display: 'block' }}>Who acts:</span>
             <strong style={{ color: 'var(--teal)', fontSize: '0.95rem' }}>{activeJourney.actor}</strong>
           </div>
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.4fr) minmax(0, 1fr)', gap: '28px' }}>
           <div>
-            <h3 style={{ fontSize: '1.1rem', marginBottom: '12px' }}>Operational Walkthrough</h3>
+            <h3 style={{ fontSize: '1.1rem', marginBottom: '12px' }}>What happens</h3>
             <p style={{ color: 'var(--text)', lineHeight: 1.7, fontSize: '0.95rem', marginBottom: '20px' }}>
               {activeJourney.deepDive}
             </p>
 
-            <h3 style={{ fontSize: '1.1rem', marginBottom: '12px' }}>Mandatory Constraints Enforced</h3>
+            <h3 style={{ fontSize: '1.1rem', marginBottom: '12px' }}>Rules enforced</h3>
             <ul style={{ paddingLeft: '20px', color: 'var(--secondary)', fontSize: '0.92rem', lineHeight: 1.8 }}>
               {activeJourney.constraints.map((c, i) => (
                 <li key={i}><strong style={{ color: 'var(--text)' }}>{c}</strong></li>
@@ -171,7 +172,7 @@ export function UserJourneysView({ data }: UserJourneysViewProps) {
           </div>
 
           <div style={{ background: 'var(--bg)', padding: '20px', borderRadius: '12px', border: '1px solid var(--border)' }}>
-            <h3 style={{ fontSize: '1.05rem', marginBottom: '14px', color: 'var(--amber)' }}>AWS Architecture Stack</h3>
+            <h3 style={{ fontSize: '1.05rem', marginBottom: '14px', color: 'var(--amber)' }}>What runs here</h3>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '20px' }}>
               {activeJourney.awsServices.map(svc => (
                 <span key={svc} className="badge badge-published" style={{ fontSize: '0.8rem', padding: '4px 8px' }}>
@@ -180,17 +181,17 @@ export function UserJourneysView({ data }: UserJourneysViewProps) {
               ))}
             </div>
 
-            <h3 style={{ fontSize: '1.05rem', marginBottom: '8px', color: 'var(--teal)' }}>Verified Artifact Produced</h3>
+            <h3 style={{ fontSize: '1.05rem', marginBottom: '8px', color: 'var(--teal)' }}>What is recorded</h3>
             <p style={{ fontFamily: 'ui-monospace, monospace', fontSize: '0.82rem', background: 'var(--panel)', padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border)', color: 'var(--text)' }}>
               {activeJourney.artifactProduced}
             </p>
 
             <div style={{ marginTop: '24px', paddingTop: '16px', borderTop: '1px solid var(--border)' }}>
               <span style={{ fontSize: '0.85rem', color: 'var(--secondary)', display: 'block', marginBottom: '8px' }}>
-                Ready to test this journey live?
+                {data ? `Try this stage in the ${data.mode === 'sandbox' ? 'sandbox' : 'live workspace'} (${data.network}).` : 'Try this stage in the workspace.'}
               </span>
               <a href={routeLink('/workspace')} className="button" style={{ width: '100%', textAlign: 'center' }}>
-                Test in Community Workspace →
+                Open the workspace →
               </a>
             </div>
           </div>

@@ -4,8 +4,6 @@ import { activity, amount, metrics, priorityOffers, projection, type Filter } fr
 import { routeLink } from './routes';
 import type { Workspace } from './types';
 
-import { DashboardCharts } from './DashboardCharts';
-
 export function ActivityList({ data, limit }: { data: Workspace; limit?: number }) {
   const events = activity(data).slice(0, limit);
   return events.length ? <ol className="activity-list">{events.map(event => <li key={event.id}><a href={routeLink('/workspace', { offer: event.offerId })}><strong>{event.title}</strong><span>{event.detail}</span><small>{event.at === null ? 'Event time unavailable' : <time dateTime={new Date(event.at * 1000).toISOString()}>{new Date(event.at * 1000).toLocaleString()}</time>}</small></a></li>)}</ol> : <p className="muted">No recorded activity in this scope yet. Run results appear with their selected offer; collection is recorded only after explicit confirmation.</p>;
@@ -27,8 +25,7 @@ export function Dashboard({ data, today, unit, selected, pickup }: { data: Works
   const observed = projection(data);
   const focus = observed.offers.find(row => row.offer.id === selected) || priority[0] || observed.offers[0];
   return <>
-    <div className="page-heading"><div><p className="eyebrow">FOR VOLUNTEER FOOD COORDINATORS</p><h1>Dashboard</h1><p>Share a donation across five local organisations, explain the allocation and arrange each pickup.</p></div><div style={{ display: 'flex', gap: '10px' }}><a className="button" style={{ background: 'linear-gradient(135deg, #134e4a 0%, #0d9488 100%)', color: '#fff', border: '1px solid #2dd4bf', fontWeight: 700 }} href="#/landing">👑 Executive Landing & Architecture ↗</a><a className="button secondary" href="#/offers/new">+ Add offer</a></div></div>
-    <DashboardCharts />
+    <div className="page-heading"><div><p className="eyebrow">FOR VOLUNTEER FOOD COORDINATORS</p><h1>Dashboard</h1><p>Share a donation across five local organisations, explain the allocation and arrange each pickup.</p></div><div style={{ display: 'flex', gap: '10px' }}><a className="button secondary" href="#/offers/new">+ Add offer</a></div></div>
     <section className="panel padded coordinator-start" aria-label="Your next donation"><p className="eyebrow">ONE OFFER → A CONSIDERED SPLIT → A COLLECTION HANDOFF</p>
       <h2>{focus ? `Next offer: ${focus.offer.title}` : 'Have a donation to share?'}</h2>
       {focus ? <><p className="offer-lead"><strong>{focus.offer.quantity} {focus.offer.unit}</strong> from {focus.offer.donor} · Collect {focus.offer.collection_date || 'date not provided'}</p><p>{focus.offer.note || 'Match this donation to the network’s food needs, safety rules and collection capacity.'}</p><p>{focus.plan?.recorded ? 'The allocation is approved. Arrange the collection tasks and record receipt separately.' : focus.plan ? 'A proposed allocation is ready with recipient reasons. Review it before approving any pickup.' : 'Start by calculating a proposed allocation. You can review every recipient and reason before approving.'}</p><a className="button" href={routeLink('/workspace', {offer: focus.offer.id})}>{focus.plan?.recorded ? 'Arrange this offer’s pickups' : focus.plan ? 'Review this offer’s allocation' : 'Start with this offer'} →</a></> : <><p>Add a named offer with quantity and collection date, then review who can use it and why.</p><a className="button" href="#/offers/new">Start a donation →</a></>}
