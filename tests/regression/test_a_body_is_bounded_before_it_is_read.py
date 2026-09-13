@@ -79,13 +79,13 @@ def test_a_field_named_twice_is_refused(body):
 
 @pytest.mark.parametrize("constant", ["NaN", "Infinity", "-Infinity"])
 def test_a_number_that_json_does_not_have_is_refused(constant):
-    refused(coordinator_post("/run", '{"offer": "offer-4471", "quantity": %s}' % constant),
-            400, constant)
+    body = '{"offer": "offer-4471", "quantity": ' + constant + "}"
+    refused(coordinator_post("/run", body), 400, constant)
 
 
 def nested(levels: int) -> str:
     inner = "[" * (levels - 1) + "]" * (levels - 1)
-    return '{"offer": "offer-4471", "x": %s}' % inner
+    return '{"offer": "offer-4471", "x": ' + inner + "}"
 
 
 def test_nesting_at_the_bound_is_read_and_one_level_more_is_refused():
