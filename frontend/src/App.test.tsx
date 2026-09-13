@@ -72,6 +72,7 @@ it('keeps pending reads passive and explains unauthorized recovery', async () =>
   render(<App/>);
   expect(await screen.findByText('Reconcile recorded outcome')).toBeDisabled();
   expect(screen.getByText(/Ask the coordinator to reconcile/)).toBeVisible();
+  expect(screen.getByText('Reconcile recorded outcome')).toHaveAttribute('aria-describedby', screen.getByText(/Ask the coordinator to reconcile/).id);
   await userEvent.click(screen.getByText('Refresh workspace'));
   expect(api.action).not.toHaveBeenCalled();
 });
