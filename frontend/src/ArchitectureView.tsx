@@ -12,7 +12,7 @@ interface ArchitectureNode {
   resilienceMechanism: string;
 }
 
-const NOT_MEASURED = 'Not measured; see the README cost notes.';
+const NOT_MEASURED = 'Not measured. See Cost and sustainability in the README for what is bounded.';
 
 const NODES: ArchitectureNode[] = [
   {
@@ -33,7 +33,7 @@ const NODES: ArchitectureNode[] = [
     description: 'An API Gateway HTTP API (v2) with a catch-all route to the reader Lambda. A Lambda function URL for the reader and a private function URL also exist.',
     securityControls: 'Live mutations require a network-coordinator grant (merismos:coordinate, network-scoped) in the API Gateway authorizer context. No authorizer is deployed on the public API, so every public mutation is refused with 403; no header or body value can confer the grant. The sandbox needs no grant and cannot publish.',
     costProfile: NOT_MEASURED,
-    resilienceMechanism: 'Retry configuration on the reader Lambda; CloudWatch alarms on reader errors and request volume.',
+    resilienceMechanism: 'The stage throttles at 10 requests per second with a burst of 20, so an open endpoint cannot run up cost. The integration times out at 30 seconds, which is why a run is started in the background rather than awaited.',
   },
   {
     id: 'lambda',
@@ -43,7 +43,7 @@ const NODES: ArchitectureNode[] = [
     description: 'Four functions (reader, evaluator, writer, runner) built from one package by for_each, with a shared dependency layer; the runner executes under the reader role. Reader: 1024 MB, 60 s. Runner: 1024 MB, 900 s. Evaluator and writer: 512 MB, 30 s.',
     securityControls: 'Three IAM role policies (reader, evaluator, writer). Only the writer can publish; the others are denied the publish credential by policy.',
     costProfile: NOT_MEASURED,
-    resilienceMechanism: 'Reserved concurrency; retry configuration on the reader; CloudWatch alarms on reader errors and volume; a log group per function.',
+    resilienceMechanism: 'Reserved concurrency in separate pools: at most 5 readers and 4 background runners at once, so a busy run queues instead of taking the site down. No automatic retries on the reader. CloudWatch alarms at 5 reader errors in 5 minutes and 500 reader invocations in an hour. Logs are kept 14 days.',
   },
   {
     id: 'identity',
@@ -92,7 +92,7 @@ const NODES: ArchitectureNode[] = [
     awsService: 'Strands Agents SDK · Amazon Bedrock (live)',
     description: 'Four specialists (food safety, capacity, equity, premises) built with Agent and @tool from strands-agents>=1.53.0. Live mode uses BedrockModel; the model id is a Terraform variable and a separate critic model variable exists. The sandbox and CI use ScriptedPlanner, a Model subclass with scripted responses: a real agent loop, no Bedrock call.',
     securityControls: 'Tools are bounded and read-only with a budget of distinct paths. A BeforeToolCallEvent hook cancels any tool call outside the allowed corpus. A deterministic gate checks the draft record for personal data before it can be approved.',
-    costProfile: 'Not measured; see the README cost notes. No Bedrock call happens in the sandbox.',
+    costProfile: 'Not measured. See Cost and sustainability in the README. No Bedrock call happens in the sandbox.',
     resilienceMechanism: 'The swap test proves the demo stops when the SDK is replaced. Food-safety refusals are final; the model cannot clear one.',
   },
 ];
