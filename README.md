@@ -509,8 +509,10 @@ or workflow overrides them.
 | Log retention | 14 days; provenance stays in DynamoDB | `log_retention_days` |
 
 **How long it stays up, and how it comes down.** The rules require the entry to stay reachable
-until judging ends on 2026-10-08 17:00 PT. `still-up.yml` fetches the public URL every Monday and
-Thursday at 09:00 UTC, the same anonymous fetch a judge makes. To take it down, dispatch
+until judging ends on 2026-10-08 17:00 PT. Every Monday and Thursday at 09:00 UTC, `still-up.yml`
+fetches three server-rendered pages from the API Gateway endpoint (`/`, `/approve/offer-4471` and
+`/offers/new`), which are the internal compatibility view rather than the CloudFront app, and one
+published record from S3, all anonymously and with no credentials. To take it down, dispatch
 `deploy.yml` with `dry_run=no` and `keep=no`: it applies, runs the same proofs, then runs
 `terraform destroy` in the same job. With `destroyable` at its default of true the buckets are
 emptied too. The job then lists every remaining `merismos` Lambda, table, bucket, role, queue and

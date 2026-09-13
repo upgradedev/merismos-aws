@@ -118,24 +118,34 @@ def app_url() -> str:
     """Where the Merismos app is: ``MERISMOS_APP_URL``, or the public default.
 
     Read on every call rather than at import, so the page names the address the
-    environment holds now. Only an absolute http or https address is accepted;
-    anything else, a ``javascript:`` scheme included, falls back to the default
-    rather than becoming a link. The query and fragment are dropped and the path
-    ends in a slash, so an app route such as ``#/offers/new`` can follow it. The
-    caller still escapes it like every other interpolated value.
+    environment holds now. Only an absolute http or https address with a host is
+    accepted. Anything else falls back to the default rather than becoming a
+    link: a ``javascript:`` scheme, a missing host, a port that is not a number
+    from 0 to 65535, or a username or password, which every page would otherwise
+    show. The address is rebuilt from the scheme, host, port and path alone, so
+    the query and fragment are dropped. An empty path becomes ``/`` and a path
+    that is given is kept as it is, because a slash after ``/app/index.html``
+    names a different address. The caller still escapes it like every other
+    interpolated value.
     """
     candidate = os.environ.get("MERISMOS_APP_URL", "").strip()
     if not candidate or any(ch.isspace() or not ch.isprintable() for ch in candidate):
         return DEFAULT_APP_URL
     try:
         parts = urlsplit(candidate)
+        port = parts.port
     except ValueError:
         return DEFAULT_APP_URL
     scheme = parts.scheme.lower()
-    if scheme not in ("http", "https") or not parts.hostname:
+    host = parts.hostname
+    if scheme not in ("http", "https") or not host:
         return DEFAULT_APP_URL
-    path = parts.path if parts.path.endswith("/") else parts.path + "/"
-    return urlunsplit((scheme, parts.netloc, path, "", ""))
+    if parts.username is not None or parts.password is not None:
+        return DEFAULT_APP_URL
+    netloc = f"[{host}]" if ":" in host else host
+    if port is not None:
+        netloc = f"{netloc}:{port}"
+    return urlunsplit((scheme, netloc, parts.path or "/", "", ""))
 
 
 def _readable(slug: str) -> str:

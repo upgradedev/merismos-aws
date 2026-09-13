@@ -38,14 +38,14 @@ jobs:
     steps:
       # Anonymous, on purpose. No AWS credentials, no OIDC, no token. If this
       # job needed a credential it would be checking something a judge cannot do.
-      - name: The front door answers, and answers with our product
+      - name: The API root answers with the internal compatibility view
         run: |
           set -euo pipefail
           code=$(curl -s -o body.html -m 30 -w '%{http_code}' "${URL}/")
           echo "GET / -> ${code}"
           test "${code}" = "200" || { echo "::error::the site answered ${code}"; exit 1; }
           grep -q "Merismos" body.html || {
-            echo "::error::200 with a body that is not our product. A CDN error page is still a 200"
+            echo "::error::200 with a body that is not a Merismos page. A CDN error page is still a 200"
             exit 1
           }
 

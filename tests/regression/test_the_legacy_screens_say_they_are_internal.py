@@ -79,6 +79,30 @@ def assert_labelled(page: str, app: str = DEFAULT) -> None:
     assert f'The Merismos app is at <a href="{app}">{app}</a>.' in body
 
 
+def the_shell() -> tuple[str, str, str]:
+    """``page()``'s own opening, top and closing, taken from ``page()`` rather than typed here.
+
+    The opening stops at the robots meta because ``page()`` puts the waiting
+    screen's refresh meta straight after it. The top runs from the stylesheet
+    through the notice and the header to the opening of ``<main>``.
+    """
+    shell = web.page("Probe", "<h1>Probe</h1>")
+    opening = shell[: shell.index(NOINDEX) + len(NOINDEX)]
+    main = '<main id="main" class="wrap">'
+    top = shell[shell.index("<style>") : shell.index(main) + len(main)]
+    closing = shell[shell.index("</main>") :]
+    return opening, top, closing
+
+
+def assert_built_by_the_shell(page: str) -> None:
+    opening, top, closing = the_shell()
+    assert NOTICE in top, "the probe shell no longer carries the notice"
+    assert page.startswith(opening), "this document was not opened by web.page()"
+    assert page.count(top) == 1, "the stylesheet, notice and header are not page()'s own"
+    assert page.endswith(closing), "this document was not closed by web.page()"
+    assert page.lower().count("<!doctype") == 1, "a second document is inside this one"
+
+
 # --------------------------------------------------------------------------
 # Every screen, by route, with the status code it already had.
 # --------------------------------------------------------------------------
@@ -109,14 +133,22 @@ def test_every_server_rendered_route_carries_the_notice_and_noindex(path, status
 
 def test_the_screens_behind_a_run_carry_it_too(run_now):
     """The decision, the refusal and the approval card only exist for a run."""
+    decided = call("/offer/offer-4471", query={"run": a_run("offer-4471")})["body"]
+    refused = call("/offer/offer-4477", query={"run": a_run("offer-4477")})["body"]
     for page in (
-        call("/offer/offer-4471", query={"run": a_run("offer-4471")})["body"],
-        call("/offer/offer-4477", query={"run": a_run("offer-4477")})["body"],
+        decided,
+        refused,
         call("/approve/offer-4471", query={"run": a_run("offer-4471")})["body"],
     ):
         assert_labelled(page)
+        assert_built_by_the_shell(page)
     card = call("/approve/offer-4471", query={"run": a_run("offer-4471")})["body"]
     assert "What will be published" in card, "this walked past the card rather than to it"
+    assert "<h2>The split</h2>" in decided, "this is not the decision screen"
+    # A waiting page or a failed run carries the notice too, so only the
+    # refusal heading proves this reached the refusal.
+    assert "<strong>Refused, and here is why.</strong>" in refused, "this is not the refusal"
+    assert "The fleet is reading" not in refused and "The run failed" not in refused
 
 
 def test_the_screens_no_route_reaches_offline_carry_it_too():
@@ -130,6 +162,7 @@ def test_the_screens_no_route_reaches_offline_carry_it_too():
         web.page("Anything", "<h1>Anything</h1>"),
     ):
         assert_labelled(page)
+        assert_built_by_the_shell(page)
 
 
 def test_no_document_is_built_anywhere_but_the_shell():
@@ -146,6 +179,46 @@ def test_no_document_is_built_anywhere_but_the_shell():
     assert not any(builders.values()), builders
 
 
+def test_every_html_reply_the_handler_gives_is_built_by_the_shell(run_now):
+    """Every text/html reply ``handler.handler`` gives on these routes is ``page()``'s document.
+
+    The count above only reads source text. This asks the handler itself, for
+    every server-rendered route this file exercises and the screens behind a
+    run, and checks that each HTML reply is opened, topped and closed by
+    ``page()`` with the notice in it.
+
+    ``POST /offers/new`` is in the set because it is the refusal a stranger
+    gets. The coordinator API refuses it before the legacy form code is
+    reached, so the refusal is JSON rather than a page. It is pinned here as
+    exactly that, so it cannot become an HTML document that skipped the shell.
+    """
+    replies = {f"GET {path}": call(path) for path, _ in ROUTES}
+    for path in ("/offer/offer-4471", "/offer/offer-4477", "/approve/offer-4471"):
+        offer_id = path.rsplit("/", 1)[-1]
+        replies[f"GET {path}?run"] = call(path, query={"run": a_run(offer_id)})
+    replies["POST /offers/new"] = call("/offers/new", method="POST")
+
+    html_replies = {
+        name for name, reply in replies.items()
+        if "text/html" in reply["headers"]["content-type"] or "<!doctype" in reply["body"].lower()
+    }
+    assert html_replies == set(replies) - {"POST /offers/new"}
+    for name in sorted(html_replies):
+        assert_labelled(replies[name]["body"])
+        assert_built_by_the_shell(replies[name]["body"])
+
+    refused = replies["GET /offer/offer-4477?run"]["body"]
+    assert "<strong>Refused, and here is why.</strong>" in refused, "this is not the refusal"
+
+    refusal = replies["POST /offers/new"]
+    assert refusal["statusCode"] == 403
+    assert refusal["headers"]["content-type"] == "application/json"
+    assert json.loads(refusal["body"])["detail"].startswith(
+        "Live changes require an authenticated network coordinator."
+    )
+    assert NOTICE not in refusal["body"]
+
+
 # --------------------------------------------------------------------------
 # The app address: from the environment, http or https only, always escaped.
 # --------------------------------------------------------------------------
@@ -153,11 +226,26 @@ def test_no_document_is_built_anywhere_but_the_shell():
 
 def test_the_app_address_comes_from_the_environment(monkeypatch):
     monkeypatch.setenv("MERISMOS_APP_URL", "https://app.example.invalid/merismos")
-    app = "https://app.example.invalid/merismos/"
+    app = "https://app.example.invalid/merismos"
 
     assert web.app_url() == app
     assert_labelled(call("/")["body"], app)
     assert f'href="{app}#/offers/new"' in web.new_offer_form()
+
+
+@pytest.mark.parametrize(("value", "app"), [
+    ("https://app.example.invalid", "https://app.example.invalid/"),
+    ("https://app.example.invalid/merismos/", "https://app.example.invalid/merismos/"),
+    ("https://app.example.invalid/app/index.html", "https://app.example.invalid/app/index.html"),
+    ("http://APP.example.invalid:8080/app", "http://app.example.invalid:8080/app"),
+    ("http://[::1]:8080", "http://[::1]:8080/"),
+    ("https://app.example.invalid:443/?q=1#frag", "https://app.example.invalid:443/"),
+])
+def test_only_an_empty_path_becomes_a_slash(monkeypatch, value, app):
+    monkeypatch.setenv("MERISMOS_APP_URL", value)
+
+    assert web.app_url() == app
+    assert_labelled(call("/")["body"], app)
 
 
 @pytest.mark.parametrize("value", [
@@ -171,6 +259,19 @@ def test_the_app_address_comes_from_the_environment(monkeypatch):
     "https://exa mple.invalid/",
     "https://example.invalid/\n<b>",
     "http://[::1",
+    # A username or password would be printed on every page.
+    "https://user@app.example.invalid/",
+    "https://user:secret@app.example.invalid/",
+    "https://:secret@app.example.invalid/",
+    "https://@app.example.invalid/",
+    # A port that is not a port.
+    "https://app.example.invalid:99999/",
+    "https://app.example.invalid:port/",
+    "https://app.example.invalid:-1/",
+    # No host.
+    "https://:443/",
+    "http:///merismos",
+    "https://user:secret@/",
 ])
 def test_anything_but_an_http_or_https_address_falls_back_to_the_default(monkeypatch, value):
     monkeypatch.setenv("MERISMOS_APP_URL", value)
@@ -178,6 +279,7 @@ def test_anything_but_an_http_or_https_address_falls_back_to_the_default(monkeyp
     assert web.app_url() == DEFAULT
     page = call("/")["body"]
     assert_labelled(page)
+    assert "secret" not in page and "user@" not in page, "a credential reached the page"
     absolute = re.findall(r'href="([A-Za-z][A-Za-z0-9+.-]*:[^"]*)"', page)
     assert set(absolute) == {DEFAULT}, "a rejected address became a link"
 
