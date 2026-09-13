@@ -40,7 +40,7 @@ it('refreshes on ordinary failures and safely handles non-Error failures', async
 });
 it('does not automatically retry failed mutations and reuses the request id on explicit retry', async () => {
   location.hash='/offers/offer-4471'; vi.mocked(api.action).mockRejectedValueOnce(new Error('Connection lost'));
-  render(<App/>); const button=await screen.findByText('Re-run the fleet'); await userEvent.click(button);
+  render(<App/>); const button=await screen.findByText('Recalculate the split'); await userEvent.click(button);
   expect(await screen.findByRole('alert')).toHaveTextContent('Connection lost'); expect(api.action).toHaveBeenCalledTimes(1);
   expect(button).toBeDisabled();
   await userEvent.click(screen.getByText('Refresh and review'));
@@ -100,7 +100,7 @@ it.each(['resolve', 'reject'])('ignores a late previous-session %s without clear
   const user = userEvent.setup();
   render(<App/>);
   await user.selectOptions(screen.getByLabelText('Workspace', {exact: true}), 'live');
-  const run = await screen.findByText('Re-run the fleet');
+  const run = await screen.findByText('Recalculate the split');
   await user.click(run);
   expect(await screen.findByRole('alert')).toHaveTextContent('Current attempt unknown');
   const id = vi.mocked(api.action).mock.calls[0][4];

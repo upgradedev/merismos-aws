@@ -48,7 +48,7 @@ Cancelling a preview discards its file and selection. Live intake still needs th
 authenticated network-coordinator grant; this feature creates no new authentication path.
 
 After a sandbox allocation, open **Rehearse a collection disruption**, choose a recipient and
-record a lower capacity in the offer's unit. **Re-run the fleet** shows actual before/after
+record a lower capacity in the offer's unit. **Recalculate the split** shows actual before/after
 recipients, exclusions and reasons. A zero-capacity organisation receives nothing. Other safety,
 premises, transport and policy limits still apply. The prior exact plan, run and receipt are
 retained; stale pickup commitments become invalid. The new plan needs fresh exact consent before

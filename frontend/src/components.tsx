@@ -6,7 +6,7 @@ import { isPending, projection } from './workspaceModel';
 
 export const labels: Record<string, string> = {
   needs_replan: 'Replan required',
-  not_started: 'Needs review', awaiting_approval: 'Awaiting approval', running: 'Fleet working',
+  not_started: 'Needs review', awaiting_approval: 'Awaiting approval', running: 'Working out the split',
   blocked: 'Safety refusal', refused_by_gate: 'Gate refused', nothing_to_allocate: 'No allocation',
   failed: 'Run failed', recorded: 'Sandbox record', published: 'Published', unclaimed: 'Needs a collector',
   claimed: 'Claimed', scheduled: 'Scheduled', confirmed: 'Confirmed collected', overdue: 'Overdue', invalidated: 'Invalidated',

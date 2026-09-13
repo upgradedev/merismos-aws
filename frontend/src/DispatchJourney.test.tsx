@@ -106,6 +106,8 @@ it('journey and manifest keep unknown, draft, replan and recorded states distinc
   expect(pickupManifest({...row, result: {}, plan: null, status: 'not_started'}, data)).toContain('Allocated: unknown');
   const next = changed(); view.rerender(<DispatchJourney row={next.offers[0]} data={next}/>);
   expect(screen.getByText('Fresh approval required')).toBeVisible();
+  view.rerender(<DispatchJourney row={{...next.offers[0], plan: null}} data={next}/>);
+  expect(screen.getByText('Capacity correction needs a new plan')).toBeVisible();
   next.offers[0].plan!.recorded = true;
   view.rerender(<DispatchJourney row={next.offers[0]} data={next}/>);
   expect(screen.getByText('Approved in sandbox')).toBeVisible();
@@ -118,7 +120,7 @@ it('receipt progress includes only unambiguous shares for the approved current p
   const view = render(<DispatchJourney row={row} data={data}/>);
   const stages = within(screen.getByRole('list', {name: 'Allocation and collection status'}));
   expect(stages.getByText('1 of 2 shares confirmed in simulation')).toBeVisible();
-  expect(stages.getByText('Departure not recorded')).toBeVisible();
+  expect(stages.getByText('1 of 2 pickups scheduled')).toBeVisible();
   row.plan!.recorded = false; view.rerender(<DispatchJourney row={row} data={data}/>);
   expect(stages.getByText('No receipt confirmed')).toBeVisible();
   expect(stages.getByText('Not approved')).toBeVisible();

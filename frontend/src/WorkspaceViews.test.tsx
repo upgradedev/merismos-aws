@@ -152,7 +152,7 @@ it('allows corrected intake after known HTTP 400 without refreshing and assigns 
 it('locks repeated clicks immediately while one backend action is pending', async () => {
   let resolve!: (data: ReturnType<typeof workspace>) => void;
   vi.mocked(api.action).mockReturnValue(new Promise(done => { resolve = done; }));
-  location.hash = '/workspace?offer=offer-4471'; render(<App/>); const run = await screen.findByText('Re-run the fleet');
+  location.hash = '/workspace?offer=offer-4471'; render(<App/>); const run = await screen.findByText('Recalculate the split');
   fireEvent.click(run); fireEvent.click(run); expect(api.action).toHaveBeenCalledTimes(1);
   expect(screen.getByText('Refresh workspace')).toBeDisabled(); expect(screen.getByLabelText('Workspace', { exact: true })).toBeDisabled();
   await act(async () => resolve(workspace()));

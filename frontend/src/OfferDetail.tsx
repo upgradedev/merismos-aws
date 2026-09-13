@@ -21,9 +21,9 @@ export function DecisionPanel({ row, data, busy, mutate }: { row: OfferRow; data
   const { offer, result, plan } = row;
   const validPlan = plan && allocationTotal(row) !== null;
   return <>
-    <section className="panel padded action-card"><p className="eyebrow">NEXT DECISION</p><h2>{row.status === 'running' ? 'The fleet is working' : plan?.recorded ? 'Arrange the collections' : 'Review the allocation'}</h2><p>{result.note || 'Ask the fleet to read the offer and the network’s safety, capacity, equity and premises rules.'}</p>
+    <section className="panel padded action-card"><p className="eyebrow">NEXT DECISION</p><h2>{row.status === 'running' ? 'Working out the split' : plan?.recorded ? 'Arrange the collections' : 'Review the allocation'}</h2><p>{result.note || 'Merismos reads the offer and the network’s food safety, capacity, equity and premises registers, then proposes a split with a reason for every organisation. Nothing moves until you approve.'}</p>
       {row.status === 'running' && <p role="status">{row.progress?.stage || 'Starting the runner'} · {row.progress?.specialists_answered ?? 'Unknown number of'} specialists answered</p>}
-      {plan?.recorded ? <a href="#/pickups" className="button">Open collection tasks →</a> : <button disabled={busy || !data.can_write || row.status === 'running'} onClick={() => mutate(offer.id, 'run')}>{busy ? 'Working…' : result.run_id ? 'Re-run the fleet' : 'Work out the split'}</button>}
+      {plan?.recorded ? <a href="#/pickups" className="button">Open collection tasks →</a> : <button disabled={busy || !data.can_write || row.status === 'running'} onClick={() => mutate(offer.id, 'run')}>{busy ? 'Working…' : result.run_id ? 'Recalculate the split' : 'Work out the split'}</button>}
       {!data.can_write && <p className="notice">{data.authorization_note} Switch to Sandbox to try the full flow.</p>}
       {row.status === 'running' && <p className="small-note">This run is still in progress. Its result appears here when the backend finishes.</p>}
       {result.run_id && <p className="footnote break-all">Run {result.run_id}. {data.provider}.</p>}

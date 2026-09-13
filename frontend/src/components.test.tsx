@@ -37,7 +37,7 @@ it('requires exact-plan consent and retains it after failure', async () => {
   expect(mutate).toHaveBeenCalledWith('offer-4471','approve',expect.objectContaining({digest:row.plan!.digest,consent:true,key:row.plan!.key}));
   expect(screen.getByRole('checkbox')).toBeChecked();
   mutate.mockResolvedValue(true); await user.click(approve); expect(screen.getByRole('checkbox')).not.toBeChecked();
-  await user.click(screen.getByText('Re-run the fleet')); expect(mutate).toHaveBeenLastCalledWith('offer-4471','run');
+  await user.click(screen.getByText('Recalculate the split')); expect(mutate).toHaveBeenLastCalledWith('offer-4471','run');
 });
 it('renders missing, running, refused, ready and already-recorded states truthfully', () => {
   const data=workspace(); const mutate=vi.fn();
@@ -71,6 +71,7 @@ it('takes a pickup from claim through scheduling and explicit confirmation', asy
   data.pickups[0]={...data.pickups[0],state:'confirmed',agreed_at:'2026-10-01T12:00:00Z'};
   rerender(<Pickups data={data} busy={false} mutate={mutate}/>); expect(screen.getByText('No collection tasks here')).toBeVisible();
   await user.selectOptions(screen.getByLabelText('Show'),'confirmed'); expect(screen.getByText('Confirmed collected')).toBeVisible();
+  expect(screen.getByText('Simulation confirmed')).toBeVisible();
   expect(screen.queryByText('Claim this share')).not.toBeInTheDocument();
   data.mode='live'; rerender(<Pickups data={data} busy={false} mutate={mutate}/>); expect(screen.getByText(/coordinator register/)).toBeVisible();
   data.pickups[0].state='invalidated'; await user.selectOptions(screen.getByLabelText('Show'),'all'); rerender(<Pickups data={data} busy={false} mutate={mutate}/>); expect(screen.getByText(/allocation changed or the commitment expired/)).toBeVisible();
@@ -108,6 +109,14 @@ it('requires renewed observation consent and retains it after a failed handoff s
   expect(consent).not.toBeChecked();
   expect(screen.getByText('Confirm collection')).toBeDisabled();
   expect(screen.getByLabelText('Show')).toBeVisible();
+});
+it('labels handoff reports in coordinator words and keeps unknown report codes readable', () => {
+  const data = workspace();
+  data.pickups = [{offer_id:'offer-4471',title:'Bread',org:'Kitchen',quantity:96,unit:'kg',role:'duty manager',state:'claimed',agreed_at:'',plan_digest:'digest',run_id:'run',
+    feedback:[{code:'driver_ready',role:'duty manager',at:1757840400},{code:'custom_code',role:'kitchen lead',at:1757844000}]}];
+  render(<Pickups data={data} busy={false} mutate={vi.fn()}/>);
+  expect(screen.getByText(/^Collector ready ·/)).toBeVisible();
+  expect(screen.getByText(/^custom code ·/)).toBeVisible();
 });
 it('shows current and superseded history without rewriting old records', () => {
   const data=workspace(); const {rerender}=render(<History data={data}/>); expect(screen.getByText('No records yet')).toBeVisible();

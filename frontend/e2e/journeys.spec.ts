@@ -162,7 +162,7 @@ test('Safety refusal, empty filters, deep link and live read-only boundary', asy
     await expect(actionCard.getByRole('link', {name: 'Open collection tasks →'})).toBeVisible();
     await expect(actionCard.getByRole('button')).toHaveCount(0);
   } else {
-    await expect(actionCard.getByRole('button', {name: /^(Work out the split|Re-run the fleet)$/})).toBeDisabled();
+    await expect(actionCard.getByRole('button', {name: /^(Work out the split|Recalculate the split)$/})).toBeDisabled();
   }
   await expect(actionCard.getByText(/Live changes require an authenticated/)).toBeVisible();
   const denied = await page.request.post('/api/offers/offer-4471/run', {

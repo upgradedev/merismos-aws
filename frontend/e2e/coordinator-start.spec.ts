@@ -44,7 +44,7 @@ test('UX-ME-10S: cold coordinator entry to named offer, reasoned approval and se
   expect(approved.pickups).toHaveLength(5);
   expect(approved.pickups.every(p => p.state !== 'confirmed')).toBe(true);
   await expect(stages).toContainText('Exact allocation recorded');
-  await expect(stages).toContainText('Departure not recorded');
+  await expect(stages).toContainText('No time agreed yet');
   await expect(stages).toContainText('No receipt confirmed');
   const tasks = page.getByRole('region', {name: 'Selected offer pickups'});
   await tasks.getByRole('button', {name: 'Claim this share'}).focus(); await page.keyboard.press('Enter');
@@ -52,7 +52,7 @@ test('UX-ME-10S: cold coordinator entry to named offer, reasoned approval and se
   const when = await page.evaluate(() => { const d = new Date(Date.now() + 3600_000); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}T${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`; });
   await tasks.getByLabel('Collection time (your local time)').fill(when);
   await tasks.getByRole('button', {name: 'Save collection time'}).focus(); await page.keyboard.press('Enter');
-  await expect(stages).toContainText('1 pickups scheduled');
+  await expect(stages).toContainText('1 of 5 pickups scheduled');
   await expect(stages).toContainText('No receipt confirmed');
   await tasks.getByLabel('This collection actually happened in the simulation.').focus(); await page.keyboard.press('Space');
   await tasks.getByRole('button', {name: 'Confirm collection'}).focus(); await page.keyboard.press('Enter');
