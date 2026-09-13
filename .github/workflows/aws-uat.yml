@@ -54,10 +54,12 @@ jobs:
           npm ci
           npm audit --omit=dev --audit-level=low
           npx playwright install --with-deps chromium
+      # Pinned to the two Chromium projects. The mobile-webkit project (Playwright WebKit,
+      # not real-device Safari) runs in offline CI only until the owner decides otherwise.
       - name: Real CloudFront API and durable AWS workspace journeys
         id: journeys
         working-directory: frontend
-        run: npm run test:e2e -- --forbid-only
+        run: npm run test:e2e -- --forbid-only --project=desktop --project=mobile
       - name: Verify the tested release did not change during the journeys
         id: postflight
         if: always() && steps.journeys.outcome != 'skipped'

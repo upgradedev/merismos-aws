@@ -1,10 +1,13 @@
 import { expect, test } from '@playwright/test';
 import type { Workspace } from '../src/types';
 
-test('ME01/02/03: exact sandbox approval, persistent claim, scheduled and confirmed collection', async ({ page, context }, info) => {
+test('ME01/02/03: exact sandbox approval, persistent claim, scheduled and confirmed collection', async ({ page, context, browserName }, info) => {
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
-  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+  // WebKit limitation: Playwright's WebKit accepts 'clipboard-read' but has no 'clipboard-write'
+  // permission (grantPermissions throws "Unknown permission"), so WebKit is granted read only.
+  // Chromium keeps both grants; the clipboard read-back assertion below runs in every engine.
+  await context.grantPermissions(browserName === 'webkit' ? ['clipboard-read'] : ['clipboard-read', 'clipboard-write']);
   // Freeze only the browser calendar so the earliest seeded collection date
   // reads as tomorrow, whichever day the backend seeded it on. The date comes
   // from the API itself, so this holds against a backend that seeds relative

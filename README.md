@@ -471,7 +471,8 @@ The page is available after this source is released; no successful live run of t
 
 Successful preflight, product journeys and postflight produce an allowlisted aggregate from the
 current run's Playwright `test-results/e2e.xml`, with zero failures/skips and at least the existing
-24 desktop/mobile product journeys (`npm run test:e2e -- --forbid-only`). Retry, rerun and flaky
+24 desktop/mobile product journeys (`npm run test:e2e -- --forbid-only --project=desktop --project=mobile`).
+The offline-only `mobile-webkit` project is not part of that live run. Retry, rerun and flaky
 result tags are rejected even when summary counters report zero failures.
 Proof-display fixtures have a separate source-only suite and `proof-junit.xml`; their counts never
 enter the AWS product totals. A separate read-only browser job checks the actual published page.
@@ -594,8 +595,9 @@ cd frontend && npm ci && npm run dev
 
 Open the address Vite prints. `/api` is proxied to the harness on `127.0.0.1:8765`, which keeps
 sandbox state in SQLite and never supplies live coordinator authorisation. `npm test` runs the unit
-suite; `npx playwright install chromium && npm run test:e2e` runs the same desktop and mobile
-journeys CI runs, against the same harness.
+suite; `npx playwright install --with-deps chromium webkit && npm run test:e2e` runs the same desktop and mobile
+journeys CI runs, plus the `mobile-webkit` project, against the same harness. That project is
+Playwright's WebKit engine with the iPhone 13 preset, not real-device Safari.
 
 Everything above is what CI runs (`.github/workflows/ci.yml`, `frontend-ci.yml`), with the same
 commands, so a green badge and a green terminal mean the same thing.
@@ -616,7 +618,10 @@ Core CI runs full fetched Git history secret scanning (`fetch-depth: 0`, `--log-
 Ruff, Python unit/integration/functional regressions, the enforced coverage floor, Strands negative
 controls and Terraform validation. Frontend CI keeps existing dependency audits and coverage floors,
 builds React and runs desktop/mobile Playwright against the real Python HTTP API with durable SQLite
-state. No route mocking replaces that HTTP acceptance boundary. Relevant artifacts retain 90 days.
+state. A `mobile-webkit` project repeats the start, approval, and return or expiry journeys in
+Playwright's WebKit engine with the iPhone 13 preset; it is not real-device Safari, and live AWS
+acceptance does not run it. No route mocking replaces that HTTP acceptance boundary. Relevant
+artifacts retain 90 days.
 
 Main-branch frontend deployment still runs verification → CloudFront release → real AWS Playwright,
 checking the exact frontend SHA before and after. Backend deployment is separate and manual.

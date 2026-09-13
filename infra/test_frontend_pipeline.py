@@ -43,7 +43,8 @@ def validate(deploy, uat):
     assert job["env"]["EXPECTED_RELEASE"] == "${{ inputs.release_sha }}"
     steps = job["steps"]
     indexed = {step.get("id"): step for step in steps if "id" in step}
-    assert indexed["journeys"]["run"] == "npm run test:e2e -- --forbid-only"
+    # Live acceptance runs exactly the Chromium desktop and mobile projects; mobile-webkit stays offline CI only.
+    assert indexed["journeys"]["run"] == "npm run test:e2e -- --forbid-only --project=desktop --project=mobile"
     assert "continue-on-error" not in indexed["journeys"]
     assert "frontend_smoke.py" in indexed["preflight"]["run"]
     assert "frontend_smoke.py" in indexed["postflight"]["run"]
@@ -196,6 +197,14 @@ class MainAcceptanceContract(unittest.TestCase):
         step["env"]["PRODUCER_RUN_ATTEMPT"] = "${{ github.run_attempt }}"
         with self.assertRaises(AssertionError):
             validate(self.deploy, uat)
+
+    def test_live_journeys_without_the_chromium_project_pin_are_rejected(self):
+        for command in ("npm run test:e2e -- --forbid-only",
+                        "npm run test:e2e -- --forbid-only --project=desktop --project=mobile --project=mobile-webkit"):
+            uat = copy.deepcopy(self.uat)
+            next(s for s in uat["jobs"]["acceptance"]["steps"] if s.get("id") == "journeys")["run"] = command
+            with self.subTest(command=command), self.assertRaises(AssertionError):
+                validate(self.deploy, uat)
 
     def test_missing_postflight_or_failure_artifacts_are_rejected(self):
         for broken in ("postflight", "artifact"):
