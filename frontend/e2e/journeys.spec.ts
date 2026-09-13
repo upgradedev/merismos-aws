@@ -5,9 +5,14 @@ test('ME01/02/03: exact sandbox approval, persistent claim, scheduled and confir
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
   await context.grantPermissions(['clipboard-read', 'clipboard-write']);
-  // Freeze only the browser calendar so the seeded collection date is tomorrow.
+  // Freeze only the browser clock, at noon UTC today, so calendar cues are
+  // deterministic within the run. The sandbox seeds its offers relative to the
+  // server's date (the earliest collection is tomorrow), so the browser and the
+  // backend must agree on the day; only the time of day is pinned.
   // Scheduling and all persisted server state still use the real HTTP backend.
-  await page.clock.setFixedTime(new Date('2026-09-07T12:00:00Z'));
+  const noonToday = new Date();
+  noonToday.setUTCHours(12, 0, 0, 0);
+  await page.clock.setFixedTime(noonToday);
   await page.emulateMedia({reducedMotion: 'no-preference'});
   await page.goto('/');
   await expect(page.getByRole('heading', { name: 'Dashboard', exact: true })).toBeVisible();
