@@ -26,6 +26,8 @@ test('ME01/02/03: exact sandbox approval, persistent claim, scheduled and confir
   await expect(page.getByText('Synthetic demo', { exact: true })).toBeVisible();
   await expect(page.getByText(/Calendar cues use your browser-local date at view opening/)).toBeAttached();
   await expect(page.locator('.date-chip')).toHaveText(/^Today · \d{4}-\d{2}-\d{2}$/);
+  await expect(page.locator('.date-basis')).toHaveText('Browser date at view opening · reload to update');
+  await expect(page.locator('.date-basis')).toBeVisible();
   const upcoming = page.locator('.date-cue-soon .date-cue-label').first();
   await expect(upcoming).toHaveCSS('font-size', '14px');
   await expect(upcoming).toHaveCSS('animation-name', 'dispatch-date-cue');
