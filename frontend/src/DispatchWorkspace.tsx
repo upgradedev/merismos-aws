@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Empty, Status, Summary } from './components';
 import { DonationEvidence, AllocationEvidence, DecisionPanel, type Mutate } from './OfferDetail';
 import { PickupCard } from './Pickups';
-import { DateCue, ClockBasis, EvidenceBundle } from './DispatchEvidence';
+import { DateCue, EvidenceBundle } from './DispatchEvidence';
 import { filters, filterOffers, projection, type Filter } from './workspaceModel';
 import { routeLink } from './routes';
 import type { OfferRow, Workspace } from './types';
@@ -35,7 +35,6 @@ export function DispatchWorkspace({ data, selected, filter, unit, today, busy, m
   return <>
     <div className="page-heading"><div><p className="eyebrow">DISPATCH WORKSPACE</p><h1>{row?.offer.title || 'Dispatch workspace'}</h1><p>{row ? `${row.offer.id} · ${row.offer.donor}` : 'Select an offer to review its evidence and next decision.'}</p></div><a className="button secondary" href="#/offers/new">+ Add offer</a></div>
     <div className="workspace-context"><a href="#/offers" className="back-link">← All offers</a><span>{source.offers.length} offers · {row ? '1 offer in focus' : 'No offer in focus'}</span><a href={routeLink('/records', { offer: selected, pickup })}>Inspect records →</a></div>
-    <ClockBasis today={today}/>
     {row && <DispatchJourney row={row} data={data}/>}
     {source.conflicts > 0 && <p className="notice">Conflicting source identities were withheld. Refresh and review before acting.</p>}
     <div className="dispatch-grid"><section className="panel intake-stream" aria-label="Intake and allocation"><div className="pane-heading"><span className="eyebrow">01</span><h2>Intake & allocation</h2><span className="badge">{filters[filter]}{unit ? ` · ${unit}` : ''}</span></div><div className="stream-search"><label>Search offers<input type="search" placeholder="Offer, donor or identifier" value={query} onChange={e => setQuery(e.target.value)}/></label></div>

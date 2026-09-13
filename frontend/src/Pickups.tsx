@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Empty, Status } from './components';
 import type { Mutate } from './OfferDetail';
 import type { Pickup, Workspace } from './types';
-import { ClockBasis, DateCue } from './DispatchEvidence';
+import { DateCue } from './DispatchEvidence';
 import { localCalendarDate } from './dispatch';
 import { projection } from './workspaceModel';
 import { routeLink } from './routes';
@@ -34,7 +34,7 @@ export function Pickups({ data, busy, mutate }: { data: Workspace; busy: boolean
   const [filter, setFilter] = useState('open');
   const [today] = useState(localCalendarDate);
   const rows = projection(data).pickups.filter(p => filter === 'all' || (filter === 'open' ? !['confirmed', 'invalidated'].includes(p.state) : p.state === filter));
-  return <><div className="page-heading"><div><p className="eyebrow">TURN A DECISION INTO A COLLECTION</p><h1>Pickups</h1><p>A published allocation is a plan. Only an explicit confirmation records collection.</p></div></div><ClockBasis today={today}/><div className="toolbar"><h2>Collection tasks</h2><label>Show <select value={filter} onChange={e => setFilter(e.target.value)}><option value="open">Needs attention</option><option value="all">All collections</option><option value="confirmed">Confirmed</option><option value="invalidated">Invalidated</option></select></label></div>{rows.length ? <div className="pickup-grid">{rows.map(p => <PickupCard key={`${p.offer_id}-${p.org}-${p.state}-${p.commitment_digest || p.plan_digest}`} item={p} data={data} busy={busy} mutate={mutate} today={today}/>)}</div> : <Empty title="No collection tasks here">{data.pickups.length ? 'Choose another filter to see recorded collections.' : <>Review an offer and approve its exact allocation to create collection tasks. <a href="#/offers">Open offers →</a></>}</Empty>}</>;
+  return <><div className="page-heading"><div><p className="eyebrow">TURN A DECISION INTO A COLLECTION</p><h1>Pickups</h1><p>A published allocation is a plan. Only an explicit confirmation records collection.</p></div></div><div className="toolbar"><h2>Collection tasks</h2><label>Show <select value={filter} onChange={e => setFilter(e.target.value)}><option value="open">Needs attention</option><option value="all">All collections</option><option value="confirmed">Confirmed</option><option value="invalidated">Invalidated</option></select></label></div>{rows.length ? <div className="pickup-grid">{rows.map(p => <PickupCard key={`${p.offer_id}-${p.org}-${p.state}-${p.commitment_digest || p.plan_digest}`} item={p} data={data} busy={busy} mutate={mutate} today={today}/>)}</div> : <Empty title="No collection tasks here">{data.pickups.length ? 'Choose another filter to see recorded collections.' : <>Review an offer and approve its exact allocation to create collection tasks. <a href="#/offers">Open offers →</a></>}</Empty>}</>;
 }
 export function History({ data, selected = '', pickup }: { data: Workspace; selected?: string; pickup?: string }) {
   const records = projection(data).records;
