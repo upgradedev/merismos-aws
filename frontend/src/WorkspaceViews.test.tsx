@@ -143,9 +143,10 @@ it('allows corrected intake after known HTTP 400 without refreshing and assigns 
   location.hash = '/offers/new'; vi.mocked(api.action).mockRejectedValueOnce(new api.ApiError('Remove the phone number', 400));
   render(<App/>); const submit = await screen.findByText('Add to sandbox');
   await userEvent.type(screen.getByLabelText('What is being donated?'), 'Courtyard vegetables');
+  fireEvent.change(screen.getByLabelText("Donor's food and collection note"), { target: { value: 'Call 6941234567' } });
   fireEvent.submit(submit.closest('form')!); expect(await screen.findByRole('alert')).toHaveTextContent('rejected intake was not saved'); expect(screen.getAllByRole('alert')).toHaveLength(1); expect(screen.getByLabelText("Donor's food and collection note")).toHaveAttribute('aria-invalid','true');
   expect(submit).toBeEnabled(); expect(screen.getByLabelText('What is being donated?')).toHaveValue('Courtyard vegetables');
-  await userEvent.type(screen.getByLabelText("Donor's food and collection note"), 'Collect in the evening');
+  await userEvent.clear(screen.getByLabelText("Donor's food and collection note")); await userEvent.type(screen.getByLabelText("Donor's food and collection note"), 'Collect in the evening');
   fireEvent.submit(submit.closest('form')!); await waitFor(() => expect(api.action).toHaveBeenCalledTimes(2));
   expect(api.loadWorkspace).toHaveBeenCalledTimes(1); expect(vi.mocked(api.action).mock.calls[0][4]).not.toBe(vi.mocked(api.action).mock.calls[1][4]);
 });

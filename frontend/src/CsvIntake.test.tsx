@@ -59,6 +59,9 @@ it('stale workspace, busy import and live authorization withhold commit', async 
   expect(screen.getByText('File selected rows (1)')).toBeDisabled();
   rerender(<CsvIntake data={data} busy mutate={mutate}/>);
   expect(screen.getByText('Cancel CSV preview')).toBeDisabled();
+  expect(screen.getByText('CSV filing is paused while the workspace saves, loads or needs a refresh.')).toBeVisible();
+  expect(screen.getByText('Cancel CSV preview')).toHaveAttribute('aria-describedby', 'csv-file-note');
+  expect(screen.getByText(/CSV actions are paused while the workspace saves, loads or needs a refresh/)).toBeVisible();
   rerender(<CsvIntake data={{...data, mode: 'live', can_write: false}} busy={false} mutate={mutate}/>);
   expect(screen.getByLabelText('Donor CSV file')).toBeDisabled();
   expect(screen.getByText(/Switch to Sandbox to preview/)).toBeVisible();
@@ -79,6 +82,7 @@ it('a new file supersedes a pending read and unmount aborts its preview', async 
   vi.mocked(slow.text).mockReturnValue(new Promise(done => {resolve = done;}));
   const view = render(<CsvIntake data={workspace()} busy={false} mutate={vi.fn()}/>);
   await userEvent.upload(screen.getByLabelText('Donor CSV file'), slow);
+  expect(screen.getByText('Available once the CSV check finishes.')).toBeVisible();
   await userEvent.click(screen.getByText('Cancel CSV preview'));
   await act(async () => resolve(CSV_SAMPLE)); expect(api.previewCsv).not.toHaveBeenCalled();
   await userEvent.upload(screen.getByLabelText('Donor CSV file'), file('second.csv'));
