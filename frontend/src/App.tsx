@@ -19,7 +19,20 @@ import { GtmImpactView } from './GtmImpactView';
 function currentAddress() {
   const previous = history.state?.merismosContext;
   const current = readPreference('merismos.session.context');
-  return previous && current && previous !== current ? '/previous-workspace' : location.hash.slice(1);
+  if (previous && current && previous !== current) return '/previous-workspace';
+  if (location.hash && location.hash.length > 1) return location.hash.slice(1);
+  const search = new URLSearchParams(location.search);
+  const page = search.get('page') || search.get('tab');
+  if (page) {
+    const clean = page.startsWith('/') ? page : '/' + page;
+    const offer = search.get('offer');
+    const pickup = search.get('pickup');
+    const params = new URLSearchParams();
+    if (offer) params.set('offer', offer);
+    if (pickup) params.set('pickup', pickup);
+    return `${clean}${params.size ? `?${params}` : ''}`;
+  }
+  return '';
 }
 
 export function App() {
@@ -68,7 +81,11 @@ export function App() {
       if (next !== '/previous-workspace') history.replaceState({ ...history.state, merismosContext: readPreference('merismos.session.context'), merismosSandboxVisited: !!readPreference('merismos.session.seen') }, '');
     };
     window.addEventListener('hashchange', navigate);
-    return () => window.removeEventListener('hashchange', navigate);
+    window.addEventListener('popstate', navigate);
+    return () => {
+      window.removeEventListener('hashchange', navigate);
+      window.removeEventListener('popstate', navigate);
+    };
   }, []);
   useEffect(() => {
     if (data && mode === 'sandbox' && currentAddress() !== '/previous-workspace') history.replaceState({ ...history.state, merismosContext: readPreference('merismos.session.context'), merismosSandboxVisited: true }, '');
@@ -125,7 +142,7 @@ export function App() {
   }
   const navigateTo = useCallback((dest: string) => {
     const next = routeLink(dest, { offer: selected, pickup: route.pickup });
-    history.pushState(null, '', next);
+    history.pushState({ ...history.state, merismosContext: readPreference('merismos.session.context'), merismosSandboxVisited: true }, '', next);
     setAddress(next.slice(1));
   }, [selected, route.pickup]);
   const nav = [
