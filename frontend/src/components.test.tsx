@@ -33,12 +33,17 @@ it('requires exact-plan consent and retains it after failure', async () => {
   const user=userEvent.setup(); const mutate=vi.fn().mockResolvedValue(false);
   render(<OfferDetail row={row} data={workspace()} busy={false} mutate={mutate}/>);
   expect(screen.getByText('144 kg')).toBeVisible(); expect(screen.getByText('Same-day service required.')).toBeVisible();
+  const split=screen.getByRole('table'); expect(within(split).getByText('Amounts you are approving')).toBeInTheDocument(); expect(within(split).getAllByRole('cell').map(cell=>cell.textContent)).toEqual([row.result.draft_allocations![0].org,`${row.result.draft_allocations![0].quantity} ${row.offer.unit}`]); expect(split).not.toHaveTextContent(/Same-day/); expect(screen.getByText(/^Left without a recipient: 144 kg$/)).toBeVisible(); expect(within(split).queryByRole('heading')).toBeNull();
   const approve=screen.getByRole('button',{name:'Approve in sandbox'}); expect(approve).toBeDisabled(); expect(screen.getByText('Available once you tick the box above.')).toBeVisible(); expect(approve).toHaveAttribute('aria-describedby');
   await user.click(screen.getByLabelText(/I have reviewed/)); expect(approve).not.toHaveAttribute('aria-describedby'); await user.click(approve);
   expect(mutate).toHaveBeenCalledWith('offer-4471','approve',expect.objectContaining({digest:row.plan!.digest,consent:true,key:row.plan!.key}));
   expect(screen.getByRole('checkbox')).toBeChecked();
   mutate.mockResolvedValue(true); await user.click(approve); expect(screen.getByRole('checkbox')).not.toBeChecked();
   await user.click(screen.getByText('Recalculate the split')); expect(mutate).toHaveBeenLastCalledWith('offer-4471','run');
+});
+it('lists the exact amounts only for a consistent plan', () => {
+  render(<OfferDetail row={{...row,plan:{...row.plan!,run_id:'another-run'}}} data={workspace()} busy={false} mutate={vi.fn()}/>);
+  expect(screen.getByText('Allocation quantities or run identity are unavailable or inconsistent. Refresh and review before approving.')).toBeVisible(); expect(screen.queryByRole('table')).toBeNull(); expect(screen.queryByText(/Left without a recipient/)).toBeNull();
 });
 it('renders missing, running, refused, ready and already-recorded states truthfully', () => {
   const data=workspace(); const mutate=vi.fn();

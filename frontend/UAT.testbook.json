@@ -165,7 +165,7 @@
       "requirement": "Claim, schedule and confirm a share without double collection",
       "preconditions": "An approved sandbox allocation",
       "steps": [
-        "Open selected offer in Workspace; use Claim & collection, or the Pickups page",
+        "Open selected offer in Workspace; use Record the collection, or the Pickups page",
         "select collecting role",
         "claim",
         "set future time",

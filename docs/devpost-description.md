@@ -16,7 +16,7 @@ This is a synthetic demonstration with five invented organisations, not an adopt
 
 Try refusal demonstrates a broken cold chain. Try correction demonstrates a refused phone-shaped
 note that remains editable. All three examples submit to the real HTTP API. The dashboard shows
-observed session outcomes and collection states, not estimated savings.
+the next donation, allocation totals and collection states, not estimated savings.
 
 ## What the sponsor supplies
 
