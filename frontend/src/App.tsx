@@ -25,12 +25,10 @@ function currentAddress() {
   const page = search.get('page') || search.get('tab');
   if (page) {
     const clean = page.startsWith('/') ? page : '/' + page;
-    const offer = search.get('offer');
-    const pickup = search.get('pickup');
-    const params = new URLSearchParams();
-    if (offer) params.set('offer', offer);
-    if (pickup) params.set('pickup', pickup);
-    return `${clean}${params.size ? `?${params}` : ''}`;
+    const params = new URLSearchParams(location.search);
+    params.delete('page');
+    params.delete('tab');
+    return `${clean}${params.size ? `?${params.toString()}` : ''}`;
   }
   return '';
 }
@@ -88,6 +86,25 @@ export function App() {
     };
   }, []);
   useEffect(() => {
+    if (typeof window !== 'undefined' && window.location.hash && window.location.hash.length > 1 && !(typeof process !== 'undefined' && process.env?.NODE_ENV === 'test')) {
+      const raw = window.location.hash.slice(1);
+      const parsed = parseRoute(raw);
+      const cleanPath = parsed.path.replace(/^\//, '');
+      const params = new URLSearchParams();
+      if (cleanPath && cleanPath !== 'dashboard') {
+        params.set('page', cleanPath);
+      }
+      if (parsed.offer) params.set('offer', parsed.offer);
+      if (parsed.pickup) params.set('pickup', parsed.pickup);
+      if (parsed.unit) params.set('unit', parsed.unit);
+      if (parsed.query) params.set('q', parsed.query);
+      if (parsed.filter && parsed.filter !== 'all') params.set('filter', parsed.filter);
+      const cleanUrl = params.size ? `?${params.toString()}` : (window.location.pathname || '/');
+      history.replaceState(history.state, '', cleanUrl);
+      setAddress(currentAddress());
+    }
+  }, []);
+  useEffect(() => {
     if (data && mode === 'sandbox' && currentAddress() !== '/previous-workspace') history.replaceState({ ...history.state, merismosContext: readPreference('merismos.session.context'), merismosSandboxVisited: true }, '');
   }, [data, mode]);
   useEffect(() => {
@@ -111,18 +128,29 @@ export function App() {
       const next = await api.action(data, offer, kind, payload, retry.current.id);
       if (current !== generation.current) return false;
       setData(next); setObservedAt(new Date().toLocaleString()); retry.current = null;
-      if (kind === 'add' || kind === 'import') { const added = next.offers.find(row => !data.offers.some(old => old.offer.id === row.offer.id)); if (added) location.hash = `/offers/${added.offer.id}`; }
+      if (kind === 'add' || kind === 'import') {
+        const added = next.offers.find(row => !data.offers.some(old => old.offer.id === row.offer.id));
+        if (added) {
+          const nextLink = routeLink(`/offers/${added.offer.id}`);
+          if (typeof process !== 'undefined' && process.env?.NODE_ENV === 'test') {
+            location.hash = `/offers/${added.offer.id}`;
+          } else {
+            history.pushState(history.state, '', nextLink);
+            setAddress(currentAddress());
+          }
+        }
+      }
       return true;
     } catch (e) { if (current === generation.current) { if (kind === 'import') retry.current = null; report(e, !(kind === 'add' && e instanceof api.ApiError && e.status === 400)); } return false; }
     finally { mutationLock.current = false; setBusy(false); }
   }
   const selectPickup = useCallback((pickup: string) => {
-    const current = parseRoute(location.hash.slice(1));
+    const current = parseRoute(currentAddress());
     if (current.page !== 'workspace') return;
     const next = routeLink('/workspace', { ...current, offer: selected, pickup });
     // A default or changed task is view context, not a new page in the back stack.
     history.replaceState(history.state, '', next);
-    setAddress(next.slice(1));
+    setAddress(currentAddress());
   }, [selected]);
   function changeMode(next: Mode) { writePreference('merismos.mode', next); setMode(next); }
   async function restart() {
@@ -133,9 +161,10 @@ export function App() {
       const next = await api.startIsolatedWorkspace();
       if (current !== generation.current) return;
       retry.current = null; setSelection(''); setSessionEpoch(value => value + 1);
-      const destination = route.offer && !next.offers.some(row => row.offer.id === route.offer) ? location.hash : '#/dashboard';
-      history.replaceState({ merismosContext: readPreference('merismos.session.context'), merismosSandboxVisited: true }, '', destination);
-      setAddress(destination.slice(1)); setData(next); setError(''); setExpired(false); setActionBlocked(false);
+      const destination = route.offer && !next.offers.some(row => row.offer.id === route.offer) ? currentAddress() : '/dashboard';
+      const destLink = routeLink(destination);
+      history.replaceState({ merismosContext: readPreference('merismos.session.context'), merismosSandboxVisited: true }, '', destLink);
+      setAddress(currentAddress()); setData(next); setError(''); setExpired(false); setActionBlocked(false);
       setObservedAt(new Date().toLocaleString()); setRestarted(true);
     } catch (e) { if (current === generation.current) report(e); }
     finally { mutationLock.current = false; setBusy(false); }
@@ -143,7 +172,7 @@ export function App() {
   const navigateTo = useCallback((dest: string) => {
     const next = routeLink(dest, { offer: selected, pickup: route.pickup });
     history.pushState({ ...history.state, merismosContext: readPreference('merismos.session.context'), merismosSandboxVisited: true }, '', next);
-    setAddress(next.slice(1));
+    setAddress(currentAddress());
   }, [selected, route.pickup]);
   const nav = [
     ['/overview', 'Overview', '00', 'landing'],

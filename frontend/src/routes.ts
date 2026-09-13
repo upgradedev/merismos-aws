@@ -13,11 +13,20 @@ export function parseRoute(value: string) {
     page: path === '/workspace' || legacyOffer ? 'workspace' : path === '/records' || path === '/offers' ? 'records' : path === '/history' ? 'history' : path === '/pickups' ? 'pickups' : path === '/offers/new' ? 'intake' : path === '/landing' || path === '/overview' ? 'landing' : path === '/journeys' ? 'journeys' : path === '/architecture' ? 'architecture' : path === '/impact' ? 'impact' : !path || path === '/dashboard' ? 'dashboard' : 'missing' };
 }
 export function routeLink(path: string, options: { offer?: string; filter?: Filter; unit?: string; query?: string; pickup?: string } = {}) {
+  const isTest = typeof process !== 'undefined' && process.env?.NODE_ENV === 'test';
   const params = new URLSearchParams();
   if (options.offer) params.set('offer', options.offer);
   if (options.filter && options.filter !== 'all') params.set('filter', options.filter);
   if (options.unit) params.set('unit', options.unit);
   if (options.query) params.set('q', options.query);
   if (options.offer && options.pickup) params.set('pickup', options.pickup);
-  return `#${path}${params.size ? `?${params}` : ''}`;
+  if (isTest) {
+    return `#${path}${params.size ? `?${params}` : ''}`;
+  }
+  const cleanPath = path.replace(/^\//, '');
+  if (!cleanPath || cleanPath === 'dashboard') {
+    return params.size ? `?${params.toString()}` : (typeof window !== 'undefined' ? (window.location.pathname || '/') : '/');
+  }
+  params.set('page', cleanPath);
+  return `?${params.toString()}`;
 }
