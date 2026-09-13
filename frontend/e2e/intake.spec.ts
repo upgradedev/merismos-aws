@@ -11,6 +11,7 @@ for (const flow of ['success', 'refusal', 'correction'] as const) {
     expect((await response).status()).toBe(flow === 'correction' ? 400 : 200);
     if (flow === 'correction') {
       await expect(page.getByRole('alert')).toContainText('phone number');
+      await expect(note).toHaveAttribute('aria-invalid', 'true');
       await expect(note).toHaveValue(original);
       await note.fill('Invented donation; collect before evening.');
       await page.getByRole('button', {name: 'Add to sandbox'}).click();

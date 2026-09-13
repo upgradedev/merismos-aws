@@ -4,7 +4,7 @@ import { expect, it, vi } from 'vitest';
 import { Offers, Status, Summary } from './components';
 import { OfferDetail } from './OfferDetail';
 import { History, PickupCard, Pickups } from './Pickups';
-import { AddOffer } from './AddOffer';
+import { AddOffer, intakeErrorField } from './AddOffer';
 import { row, workspace } from './test/fixtures';
 
 it('filters offers by search and status, and links the intake', async () => {
@@ -153,4 +153,22 @@ it('submits an accessible intake form, retains fields, and asks cold-chain evide
   expect(screen.getByLabelText('What is being donated?')).toHaveValue('Test bread');
   rerender(<AddOffer data={{...data,mode:'live',can_write:false}} busy={false} mutate={mutate}/>); expect(screen.getByText('File offer')).toBeDisabled();
   rerender(<AddOffer data={data} busy mutate={mutate}/>); expect(screen.getByText('Filing offer…')).toBeDisabled();
+});
+it.each([
+  ['Remove the phone number', 'note'], ['Quantity must be positive', 'quantity'], ['use_by precedes collection', 'use_by'],
+  ['collection_date is required', 'collection_date'], ['hours_unrefrigerated required', 'hours_unrefrigerated'],
+  ['Donor name looks personal', 'donor'], ['Title is too long', 'title'], ['Unknown problem', ''],
+])('maps the refused intake detail %s to the field %s', (detail, field) => {
+  expect(intakeErrorField(detail)).toBe(field);
+});
+it('shows a refused intake inside the form, marks the mapped field and explains paused controls', () => {
+  const data=workspace(); const mutate=vi.fn(); const note=()=>screen.getByLabelText("Donor's food and collection note");
+  const {rerender}=render(<AddOffer data={data} busy={false} mutate={mutate} error="Remove the phone number"/>);
+  expect(screen.getByRole('alert')).toHaveTextContent('Check the marked field'); expect(screen.getByRole('alert')).toHaveTextContent('The rejected intake was not saved.');
+  expect(note()).toHaveAttribute('aria-invalid','true'); expect(note()).toHaveAttribute('aria-describedby','intake-error');
+  rerender(<AddOffer data={data} busy={false} mutate={mutate} error="Unknown problem"/>);
+  expect(screen.getByRole('alert')).toHaveTextContent('Check the form'); expect(note()).not.toHaveAttribute('aria-invalid');
+  rerender(<AddOffer data={data} busy mutate={mutate}/>); expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  expect(screen.getByText('Examples are paused while the offer is being filed.')).toBeVisible(); expect(screen.getByText('Try success')).toHaveAttribute('aria-describedby','examples-reason');
+  expect(screen.getByText('Filing in progress. The form unlocks when the backend answers.')).toBeVisible(); expect(screen.getByText('Filing offer…')).toHaveAttribute('aria-describedby','intake-busy-reason');
 });

@@ -21,6 +21,7 @@ it('never offers a live identity change and disables recovery while a request is
   const view = render(<SessionRecovery {...props} mode="live"/>);
   expect(screen.queryByText('Start a new sandbox')).not.toBeInTheDocument();
   expect(screen.getByText('Refresh and review')).toBeDisabled();
+  expect(screen.getByText('Paused while the workspace refreshes.')).toBeVisible();
   view.rerender(<SessionRecovery {...props} sessionUnavailable={false} mode="sandbox"/>);
   expect(screen.getByText('Start a separate sandbox')).toBeDisabled();
   expect(screen.getByRole('alert')).toHaveTextContent('does not repeat an approval');

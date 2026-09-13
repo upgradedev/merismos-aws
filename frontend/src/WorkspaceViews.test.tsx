@@ -143,11 +143,19 @@ it('allows corrected intake after known HTTP 400 without refreshing and assigns 
   location.hash = '/offers/new'; vi.mocked(api.action).mockRejectedValueOnce(new api.ApiError('Remove the phone number', 400));
   render(<App/>); const submit = await screen.findByText('Add to sandbox');
   await userEvent.type(screen.getByLabelText('What is being donated?'), 'Courtyard vegetables');
-  fireEvent.submit(submit.closest('form')!); expect(await screen.findByRole('alert')).toHaveTextContent('rejected intake was not saved');
+  fireEvent.submit(submit.closest('form')!); expect(await screen.findByRole('alert')).toHaveTextContent('rejected intake was not saved'); expect(screen.getAllByRole('alert')).toHaveLength(1); expect(screen.getByLabelText("Donor's food and collection note")).toHaveAttribute('aria-invalid','true');
   expect(submit).toBeEnabled(); expect(screen.getByLabelText('What is being donated?')).toHaveValue('Courtyard vegetables');
   await userEvent.type(screen.getByLabelText("Donor's food and collection note"), 'Collect in the evening');
   fireEvent.submit(submit.closest('form')!); await waitFor(() => expect(api.action).toHaveBeenCalledTimes(2));
   expect(api.loadWorkspace).toHaveBeenCalledTimes(1); expect(vi.mocked(api.action).mock.calls[0][4]).not.toBe(vi.mocked(api.action).mock.calls[1][4]);
+});
+it('keeps one refused-intake alert, without a marked field, when the coordinator leaves the form', async () => {
+  location.hash = '/offers/new'; vi.mocked(api.action).mockRejectedValueOnce(new api.ApiError('This donation is already filed as offer-88.', 400));
+  render(<App/>); const submit = await screen.findByText('Add to sandbox');
+  fireEvent.submit(submit.closest('form')!); expect(await screen.findByRole('alert')).toHaveTextContent('Check the form');
+  expect(screen.getByLabelText("Donor's food and collection note")).not.toHaveAttribute('aria-invalid');
+  await navigate('/dashboard'); expect(screen.getAllByRole('alert')).toHaveLength(1);
+  expect(screen.getByRole('alert')).toHaveTextContent('That action could not be completed');
 });
 it('locks repeated clicks immediately while one backend action is pending', async () => {
   let resolve!: (data: ReturnType<typeof workspace>) => void;
