@@ -13,6 +13,7 @@ Merismos helps a community-food coordinator review a donation split and keep the
 - [Publication and recovery boundaries](#publication-and-recovery-boundaries)
 - [Evidence and honest limits](#evidence-and-honest-limits)
 - [Current public acceptance](#current-public-acceptance)
+- [Cost](#cost-and-sustainability)
 - [Run it locally](#run-it-locally)
 - [Validation and release](#validation-and-release)
 - [Pre-existing components and licences](#pre-existing-components-and-licences)
@@ -477,6 +478,43 @@ This source change does not prove deployment; the separate
 [code-only integration procedure](docs/deploy-2026-09-02.md#backend-build-identity-pending-deployment-2026-09-10)
 requires parent review and read-only live verification. This is scripted synthetic AWS software
 evidence, not a Bedrock model invocation, human acceptance or measured food rescue.
+
+## Cost and sustainability
+
+No dollar figure appears here, because none has been measured. This section says what spends
+money, what bounds it, and when the deployment is meant to come down.
+
+**The public sandbox never calls a model.** Every sandbox run uses the scripted planner inside the
+reader Lambda (`bedrock.scripted_analyst()` in `src/merismos/api.py`). A visitor costs API Gateway
+requests, Lambda time, on-demand DynamoDB reads and writes, and CloudFront and S3 requests.
+
+**Amazon Bedrock is called only in live runs, and a public request cannot start one.** No
+authorizer is deployed on the public API, so every live mutation is refused with 403. A live run
+starts only through an IAM-authorised invocation of the runner. The deploy workflow starts one on
+every apply to prove a real model answered (`specialist.answered` with `source: model`), so each
+apply spends at least one live run of four specialists on the configured model.
+
+**What bounds a problem before anyone notices.** These are the Terraform defaults; no tfvars file
+or workflow overrides them.
+
+| Control | Value | Source |
+|---|---|---|
+| API throttle | 10 requests per second, burst 20 | `judge_rate_limit`, `judge_burst_limit` |
+| API integration timeout | 30 seconds, so runs start in the background | `infra/gateway.tf` |
+| Reader concurrency | at most 5 at once | `reader_reserved_concurrency` |
+| Background runner concurrency | at most 4 at once, in its own pool | `runner_reserved_concurrency` |
+| Reader retries | none | `reader_retries` |
+| Error alarm | 5 reader errors in 5 minutes | `reader_errors` |
+| Volume alarm | 500 reader invocations in one hour | `judge_hourly_alarm` |
+| Log retention | 14 days; provenance stays in DynamoDB | `log_retention_days` |
+
+**How long it stays up, and how it comes down.** The rules require the entry to stay reachable
+until judging ends on 2026-10-08 17:00 PT. `still-up.yml` fetches the public URL every Monday and
+Thursday at 09:00 UTC, the same anonymous fetch a judge makes. To take it down, dispatch
+`deploy.yml` with `dry_run=no` and `keep=no`: it applies, runs the same proofs, then runs
+`terraform destroy` in the same job. With `destroyable` at its default of true the buckets are
+emptied too. The job then lists every remaining `merismos` Lambda, table, bucket, role, queue and
+schedule group, and fails if any is left apart from the bootstrap state bucket and deploy role.
 
 ## Run it locally
 

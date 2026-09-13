@@ -14,7 +14,7 @@ const NOT_MEASURED: { label: string; note: string }[] = [
   { label: 'Human time saved', note: 'Unknown until measured.' },
   { label: 'Food rescued', note: 'Unknown until measured.' },
   { label: 'Beneficiaries reached', note: 'Unknown until measured.' },
-  { label: 'AWS cost per run', note: 'Unknown until measured. See the README cost notes.' },
+  { label: 'AWS cost per run', note: 'Unknown until measured. See Cost and sustainability in the README.' },
   { label: 'Latency on AWS', note: 'Unknown until measured. The sandbox runs a scripted planner; its timings are not AWS timings.' },
 ];
 
