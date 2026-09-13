@@ -94,10 +94,10 @@ export function ArchitectureView() {
 
       {/* Visual Topology Diagram */}
       <section className="panel padded" style={{ marginBottom: '28px', background: 'var(--panel)', border: '1px solid var(--border)' }}>
-        <p className="eyebrow" style={{ textAlign: 'center', marginBottom: '16px' }}>INTERACTIVE SYSTEM TOPOLOGY (CLICK ANY LAYER TO INSPECT)</p>
+        <p className="eyebrow" style={{ textAlign: 'center', marginBottom: '20px' }}>INTERACTIVE SYSTEM TOPOLOGY (CLICK ANY LAYER TO INSPECT)</p>
         
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: '14px' }}>
-          {NODES.map(node => {
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '14px' }}>
+          {NODES.map((node, index) => {
             const isSelected = node.id === activeNodeId;
             return (
               <button
@@ -105,6 +105,11 @@ export function ArchitectureView() {
                 onClick={() => setActiveNodeId(node.id)}
                 className="panel"
                 style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  minHeight: '135px',
                   margin: 0,
                   padding: '16px 12px',
                   textAlign: 'center',
@@ -112,15 +117,22 @@ export function ArchitectureView() {
                   border: isSelected ? '2px solid var(--teal)' : '1px solid var(--border)',
                   background: isSelected ? 'var(--raised)' : 'var(--bg)',
                   transition: 'all 0.2s ease',
+                  boxShadow: isSelected ? '0 0 16px rgba(113, 222, 205, 0.2)' : 'none',
+                  position: 'relative',
                 }}
               >
-                <span style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--secondary)', display: 'block', marginBottom: '6px' }}>
-                  {node.category}
-                </span>
-                <strong style={{ display: 'block', fontSize: '0.95rem', color: isSelected ? 'var(--teal)' : 'var(--text)', lineHeight: 1.3 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
+                  <span style={{ fontSize: '0.68rem', fontWeight: 800, padding: '1px 5px', borderRadius: '4px', background: isSelected ? 'var(--teal-dark)' : 'rgba(255,255,255,0.08)', color: isSelected ? 'var(--teal)' : 'var(--secondary)' }}>
+                    0{index + 1}
+                  </span>
+                  <span style={{ fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--secondary)', display: 'block' }}>
+                    {node.category}
+                  </span>
+                </div>
+                <strong style={{ display: 'block', fontSize: '0.92rem', fontWeight: 700, color: isSelected ? 'var(--teal)' : 'var(--text)', lineHeight: 1.35, margin: 'auto 0' }}>
                   {node.name}
                 </strong>
-                <span className="badge" style={{ marginTop: '8px', fontSize: '0.7rem' }}>
+                <span className="badge" style={{ marginTop: '10px', fontSize: '0.72rem', padding: '3px 8px', borderRadius: '6px', background: isSelected ? 'var(--teal-dark)' : 'rgba(255,255,255,0.06)', color: isSelected ? 'var(--teal)' : 'var(--secondary)', border: isSelected ? '1px solid var(--teal)' : '1px solid var(--border)' }}>
                   {node.awsService}
                 </span>
               </button>

@@ -117,6 +117,9 @@ export function UserJourneysView({ data }: UserJourneysViewProps) {
               onClick={() => setSelectedId(j.id)}
               className="panel"
               style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'stretch',
                 textAlign: 'left',
                 padding: '16px',
                 cursor: 'pointer',
