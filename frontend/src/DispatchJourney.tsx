@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import type { Mutate } from './OfferDetail';
+import { describedBy } from './components';
 import type { OfferRow, Result, Workspace } from './types';
 import { allocationTotal, projection } from './workspaceModel';
 
@@ -89,15 +90,16 @@ export function DisruptionControl({row, data, busy, mutate}: {row: OfferRow; dat
   const shares = row.result.draft_allocations || [];
   const [org, setOrg] = useState(shares[0]?.org || '');
   const [capacity, setCapacity] = useState('0');
+  const uid = useId();
   const share = shares.find(a => a.org === org);
   const confirmed = data.pickups.some(p => p.offer_id === row.offer.id && p.state === 'confirmed');
   const allowed = data.mode === 'sandbox' && data.can_write && !!row.plan && !confirmed && allocationTotal(row) !== null;
   const valid = /^\d+(?:\.\d{1,2})?$/.test(capacity) && Number.isFinite(Number(capacity)) && Number(capacity) >= 0 && !!share && Number(capacity) < share.quantity;
   return <details className="panel padded disruption"><summary>Rehearse a collection disruption</summary><p>Record a lower collection capacity for one allocated organisation, then recalculate the split. The original plan stays in history; existing pickup commitments become invalid. This is sandbox evidence, not a report from a recipient.</p>
     {allowed ? <form onSubmit={e => { e.preventDefault(); if (!busy && valid && row.plan) void mutate(row.offer.id, 'disrupt', {org, capacity: Number(capacity), consent: true, digest: row.plan.digest, run_id: row.plan.run_id}); }}>
-      <label>Organisation affected<select value={org} disabled={busy} onChange={e => { setOrg(e.target.value); setCapacity('0'); }}>{shares.map(a => <option key={a.org}>{a.org}</option>)}</select></label>
-      <label>New collection capacity ({row.offer.unit})<input type="number" min="0" max={share ? share.quantity - 0.01 : 0} step="0.01" value={capacity} disabled={busy} onChange={e => setCapacity(e.target.value)}/></label>
-      <p>Zero means this organisation cannot collect any of this offer. Other safety, premises, policy and capacity constraints still apply.</p><button disabled={busy || !valid}>Record simulated disruption</button>{!valid && <p className="small-note">Enter a capacity below the selected allocation, zero or above, with at most two decimals.</p>}
+      <label>Organisation affected<select value={org} disabled={busy} aria-describedby={describedBy(busy && `${uid}-busy`)} onChange={e => { setOrg(e.target.value); setCapacity('0'); }}>{shares.map(a => <option key={a.org}>{a.org}</option>)}</select></label>
+      <label>New collection capacity ({row.offer.unit})<input type="number" min="0" max={share ? share.quantity - 0.01 : 0} step="0.01" value={capacity} disabled={busy} aria-describedby={describedBy(busy && `${uid}-busy`)} onChange={e => setCapacity(e.target.value)}/></label>
+      <p>Zero means this organisation cannot collect any of this offer. Other safety, premises, policy and capacity constraints still apply.</p><button disabled={busy || !valid} aria-describedby={describedBy(busy && `${uid}-busy`, !valid && `${uid}-valid`)}>Record simulated disruption</button>{busy && <p className="small-note" id={`${uid}-busy`}>Recording paused until the current change is saved.</p>}{!valid && <p className="small-note" id={`${uid}-valid`}>Enter a capacity below the selected allocation, zero or above, with at most two decimals.</p>}
     </form> : <p className="notice">{data.mode !== 'sandbox' ? 'Switch to Sandbox to rehearse; live source records cannot be edited here.' : confirmed ? 'Collection is already confirmed. This donation cannot be reallocated.' : 'A consistent computed plan is required before recording a disruption.'}</p>}
   </details>;
 }
