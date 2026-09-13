@@ -122,6 +122,10 @@ it('receipt progress includes only unambiguous shares for the approved current p
   const stages = within(screen.getByRole('list', {name: 'Allocation and collection status'}));
   expect(stages.getByText('1 of 2 shares confirmed in simulation')).toBeVisible();
   expect(stages.getByText('1 of 2 pickups scheduled')).toBeVisible();
+  data.pickups[0] = {...share, agreed_at: '2026-10-01T12:00:00Z'}; data.pickups[1] = {...share, org: 'Other', state: 'overdue'};
+  view.rerender(<DispatchJourney row={row} data={data}/>);
+  expect(stages.getByText('2 of 2 pickups scheduled')).toBeVisible();
+  expect(stages.getByText('1 of 2 shares confirmed in simulation')).toBeVisible();
   row.plan!.recorded = false; view.rerender(<DispatchJourney row={row} data={data}/>);
   expect(stages.getByText('No receipt confirmed')).toBeVisible();
   expect(stages.getByText('Not approved')).toBeVisible();
