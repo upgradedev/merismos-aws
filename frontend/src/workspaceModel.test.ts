@@ -94,6 +94,7 @@ it('uses confirmation and claim timestamps, never invents a scheduling event tim
 });
 it.each([
   ['', 'dashboard'], ['/dashboard', 'dashboard'], ['/workspace', 'workspace'], ['/records', 'records'], ['/offers', 'records'], ['/offers/new', 'intake'], ['/offers/offer-4471', 'workspace'], ['/history', 'history'], ['/pickups', 'pickups'], ['/missing', 'missing'],
+  ['/landing', 'landing'], ['/journeys', 'journeys'], ['/architecture', 'architecture'], ['/impact', 'impact'],
 ])('routes %s without losing the existing journey', (path, page) => expect(parseRoute(path).page).toBe(page));
 it('round-trips selection, filter, unit and multiword query and rejects unrecognised filters', () => {
   const link = routeLink('/records', { offer: 'offer-4471', filter: 'pending', unit: 'units', query: 'bread & vegetables' });

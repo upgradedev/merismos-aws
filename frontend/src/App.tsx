@@ -11,6 +11,10 @@ import { parseRoute, routeLink } from './routes';
 import type { Mode, Workspace } from './types';
 import { readPreference, storageBlocked, writePreference } from './storage';
 import { SessionRecovery } from './SessionRecovery';
+import { LandingPage } from './LandingPage';
+import { UserJourneysView } from './UserJourneysView';
+import { ArchitectureView } from './ArchitectureView';
+import { GtmImpactView } from './GtmImpactView';
 
 function currentAddress() {
   const previous = history.state?.merismosContext;
@@ -119,7 +123,16 @@ export function App() {
     } catch (e) { if (current === generation.current) report(e); }
     finally { mutationLock.current = false; setBusy(false); }
   }
-  const nav = [['/dashboard', 'Dashboard', '01', 'dashboard'], ['/workspace', 'Workspace', '02', 'workspace'], ['/records', 'Records', '03', 'records'], ['/history', 'History', '04', 'history']];
+  const nav = [
+    ['/landing', 'Overview', '00', 'landing'],
+    ['/dashboard', 'Dashboard', '01', 'dashboard'],
+    ['/workspace', 'Workspace', '02', 'workspace'],
+    ['/journeys', 'User Journeys', '03', 'journeys'],
+    ['/architecture', 'Architecture', '04', 'architecture'],
+    ['/impact', 'Social Impact', '05', 'impact'],
+    ['/records', 'Records', '06', 'records'],
+    ['/history', 'History', '07', 'history']
+  ];
   const unavailable = busy || loading || actionBlocked || expired || (!!error && route.page !== 'intake');
   return <div className="app-shell"><a href="#main" className="skip-link" onClick={e => { e.preventDefault(); document.getElementById('main')?.focus(); }}>Skip to main content</a>
     <aside className="sidebar"><a href={routeLink('/dashboard', { offer: selected, pickup: route.pickup })} className="brand"><span className="brand-icon" aria-hidden="true">μ</span><span>merismos<small>CIVIC DISPATCH</small></span></a><div className="network-label"><span aria-hidden="true">◉</span> Kypseli network<small>Five synthetic community organisations</small></div>
@@ -135,6 +148,6 @@ export function App() {
         {data?.operations?.filter(operation => operation.status === 'pending').map(operation => <div className="notice" key={operation.id}><p>{operation.offer_id}: {operation.action} outcome pending or unknown. Refreshing only reads the workspace. Recovery checks this exact attempt without issuing a second publication.</p><button disabled={unavailable || !data.can_write} onClick={() => void mutate(operation.offer_id, 'recover', {operation_id: operation.id})}>Reconcile recorded outcome</button>{!data.can_write && <p>{data.authorization_note} Ask the coordinator to reconcile this attempt.</p>}</div>)}
         {storageBlocked() && <p className="notice">Browser storage is unavailable. This session works in this tab, but reloading may lose its handle.</p>}
         {loading && !data && <div className="loading" role="status"><span className="spinner" aria-hidden="true"/>Loading your coordinator workspace…</div>}
-        {data && <div key={sessionEpoch}>{route.path === '/previous-workspace' ? <div className="empty"><h1>This address belongs to the previous workspace</h1><p>The new session cannot restore the old offer or its approvals. No action was repeated.</p><a href="#/dashboard">Open the current dashboard</a></div> : route.page === 'dashboard' ? <Dashboard data={data} today={today} unit={route.unit} selected={selected} pickup={route.pickup}/> : route.page === 'workspace' ? <DispatchWorkspace key={`${mode}-${route.filter}-${route.unit}`} data={data} selected={selected} filter={route.filter} unit={route.unit} today={today} busy={unavailable} mutate={mutate} pickup={route.pickup} onPickupChange={selectPickup}/> : route.page === 'pickups' ? <Pickups data={data} busy={unavailable} mutate={mutate}/> : route.page === 'history' ? <History data={data} selected={selected} pickup={route.pickup}/> : route.page === 'intake' ? <AddOffer key={mode} data={data} busy={unavailable} mutate={mutate}/> : route.path === '/offers' ? <Offers key={mode} data={data}/> : route.page === 'records' ? <Records data={data} route={route} selected={selected} today={today}/> : <div className="empty"><h1>Page not found</h1><p>This address is not part of the workspace. <a href={routeLink('/workspace', { offer: selected, pickup: route.pickup })}>Open workspace</a>.</p></div>}</div>}
+        {data && <div key={sessionEpoch}>{route.path === '/previous-workspace' ? <div className="empty"><h1>This address belongs to the previous workspace</h1><p>The new session cannot restore the old offer or its approvals. No action was repeated.</p><a href="#/dashboard">Open the current dashboard</a></div> : route.page === 'landing' ? <LandingPage data={data} onLaunchCockpit={() => { location.hash = routeLink('/dashboard', { offer: selected, pickup: route.pickup }); }}/> : route.page === 'journeys' ? <UserJourneysView data={data}/> : route.page === 'architecture' ? <ArchitectureView/> : route.page === 'impact' ? <GtmImpactView/> : route.page === 'dashboard' ? <Dashboard data={data} today={today} unit={route.unit} selected={selected} pickup={route.pickup}/> : route.page === 'workspace' ? <DispatchWorkspace key={`${mode}-${route.filter}-${route.unit}`} data={data} selected={selected} filter={route.filter} unit={route.unit} today={today} busy={unavailable} mutate={mutate} pickup={route.pickup} onPickupChange={selectPickup}/> : route.page === 'pickups' ? <Pickups data={data} busy={unavailable} mutate={mutate}/> : route.page === 'history' ? <History data={data} selected={selected} pickup={route.pickup}/> : route.page === 'intake' ? <AddOffer key={mode} data={data} busy={unavailable} mutate={mutate}/> : route.path === '/offers' ? <Offers key={mode} data={data}/> : route.page === 'records' ? <Records data={data} route={route} selected={selected} today={today}/> : <div className="empty"><h1>Page not found</h1><p>This address is not part of the workspace. <a href={routeLink('/workspace', { offer: selected, pickup: route.pickup })}>Open workspace</a>.</p></div>}</div>}
       </main><footer>MERISMOS <span>Allocation is a decision. Collection is a separate fact. <a href="/acceptance.html">Automated acceptance</a></span></footer></div></div>;
 }
