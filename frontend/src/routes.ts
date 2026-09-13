@@ -1,7 +1,8 @@
 import { filters, type Filter } from './workspaceModel';
 
 export function parseRoute(value: string) {
-  const [path, search = ''] = value.split('?');
+  const normalized = !value ? '' : value.startsWith('/') ? value : '/' + value;
+  const [path, search = ''] = normalized.split('?');
   const params = new URLSearchParams(search);
   const legacyOffer = path.startsWith('/offers/') && path !== '/offers/new' ? path.slice(8) : '';
   let offer = params.get('offer') || legacyOffer;
