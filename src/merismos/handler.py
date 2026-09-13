@@ -148,7 +148,10 @@ def _too_deep(value: Any, limit: int) -> bool:
     stack = [(value, 1)]
     while stack:
         item, level = stack.pop()
-        children = item.values() if isinstance(item, dict) else item if isinstance(item, list) else ()
+        if isinstance(item, dict):
+            children = list(item.values())
+        else:
+            children = item if isinstance(item, list) else []
         for child in children:
             if isinstance(child, (dict, list)):
                 if level + 1 > limit:

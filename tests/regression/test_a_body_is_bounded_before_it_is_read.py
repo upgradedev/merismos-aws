@@ -112,8 +112,8 @@ def test_multibyte_text_is_measured_in_bytes_not_characters():
 
 def test_the_bound_applies_when_the_gateway_base64_encodes_the_body():
     body = json.dumps({"note": "x" * handler.MAX_BODY_BYTES}).encode("utf-8")
-    refused(coordinator_post("/run", base64.b64encode(body).decode("ascii"), isBase64Encoded=True),
-            413, "larger than")
+    encoded = base64.b64encode(body).decode("ascii")
+    refused(coordinator_post("/run", encoded, isBase64Encoded=True), 413, "larger than")
 
 
 @pytest.mark.parametrize("worst", ['"' * CSV_MAX_BYTES, "α" * (CSV_MAX_BYTES // 2)],
