@@ -101,6 +101,15 @@ def _reply(status: int, body: Any) -> dict[str, Any]:
     }
 
 
+class MalformedBody(ValueError):
+    """The request body could not be read as the object every route expects.
+
+    It used to become ``{}`` and the route ran with defaults, so a typo in a
+    client's JSON started a run against whatever the defaults named. Nothing
+    should run on a request nobody managed to phrase.
+    """
+
+
 def _route(event: Any) -> tuple[str, str, dict]:
     """Pull method, path and parsed body out of a Function URL or ALB event."""
     context = event.get("requestContext", {}) or {}
@@ -111,7 +120,10 @@ def _route(event: Any) -> tuple[str, str, dict]:
     if event.get("isBase64Encoded"):
         import base64
 
-        raw = base64.b64decode(raw).decode("utf-8")
+        try:
+            raw = base64.b64decode(raw, validate=True).decode("utf-8")
+        except (ValueError, UnicodeDecodeError) as why:
+            raise MalformedBody("The request body could not be decoded as UTF-8 text.") from why
     content_type = ""
     for k, v in (event.get("headers") or {}).items():
         if k.lower() == "content-type":
@@ -123,12 +135,14 @@ def _route(event: Any) -> tuple[str, str, dict]:
     else:
         try:
             body = json.loads(raw) if raw.strip() else {}
-        except ValueError:
-            body = {}
+        except ValueError as why:
+            raise MalformedBody("The request body is not valid JSON.") from why
+        if not isinstance(body, dict):
+            raise MalformedBody("The request body must be a JSON object.")
     query = event.get("queryStringParameters") or {}
-    if isinstance(body, dict) and isinstance(query, dict):
+    if isinstance(query, dict):
         body = {**query, **body}
-    return method, path.rstrip("/") or "/", body if isinstance(body, dict) else {}
+    return method, path.rstrip("/") or "/", body
 
 
 def handler(event: Any, context: Any = None) -> dict[str, Any]:
@@ -151,7 +165,10 @@ def _dispatch(event: Any, context: Any = None) -> dict[str, Any]:
     if background.is_background(event):
         return _reply(200, _run_in_background(event))
 
-    method, path, body = _route(event)
+    try:
+        method, path, body = _route(event)
+    except MalformedBody as why:
+        return _reply(400, {"detail": str(why)})
     me = role()
 
     try:

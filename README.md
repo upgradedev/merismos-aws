@@ -13,6 +13,7 @@ Merismos helps a community-food coordinator review a donation split and keep the
 - [Publication and recovery boundaries](#publication-and-recovery-boundaries)
 - [Evidence and honest limits](#evidence-and-honest-limits)
 - [Current public acceptance](#current-public-acceptance)
+- [Run it locally](#run-it-locally)
 - [Validation and release](#validation-and-release)
 - [Pre-existing components and licences](#pre-existing-components-and-licences)
 
@@ -477,6 +478,59 @@ This source change does not prove deployment; the separate
 requires parent review and read-only live verification. This is scripted synthetic AWS software
 evidence, not a Bedrock model invocation, human acceptance or measured food rescue.
 
+## Run it locally
+
+No AWS account, no credentials, no network. That last claim is itself a test: the offline suite
+intercepts every socket and fails the run on any address but loopback.
+
+This is a src-layout package, so nothing is importable until it is installed. Python 3.10 or later.
+
+```bash
+pip install -e ".[dev]"
+```
+
+```bash
+python -m merismos.demo
+```
+
+Three offers run to an outcome with the scripted planner driving the real Strands agent loop. The
+first lines name the ledger, the model and the scheduler this run actually used, so a fallback to
+a stub would say so rather than pass for the real thing.
+
+```bash
+python scripts/the_swap_test.py
+```
+
+The guard is a hook on the agent loop, not a sentence in the prompt. The swap test arms a
+sentinel and proves the tool call is cancelled before it runs.
+
+```bash
+python -m pytest -q
+```
+
+The full offline suite: unit, integration, regression and end-to-end tests of the handler, with the
+coverage floor CI enforces.
+
+**The coordinator UI** needs Node 20 and the offline HTTP harness that CI uses. In one terminal:
+
+```bash
+python tests/http_server.py
+```
+
+In another:
+
+```bash
+cd frontend && npm ci && npm run dev
+```
+
+Open the address Vite prints. `/api` is proxied to the harness on `127.0.0.1:8765`, which keeps
+sandbox state in SQLite and never supplies live coordinator authorisation. `npm test` runs the unit
+suite; `npx playwright install chromium && npm run test:e2e` runs the same desktop and mobile
+journeys CI runs, against the same harness.
+
+Everything above is what CI runs (`.github/workflows/ci.yml`, `frontend-ci.yml`), with the same
+commands, so a green badge and a green terminal mean the same thing.
+
 ## Validation and release
 
 X1 source measurement protocol `merismos-source-hero-v1` is preregistered in the existing
@@ -488,7 +542,7 @@ The protocol must be committed before instrumentation runs. CI-only local HTTP t
 traffic-body counts are not AWS latency, dollar costs, human time saved or rescued food.
 AWS measurement and cost limits require separate owner authorization; no paid model is used.
 
-All dependency installation, builds and tests for this workspace run in GitHub Actions.
+Every release check runs in GitHub Actions on the exact source under review.
 Core CI runs full fetched Git history secret scanning (`fetch-depth: 0`, `--log-opts=--all`),
 Ruff, Python unit/integration/functional regressions, the enforced coverage floor, Strands negative
 controls and Terraform validation. Frontend CI keeps existing dependency audits and coverage floors,
@@ -512,8 +566,7 @@ new custody on deployed DynamoDB and IAM behavior require separate authorized ac
 
 Useful repository entry points: `src/merismos/api.py`, `handler.py`, `approval.py`, `ledger.py`,
 `fleet.py`; `frontend/src/`; `infra/iam.tf`; `tests/regression/test_reliable_publication.py`.
-The existing CLI demonstration remains available: `python -m merismos.demo` in a prepared
-environment. CI supplies dependencies; this workspace does not install them locally.
+The CLI demonstration is `python -m merismos.demo`; see [Run it locally](#run-it-locally).
 
 ## Pre-existing components and licences
 
