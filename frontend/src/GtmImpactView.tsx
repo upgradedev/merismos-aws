@@ -1,53 +1,76 @@
 import { routeLink } from './routes';
 
+const DEMONSTRATED: string[] = [
+  'Intake that refuses personal data (phone numbers, IBANs, card numbers, national IDs, named households) and instruction-like text, and says which field was refused.',
+  'Four Strands specialists (food safety, capacity, equity, premises) reading the network’s registers through bounded read-only tools, with a guard that cancels any tool call outside the corpus.',
+  'A bounded solver: storage is a veto, transport is a cap, the network’s 40% ceiling is its own policy, and what nobody can take is stated as a remainder.',
+  'A broken cold chain refused in full, with the reason. Blocks that turn on something changeable are parked with a reason and a one-shot wake.',
+  'A person approving the exact plan: consent to the exact record digest and address. In the sandbox, nothing is published.',
+  'An append-only ledger where each entry carries a body digest and a parent link, and where a correction is a new record that names what it replaced.',
+  'A claim, an agreed time and an explicit “collection confirmed” recorded as three separate facts. No message is sent; no vehicle is dispatched.',
+];
+
+const NOT_MEASURED: { label: string; note: string }[] = [
+  { label: 'Human time saved', note: 'Unknown until measured.' },
+  { label: 'Food rescued', note: 'Unknown until measured.' },
+  { label: 'Beneficiaries reached', note: 'Unknown until measured.' },
+  { label: 'AWS cost per run', note: 'Unknown until measured. See the README cost notes.' },
+  { label: 'Latency on AWS', note: 'Unknown until measured. The sandbox runs a scripted planner; its timings are not AWS timings.' },
+];
+
 export function GtmImpactView() {
   return (
     <div className="gtm-impact-view" style={{ maxWidth: '1280px', margin: '0 auto', padding: '16px 0 48px' }}>
       <div className="page-heading">
         <div>
-          <p className="eyebrow">GOOD NEIGHBOR TRACK · GTM & CIVIC IMPACT</p>
-          <h1>Civic Impact & Operational Economics</h1>
-          <p>Why Merismos replaces informal WhatsApp coordination with zero-overhead serverless fairness.</p>
+          <p className="eyebrow">GOOD NEIGHBOR AGENTS · IMPACT &amp; LIMITS</p>
+          <h1>Impact and limits</h1>
+          <p>What this sandbox demonstrates, what it does not measure, and what is still an open question.</p>
         </div>
         <a className="button" href={routeLink('/dashboard')}>
-          Launch Cockpit →
+          Open the dashboard →
         </a>
       </div>
 
-      {/* Top Metrics Banner */}
+      {/* The problem */}
       <section className="panel padded coordinator-start" style={{ marginBottom: '28px' }}>
-        <h2 style={{ fontSize: '1.4rem', color: 'var(--text)', marginBottom: '16px' }}>The Civic Coordination Bottleneck</h2>
+        <h2 style={{ fontSize: '1.4rem', color: 'var(--text)', marginBottom: '16px' }}>The coordination and trust problem</h2>
         <p style={{ color: 'var(--text)', fontSize: '1.05rem', lineHeight: 1.6, maxWidth: '850px' }}>
-          In urban neighborhoods like Kypseli, food waste is not an inventory problem; it is a <strong>coordination and trust bottleneck</strong>.
-          Supermarkets discard surplus because calling five separate charities within a 2-hour window is impossible for retail workers.
-          Meanwhile, volunteer coordinators burn out from answering dozens of emergency calls, often facing community accusations of favoritism.
+          A surplus-food offer arrives with a use-by date and a collection date, and a volunteer coordinator has to decide who can take it safely, who has the storage and the transport, and whether the split is fair under the network’s own policy.
+          Made in a group chat or by phone, that decision leaves no record of its reasons, and the coordinator alone answers for it.
         </p>
+      </section>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px', marginTop: '24px' }}>
-          <div style={{ background: 'var(--bg)', padding: '16px', borderRadius: '10px', border: '1px solid var(--border)' }}>
-            <span style={{ fontSize: '0.8rem', color: 'var(--secondary)', textTransform: 'uppercase' }}>TIME SAVED PER OFFER</span>
-            <strong style={{ display: 'block', fontSize: '1.8rem', color: 'var(--teal)', margin: '4px 0' }}>45 Minutes</strong>
-            <small style={{ color: 'var(--secondary)' }}>Replaces 15-25 manual calls and messages.</small>
-          </div>
-          <div style={{ background: 'var(--bg)', padding: '16px', borderRadius: '10px', border: '1px solid var(--border)' }}>
-            <span style={{ fontSize: '0.8rem', color: 'var(--secondary)', textTransform: 'uppercase' }}>INFRASTRUCTURE RUN COST</span>
-            <strong style={{ display: 'block', fontSize: '1.8rem', color: 'var(--amber)', margin: '4px 0' }}>$0.0004</strong>
-            <small style={{ color: 'var(--secondary)' }}>Per completed allocation run on AWS Lambda.</small>
-          </div>
-          <div style={{ background: 'var(--bg)', padding: '16px', borderRadius: '10px', border: '1px solid var(--border)' }}>
-            <span style={{ fontSize: '0.8rem', color: 'var(--secondary)', textTransform: 'uppercase' }}>COMMUNITY TRUST</span>
-            <strong style={{ display: 'block', fontSize: '1.8rem', color: '#60a5fa', margin: '4px 0' }}>100% Non-Repudiation</strong>
-            <small style={{ color: 'var(--secondary)' }}>Immutable audit trails hosted publicly on S3.</small>
-          </div>
+      {/* Demonstrated / not measured */}
+      <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '20px', marginBottom: '28px' }}>
+        <div className="panel padded" style={{ margin: 0 }}>
+          <p className="eyebrow">WHAT THIS SANDBOX DEMONSTRATES</p>
+          <ul style={{ paddingLeft: '20px', color: 'var(--text)', fontSize: '0.95rem', lineHeight: 1.7, margin: '8px 0 0' }}>
+            {DEMONSTRATED.map((item, i) => <li key={i}>{item}</li>)}
+          </ul>
+        </div>
+        <div className="panel padded" style={{ margin: 0 }}>
+          <p className="eyebrow">WHAT IS NOT MEASURED</p>
+          <dl className="facts" style={{ marginTop: '8px' }}>
+            {NOT_MEASURED.map(item => (
+              <div key={item.label}>
+                <dt>{item.label}</dt>
+                <dd>{item.note}</dd>
+              </div>
+            ))}
+          </dl>
+          <p className="small-note" style={{ marginTop: '12px' }}>
+            Any number for these would be invented. The sandbox uses synthetic offers and organisations.
+          </p>
         </div>
       </section>
 
-      {/* Head-to-Head Comparison Matrix */}
+      {/* Coordination methods compared */}
       <section className="panel padded" style={{ marginBottom: '28px' }}>
         <div className="section-heading">
           <div>
-            <p className="eyebrow">MARKET DIFFERENTIATION</p>
-            <h2 style={{ fontSize: '1.4rem' }}>What Merismos Replaces</h2>
+            <p className="eyebrow">COORDINATION METHODS</p>
+            <h2 style={{ fontSize: '1.4rem' }}>How the decision is made today, and what changes</h2>
           </div>
         </div>
 
@@ -55,62 +78,47 @@ export function GtmImpactView() {
           <table>
             <thead>
               <tr>
-                <th scope="col" style={{ width: '25%' }}>Method / Tool</th>
-                <th scope="col" style={{ width: '25%' }}>How It Operates</th>
-                <th scope="col" style={{ width: '25%' }}>Why It Fails</th>
-                <th scope="col" style={{ width: '25%' }}>Merismos Advantage</th>
+                <th scope="col" style={{ width: '20%' }}>Method</th>
+                <th scope="col" style={{ width: '26%' }}>How it works</th>
+                <th scope="col" style={{ width: '27%' }}>Where it breaks</th>
+                <th scope="col" style={{ width: '27%' }}>What Merismos changes</th>
               </tr>
             </thead>
             <tbody>
               <tr>
-                <td><strong>WhatsApp & Phone Trees</strong></td>
-                <td>Coordinator broadcasts offers to a group chat; first to reply claims the food.</td>
-                <td>First-come-first-served creates hoarding. Large shelters take everything; smaller community kitchens get starved.</td>
-                <td><strong style={{ color: 'var(--teal)' }}>Algorithmic Fair-Share:</strong> Tracks past allocations and enforces equity quotas.</td>
+                <td><strong>Group chat or phone tree</strong></td>
+                <td>The coordinator posts or calls; whoever answers first takes the food.</td>
+                <td>No record of why; a chilled offer is accepted or refused on the spot; the coordinator alone answers for the split.</td>
+                <td>A reason on every line, food-safety refusals that are final and explained, and an append-only record of the decision before anything is collected.</td>
               </tr>
               <tr>
-                <td><strong>Enterprise NGO Software</strong></td>
-                <td>Centralized platforms requiring dedicated dispatchers and annual software licenses ($3,000-$10,000/year).</td>
-                <td>Far too expensive and rigid for small grassroots volunteer groups operating on zero IT budget.</td>
-                <td><strong style={{ color: 'var(--teal)' }}>Serverless Pay-Per-Use:</strong> Runs for pennies a month with zero upfront capital cost.</td>
+                <td><strong>A spreadsheet</strong></td>
+                <td>The coordinator keeps a sheet of members, capacities and past allocations and fills in each offer by hand.</td>
+                <td>Capacity and premises rules are applied by hand; a cell can be edited after the fact; nothing checks the entry for personal data.</td>
+                <td>The registers are read by the specialists through bounded tools; a deterministic gate checks the draft for personal data; corrections are new records, not edits.</td>
               </tr>
               <tr>
-                <td><strong>Consumer Apps (Too Good To Go)</strong></td>
-                <td>Consumers purchase surplus meals at a discount directly from restaurants.</td>
-                <td>Commercialized D2C model does not serve vulnerable populations, soup kitchens, or bulk pallet donations.</td>
-                <td><strong style={{ color: 'var(--teal)' }}>Institutional Civic Focus:</strong> Routes bulk surplus directly to non-profit shelters.</td>
+                <td><strong>Merismos</strong></td>
+                <td>Intake, four specialist checks, a bounded solver, human approval of the exact plan, and three separately recorded collection facts.</td>
+                <td>It is a sandbox with synthetic data. Time saved, food rescued and cost per run are not measured. It sends no messages, so the coordinator still has to talk to people.</td>
+                <td>Nothing is automated past the record: no message, no dispatch. What it adds is the kept reason and the recorded decision.</td>
               </tr>
             </tbody>
           </table>
         </div>
       </section>
 
-      {/* Target Persona & Expansion Strategy */}
+      {/* Operating model */}
       <section className="panel padded" style={{ background: 'var(--panel)' }}>
         <div className="section-heading">
           <div>
-            <p className="eyebrow">GO-TO-MARKET & DEPLOYMENT POSTURE</p>
-            <h2 style={{ fontSize: '1.4rem' }}>Target Personas & Municipal Deployment (B2G)</h2>
+            <p className="eyebrow">OPERATING MODEL</p>
+            <h2 style={{ fontSize: '1.4rem' }}>Open questions</h2>
           </div>
         </div>
-
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px' }}>
-          <div style={{ background: 'var(--bg)', padding: '20px', borderRadius: '10px', border: '1px solid var(--border)' }}>
-            <h3 style={{ fontSize: '1.1rem', color: 'var(--teal)', margin: '0 0 8px' }}>Grassroots Volunteer Coordinator</h3>
-            <p style={{ color: 'var(--secondary)', fontSize: '0.92rem', lineHeight: 1.6 }}>
-              Elena, coordinating 5 neighborhood initiatives in central Athens. Operates out of a smartphone between work shifts.
-              Needs an interface that requires zero training, validates food safety rules automatically, and outputs ready-to-share summaries for volunteer drivers.
-            </p>
-          </div>
-
-          <div style={{ background: 'var(--bg)', padding: '20px', borderRadius: '10px', border: '1px solid var(--border)' }}>
-            <h3 style={{ fontSize: '1.1rem', color: 'var(--amber)', margin: '0 0 8px' }}>Municipal Social Solidarity Services (B2G)</h3>
-            <p style={{ color: 'var(--secondary)', fontSize: '0.92rem', lineHeight: 1.6 }}>
-              City councils and regional social service departments seeking to reduce landfill organic waste under EU Green Deal directives.
-              Merismos provides municipalities with auditable, compliant reporting on diverted food tonnage without demanding full-time staff overhead.
-            </p>
-          </div>
-        </div>
+        <p style={{ color: 'var(--secondary)', fontSize: '0.95rem', lineHeight: 1.6, maxWidth: '850px', margin: 0 }}>
+          Who would run Merismos for a real network, and how it would be funded, are open questions that this sandbox does not answer: it demonstrates the mechanism, not an operation.
+        </p>
       </section>
     </div>
   );

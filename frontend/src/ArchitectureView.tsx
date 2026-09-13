@@ -4,7 +4,7 @@ import { routeLink } from './routes';
 interface ArchitectureNode {
   id: string;
   name: string;
-  category: 'Edge & Delivery' | 'API & Routing' | 'Serverless Compute' | 'Agentic AI' | 'Storage & Audit';
+  category: 'Edge & delivery' | 'API & identity' | 'Compute' | 'Agents' | 'State & records' | 'Deferrals';
   awsService: string;
   description: string;
   securityControls: string;
@@ -12,66 +12,88 @@ interface ArchitectureNode {
   resilienceMechanism: string;
 }
 
+const NOT_MEASURED = 'Not measured; see the README cost notes.';
+
 const NODES: ArchitectureNode[] = [
   {
     id: 'cloudfront',
-    name: 'Amazon CloudFront Edge',
-    category: 'Edge & Delivery',
-    awsService: 'Amazon CloudFront',
-    description: 'Serves the React single-page application globally with sub-second latency, TLS termination, and DDoS protection via AWS Shield Standard.',
-    securityControls: 'Origin Access Control (OAC), HTTPS-only redirect, strict Content-Security-Policy headers.',
-    costProfile: 'Negligible (Free Tier covers up to 1 TB outbound transfer and 10M requests).',
-    resilienceMechanism: 'Multi-edge point of presence caching with automatic failover.',
+    name: 'CloudFront + S3 SPA',
+    category: 'Edge & delivery',
+    awsService: 'Amazon CloudFront · Amazon S3',
+    description: 'The React + Vite single-page application is served from an S3 bucket behind Amazon CloudFront. CI publishes it on push to main and writes the exact commit into release.json.',
+    securityControls: 'The SPA holds no publish credential. Live writes are decided on the API side by an authorizer grant that is not deployed on the public API; nothing the browser sends in a header or body can confer it.',
+    costProfile: NOT_MEASURED,
+    resilienceMechanism: 'The served build can be matched to a commit through release.json. No other mechanism is claimed for the frontend.',
   },
   {
     id: 'apigateway',
-    name: 'HTTP API Gateway',
-    category: 'API & Routing',
-    awsService: 'Amazon API Gateway v2',
-    description: 'Low-latency RESTful entry point routing incoming requests to specialized AWS Lambda functions with CORS preflight handling.',
-    securityControls: 'IAM execution roles, throttle limits (100 req/sec burst), request validation.',
-    costProfile: '$1.00 per million requests (70% cheaper than REST API Gateway).',
-    resilienceMechanism: 'Regionally managed endpoint with automated horizontal scaling.',
+    name: 'HTTP API + function URLs',
+    category: 'API & identity',
+    awsService: 'Amazon API Gateway HTTP API',
+    description: 'An API Gateway HTTP API (v2) with a catch-all route to the reader Lambda. A Lambda function URL for the reader and a private function URL also exist.',
+    securityControls: 'Live mutations require a network-coordinator grant (merismos:coordinate, network-scoped) in the API Gateway authorizer context. No authorizer is deployed on the public API, so every public mutation is refused with 403; no header or body value can confer the grant. The sandbox needs no grant and cannot publish.',
+    costProfile: NOT_MEASURED,
+    resilienceMechanism: 'Retry configuration on the reader Lambda; CloudWatch alarms on reader errors and request volume.',
   },
   {
     id: 'lambda',
-    name: 'Modular Lambda Micro-Fleet',
-    category: 'Serverless Compute',
+    name: 'Four Lambdas, one package',
+    category: 'Compute',
     awsService: 'AWS Lambda (Python 3.13)',
-    description: 'Stateless execution environment running the intake validator, multi-agent solver, human approval gate, and S3 publisher.',
-    securityControls: 'Least-privilege IAM roles scoped to table ARNs, read-only root filesystem, ephemeral /tmp encryption.',
-    costProfile: 'Pay-per-millisecond compute (ARM64 Graviton architecture reduces execution costs by 20%).',
-    resilienceMechanism: 'Automatic retries with dead-letter queue routing for asynchronous dispatches.',
+    description: 'Four functions (reader, evaluator, writer, runner) built from one package by for_each, with a shared dependency layer; the runner executes under the reader role. Reader: 1024 MB, 60 s. Runner: 1024 MB, 900 s. Evaluator and writer: 512 MB, 30 s.',
+    securityControls: 'Three IAM role policies (reader, evaluator, writer). Only the writer can publish; the others are denied the publish credential by policy.',
+    costProfile: NOT_MEASURED,
+    resilienceMechanism: 'Reserved concurrency; retry configuration on the reader; CloudWatch alarms on reader errors and volume; a log group per function.',
   },
   {
-    id: 'strands',
-    name: 'AWS Strands Multi-Agent Fleet',
-    category: 'Agentic AI',
-    awsService: 'AWS Strands SDK + Amazon Bedrock',
-    description: 'Coordinates 5 distinct agentic evaluators representing beneficiary organisations, balancing cold-chain rules, travel distance, and fairness quotas.',
-    securityControls: 'Guardrails for Amazon Bedrock, deterministic constraint enforcement filters, zero training on prompt inputs.',
-    costProfile: 'Invoked only during active offer arbitration (~1,500 tokens per allocation scenario).',
-    resilienceMechanism: 'Deterministic fallback heuristics if Bedrock experiences throttling or network timeouts.',
+    id: 'identity',
+    name: 'Identity separation',
+    category: 'API & identity',
+    awsService: 'AWS IAM · AWS Secrets Manager',
+    description: 'Three IAM role policies: reader, evaluator, writer. Only the writer can publish a record.',
+    securityControls: 'The publish credential lives in AWS Secrets Manager. A never_the_publish_credential policy denies it to the reader and the evaluator. /identity?all=1 asks each identity what it can do and reports the answer.',
+    costProfile: NOT_MEASURED,
+    resilienceMechanism: 'None claimed. Separation is a control on who can write, not a failover mechanism.',
   },
   {
     id: 'dynamodb',
-    name: 'Operational Single-Table Store',
-    category: 'Storage & Audit',
+    name: 'DynamoDB: thread + approvals',
+    category: 'State & records',
     awsService: 'Amazon DynamoDB',
-    description: 'Single-table design tracking active offers, recipient capacity limits, session tokens, and pickup task workflows.',
-    securityControls: 'KMS encryption at rest, point-in-time recovery (PITR), condition expressions preventing duplicate claims.',
-    costProfile: 'On-demand capacity mode (pay only for exact read/write request units consumed).',
-    resilienceMechanism: 'Multi-AZ synchronous replication with sub-10ms latency.',
+    description: 'Two tables: thread, the append-only ledger, and approvals. Each thread entry carries a body digest (body_sha) and a parent link. Workspace sessions live in DynamoDB in AWS and in SQLite in the CI harness.',
+    securityControls: 'Append-only by interface: entries are added, never edited in place. The custody summary reports what it cannot see.',
+    costProfile: NOT_MEASURED,
+    resilienceMechanism: 'Point-in-time recovery is enabled on both tables.',
   },
   {
     id: 's3',
-    name: 'Tamper-Evident Proof Bucket',
-    category: 'Storage & Audit',
+    name: 'S3: corpus + records',
+    category: 'State & records',
     awsService: 'Amazon S3',
-    description: 'Immutable, publicly readable markdown archive holding cryptographic custody records for every completed food allocation.',
-    securityControls: 'Public read-only bucket policy, S3 Object Lock for non-repudiation, SHA256 integrity verification.',
-    costProfile: '$0.023 per GB/month for standard storage; sub-cent monthly cost.',
-    resilienceMechanism: '11 nines (99.999999999%) of data durability across multiple availability zones.',
+    description: 'The corpus bucket holds the network registers: public access blocked, versioned. The records bucket holds published Markdown records: versioned, public read via bucket policy, so a published record has a stable public address.',
+    securityControls: 'Corpus: public access blocked. Records: public read only, via bucket policy; only the writer identity can publish. Records carry SHA-256 digests, which bind bytes, not truth.',
+    costProfile: NOT_MEASURED,
+    resilienceMechanism: 'Both buckets are versioned. A correction is a new record at the next address that names what it replaced; the superseded record stays served with a notice.',
+  },
+  {
+    id: 'scheduler',
+    name: 'EventBridge Scheduler + SQS DLQ',
+    category: 'Deferrals',
+    awsService: 'Amazon EventBridge Scheduler · Amazon SQS',
+    description: 'A block that turns on something changeable is parked with a reason and a one-shot schedule in a schedule group. A scheduler role fires the wake; an SQS dead-letter queue catches wakes that fail.',
+    securityControls: 'Wakes are fired by a dedicated scheduler role.',
+    costProfile: NOT_MEASURED,
+    resilienceMechanism: 'Failed wakes land in the SQS dead-letter queue. There is no dead-letter queue for HTTP requests.',
+  },
+  {
+    id: 'strands',
+    name: 'Strands agents',
+    category: 'Agents',
+    awsService: 'Strands Agents SDK · Amazon Bedrock (live)',
+    description: 'Four specialists (food safety, capacity, equity, premises) built with Agent and @tool from strands-agents>=1.53.0. Live mode uses BedrockModel; the model id is a Terraform variable and a separate critic model variable exists. The sandbox and CI use ScriptedPlanner, a Model subclass with scripted responses: a real agent loop, no Bedrock call.',
+    securityControls: 'Tools are bounded and read-only with a budget of distinct paths. A BeforeToolCallEvent hook cancels any tool call outside the allowed corpus. A deterministic gate checks the draft record for personal data before it can be approved.',
+    costProfile: 'Not measured; see the README cost notes. No Bedrock call happens in the sandbox.',
+    resilienceMechanism: 'The swap test proves the demo stops when the SDK is replaced. Food-safety refusals are final; the model cannot clear one.',
   },
 ];
 
@@ -83,19 +105,19 @@ export function ArchitectureView() {
     <div className="architecture-view" style={{ maxWidth: '1280px', margin: '0 auto', padding: '16px 0 48px' }}>
       <div className="page-heading">
         <div>
-          <p className="eyebrow">WELL-ARCHITECTED SERVERLESS AGENTS</p>
-          <h1>AWS Topology & Infrastructure</h1>
-          <p>How Merismos leverages Amazon Bedrock, AWS Strands, Lambda, and S3 for mission-critical civic resilience.</p>
+          <p className="eyebrow">WHAT ACTUALLY RUNS</p>
+          <h1>AWS architecture</h1>
+          <p>Each component below is deployed by infra/main.tf; nothing is listed that is not.</p>
         </div>
         <a className="button" href={routeLink('/dashboard')}>
-          Back to Cockpit →
+          Back to the dashboard →
         </a>
       </div>
 
-      {/* Visual Topology Diagram */}
+      {/* Component selector */}
       <section className="panel padded" style={{ marginBottom: '28px', background: 'var(--panel)', border: '1px solid var(--border)' }}>
-        <p className="eyebrow" style={{ textAlign: 'center', marginBottom: '16px' }}>INTERACTIVE SYSTEM TOPOLOGY (CLICK ANY LAYER TO INSPECT)</p>
-        
+        <p className="eyebrow" style={{ textAlign: 'center', marginBottom: '16px' }}>COMPONENTS (SELECT ONE TO INSPECT)</p>
+
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: '14px' }}>
           {NODES.map(node => {
             const isSelected = node.id === activeNodeId;
@@ -129,11 +151,11 @@ export function ArchitectureView() {
         </div>
       </section>
 
-      {/* Node Deep Dive Inspector */}
+      {/* Component detail */}
       <section className="panel padded" aria-labelledby="node-inspector-title">
         <div className="section-heading" style={{ borderBottom: '1px solid var(--border)', paddingBottom: '16px', marginBottom: '20px' }}>
           <div>
-            <span className="eyebrow">{activeNode.category.toUpperCase()} · ARCHITECTURE DEEP DIVE</span>
+            <span className="eyebrow">{activeNode.category.toUpperCase()} · DETAIL</span>
             <h2 id="node-inspector-title" style={{ fontSize: '1.5rem', marginTop: '4px' }}>{activeNode.name} ({activeNode.awsService})</h2>
             <p style={{ color: 'var(--secondary)', margin: '4px 0 0', fontSize: '0.95rem' }}>{activeNode.description}</p>
           </div>
@@ -141,24 +163,24 @@ export function ArchitectureView() {
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '20px' }}>
           <div style={{ background: 'var(--bg)', padding: '18px', borderRadius: '10px', border: '1px solid var(--border)' }}>
-            <span className="eyebrow" style={{ color: 'var(--teal)' }}>SECURITY & PERMISSIONS</span>
-            <h3 style={{ fontSize: '1rem', margin: '6px 0 10px' }}>Least-Privilege Isolation</h3>
+            <span className="eyebrow" style={{ color: 'var(--teal)' }}>IDENTITY &amp; ACCESS</span>
+            <h3 style={{ fontSize: '1rem', margin: '6px 0 10px' }}>Who can do what</h3>
             <p style={{ color: 'var(--secondary)', fontSize: '0.9rem', lineHeight: 1.6, margin: 0 }}>
               {activeNode.securityControls}
             </p>
           </div>
 
           <div style={{ background: 'var(--bg)', padding: '18px', borderRadius: '10px', border: '1px solid var(--border)' }}>
-            <span className="eyebrow" style={{ color: 'var(--amber)' }}>COST OPTIMIZATION</span>
-            <h3 style={{ fontSize: '1rem', margin: '6px 0 10px' }}>Pay-Per-Execution Economics</h3>
+            <span className="eyebrow" style={{ color: 'var(--amber)' }}>COST</span>
+            <h3 style={{ fontSize: '1rem', margin: '6px 0 10px' }}>What it costs to run</h3>
             <p style={{ color: 'var(--secondary)', fontSize: '0.9rem', lineHeight: 1.6, margin: 0 }}>
               {activeNode.costProfile}
             </p>
           </div>
 
           <div style={{ background: 'var(--bg)', padding: '18px', borderRadius: '10px', border: '1px solid var(--border)' }}>
-            <span className="eyebrow" style={{ color: '#60a5fa' }}>RELIABILITY & FAULT TOLERANCE</span>
-            <h3 style={{ fontSize: '1rem', margin: '6px 0 10px' }}>High-Availability Posture</h3>
+            <span className="eyebrow" style={{ color: '#60a5fa' }}>FAILURE HANDLING</span>
+            <h3 style={{ fontSize: '1rem', margin: '6px 0 10px' }}>What is in place</h3>
             <p style={{ color: 'var(--secondary)', fontSize: '0.9rem', lineHeight: 1.6, margin: 0 }}>
               {activeNode.resilienceMechanism}
             </p>
