@@ -83,7 +83,7 @@ test('fixed20 preregistered source-only hero attempts (not20 acceptance tests)',
         await expect(page.getByRole('region', {name: 'Before and after disruption'})).toContainText('Omonoia Soup Kitchen');
       });
       await stage('replan', async () => {
-        const response = page.waitForResponse(r => r.url().endsWith('/run') && r.request().method() === 'POST'); await page.getByRole('button', {name: 'Re-run the fleet'}).click();
+        const response = page.waitForResponse(r => r.url().endsWith('/run') && r.request().method() === 'POST'); await page.getByRole('button', {name: 'Recalculate the split'}).click();
         const next: Workspace = await (await response).json(); const row = next.offers.find(o => o.offer.id === offerId)!;
         expect(row.plan!.digest).not.toBe(originalDigest); expect(row.replan!.before_digest).toBe(originalDigest);
         expect(row.result.draft_barred_because!['Omonoia Soup Kitchen']).toContain('capacity is zero');

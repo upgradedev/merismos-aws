@@ -1,7 +1,7 @@
 import { calendarDay, dateCue } from './dispatch';
 import type { OfferRow, Pickup, Workspace } from './types';
 
-export const filters = { all: 'All offers', allocated: 'Computed allocations', unallocated: 'Unallocated quantity', pending: 'Pending pickups', confirmed: 'Confirmed collections', urgent: 'Dated urgency', unknown: 'Allocation unknown' };
+export const filters = { all: 'All offers', allocated: 'Computed allocations', unallocated: 'Unallocated quantity', pending: 'Pending pickups', confirmed: 'Confirmed collections', urgent: 'Due soon or overdue', unknown: 'Allocation unknown' };
 export type Filter = keyof typeof filters;
 const pendingStates = new Set(['unclaimed', 'claimed', 'scheduled', 'overdue']);
 export const amount = (value: number) => new Intl.NumberFormat('en', { maximumFractionDigits: 6 }).format(value);

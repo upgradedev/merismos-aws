@@ -11,6 +11,7 @@ for (const flow of ['success', 'refusal', 'correction'] as const) {
     expect((await response).status()).toBe(flow === 'correction' ? 400 : 200);
     if (flow === 'correction') {
       await expect(page.getByRole('alert')).toContainText('phone number');
+      await expect(note).toHaveAttribute('aria-invalid', 'true');
       await expect(note).toHaveValue(original);
       await note.fill('Invented donation; collect before evening.');
       await page.getByRole('button', {name: 'Add to sandbox'}).click();
@@ -63,7 +64,7 @@ test('Human intake to split, exact approval and collection, with invalid field r
   await card.getByLabel('I observed this handoff event in the simulation.').check();
   await card.getByRole('button',{name:'Save handoff report'}).click();
   await expect(card.getByRole('heading',{name:'Reported handoff'})).toBeVisible();
-  await expect(card.getByText(/driver ready ·/)).toBeVisible();
+  await expect(card.getByText(/Collector ready ·/)).toBeVisible();
   await expect(card.getByText('Claimed',{exact:true})).toBeVisible();
   await card.getByLabel('This collection actually happened in the simulation.').check();
   await card.getByRole('button',{name:'Confirm collection'}).click();

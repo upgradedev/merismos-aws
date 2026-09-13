@@ -4,7 +4,7 @@ For a community-food coordinator: [open the workspace](https://d2qnkmlhs7y5fp.cl
 choose **Add an offer → Try success**, edit the invented fields, run the split and approve in
 sandbox. Record the deployed frontend SHA from /release.json before capture.
 
-Capture the real product at desktop and mobile widths, with the synthetic banner visible:
+Capture the real product at desktop and mobile widths, with the banner line "Sandbox · synthetic data · nothing is published" and the Today date chip visible:
 
 1. An editable success flow, including recipient/exclusion reasons and the applied policy source.
 2. Try refusal: broken cold-chain evidence and no approval control.

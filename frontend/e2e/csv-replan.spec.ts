@@ -66,7 +66,7 @@ test('Imported offer → allocation → disruption → replan → fresh approval
   await page.reload();
   await expect(page.getByRole('region', {name: 'Before and after disruption'})).toContainText('Omonoia Soup Kitchen');
   const nextResponse = page.waitForResponse(r => r.url().endsWith('/run') && r.request().method() === 'POST');
-  await page.getByRole('button', {name: 'Re-run the fleet'}).click();
+  await page.getByRole('button', {name: 'Recalculate the split'}).click();
   const next: Workspace = await (await nextResponse).json();
   const replanned = next.offers.find(o => o.offer.id === row.offer.id)!;
   expect(replanned.plan!.digest).not.toBe(original.digest);

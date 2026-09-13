@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import type { Mutate } from './OfferDetail';
+import { describedBy } from './components';
 import type { OfferRow, Result, Workspace } from './types';
 import { allocationTotal, projection } from './workspaceModel';
 
@@ -60,22 +61,15 @@ export function DispatchJourney({row, data}: {row: OfferRow; data: Workspace}) {
   const replanned = changed && allocationTotal(row) !== null;
   const currentPickups = projection(data).pickups.filter(p => row.plan?.recorded && p.offer_id === row.offer.id && p.plan_digest === row.plan.digest && p.run_id === row.plan.run_id && p.state !== 'invalidated');
   const received = currentPickups.filter(p => p.state === 'confirmed').length;
-  const collected = received > 0;
-  const scheduled = currentPickups.filter(p => p.state === 'scheduled').length;
+  const scheduled = currentPickups.filter(p => p.state === 'scheduled' || p.state === 'overdue' || (p.state === 'confirmed' && !!p.agreed_at)).length;
   return <section className="panel padded journey" aria-label="Offer to pickup journey"><div className="section-heading"><h2>From offer to pickup</h2><button className="secondary" onClick={() => document.getElementById('next-decision')?.focus()}>Go to next decision ↓</button></div>
     <p>{row.offer.quantity} {row.offer.unit} · Collect {row.offer.collection_date || 'date not provided'} · {row.offer.title}</p>
     <ol className="decision-stages" aria-label="Allocation and collection status">
-      <li>Proposed<strong>{row.plan ? 'Allocation computed' : changed ? 'Capacity correction needs a new plan' : 'Calculate the split'}</strong></li>
+      <li>Proposed<strong>{changed ? (replanned ? (row.plan?.recorded ? 'Approved in sandbox' : row.plan ? 'Fresh approval required' : 'No feasible allocation') : 'Capacity correction needs a new plan') : row.plan ? 'Allocation computed' : 'Needs review'}</strong></li>
       <li>Approved<strong>{row.plan?.recorded ? 'Exact allocation recorded' : 'Not approved'}</strong></li>
-      <li>Dispatched<strong>Departure not recorded</strong><span>{scheduled} pickups scheduled; a time is not proof of departure.</span></li>
-      <li>Received<strong>{received ? `${received} of ${currentPickups.length} shares confirmed${data.mode === 'sandbox' ? ' in simulation' : ''}` : 'No receipt confirmed'}</strong></li>
-    </ol><p className="small-note">The service records claims, agreed collection times and explicit confirmation. It has no departure event. Approval, scheduling and a copied manifest never prove physical receipt.</p>
-    <div className="small-note"><ol>
-    <li>Offer <strong>Filed</strong></li><li>Allocation <strong>{row.plan || changed ? 'Computed' : 'Needs review'}</strong></li>
-    <li>Disruption <strong>{changed ? 'Recorded in sandbox' : 'Optional rehearsal'}</strong></li>
-    <li>Replan <strong>{replanned ? row.plan?.recorded ? 'Approved in sandbox' : row.plan ? 'Fresh approval required' : 'No feasible allocation' : changed ? 'Required' : 'If constraints change'}</strong></li>
-    <li>Pickup <strong>{collected ? 'Simulation confirmed' : row.plan?.recorded ? 'Arrange and confirm' : 'Not authorized'}</strong></li>
-  </ol></div><p className="small-note">{data.mode === 'sandbox' ? 'Every step here is simulated; no public allocation or real recipient confirmation.' : 'Live records are synthetic demonstrations. Disruption rehearsal is available in Sandbox.'}</p></section>;
+      <li>Scheduled<strong>{scheduled ? `${scheduled} of ${currentPickups.length} pickups scheduled` : 'No time agreed yet'}</strong></li>
+      <li>Collected<strong>{received ? `${received} of ${currentPickups.length} shares confirmed${data.mode === 'sandbox' ? ' in simulation' : ''}` : 'No receipt confirmed'}</strong></li>
+    </ol></section>;
 }
 
 export function ReplanComparison({row}: {row: OfferRow}) {
@@ -85,7 +79,7 @@ export function ReplanComparison({row}: {row: OfferRow}) {
   const rows = decisionRows(change.before, row.result, ready);
   return <section className="panel padded" aria-label="Before and after disruption"><h2>What changed and why</h2>
     <p>{change.org}: simulated collection capacity reduced from an allocation of {change.previous_quantity} to {change.capacity} {change.unit}. Applies to this offer; evidence: {change.source}.</p>
-    <p className="notice">{row.plan?.recorded ? 'The new exact plan is approved in the sandbox. Old commitments remain invalid; arrange collection against the new plan.' : row.plan ? 'Replanned against the new constraint. Fresh exact-plan approval is required before new pickup commitments.' : ready ? 'Replan completed with no feasible allocation. No pickup is authorized; review the exclusions below.' : 'Old allocation is no longer actionable. Re-run the fleet to apply the new capacity limit.'} Original {change.before_recorded ? 'recorded' : 'draft'} plan and its evidence are retained.</p>
+    <p className="notice">{row.plan?.recorded ? 'The new exact plan is approved in the sandbox. Old commitments remain invalid; arrange collection against the new plan.' : row.plan ? 'Replanned against the new constraint. Fresh exact-plan approval is required before new pickup commitments.' : ready ? 'Replan completed with no feasible allocation. No pickup is authorized; review the exclusions below.' : 'Old allocation is no longer actionable. Recalculate the split to apply the new capacity limit.'} Original {change.before_recorded ? 'recorded' : 'draft'} plan and its evidence are retained.</p>
     <div className="comparison-rows">{rows.map(r => <article key={r.org}><h3>{r.org}</h3><p>Before ({change.unit}): {r.before}</p><p>After ({change.unit}): {r.after}</p></article>)}</div>
     <details><summary>Previous exact plan identity</summary><p>{change.before_key}</p><p className="break-all">{change.before_digest}</p><p>Prior run: {change.before.run_id}. This identity is historical and cannot approve the current plan.</p></details>
     <details><summary>Previous record text · historical</summary><pre>{change.before.draft_body || 'Previous record text unavailable.'}</pre></details>
@@ -96,15 +90,16 @@ export function DisruptionControl({row, data, busy, mutate}: {row: OfferRow; dat
   const shares = row.result.draft_allocations || [];
   const [org, setOrg] = useState(shares[0]?.org || '');
   const [capacity, setCapacity] = useState('0');
+  const uid = useId();
   const share = shares.find(a => a.org === org);
   const confirmed = data.pickups.some(p => p.offer_id === row.offer.id && p.state === 'confirmed');
   const allowed = data.mode === 'sandbox' && data.can_write && !!row.plan && !confirmed && allocationTotal(row) !== null;
   const valid = /^\d+(?:\.\d{1,2})?$/.test(capacity) && Number.isFinite(Number(capacity)) && Number(capacity) >= 0 && !!share && Number(capacity) < share.quantity;
-  return <details className="panel padded disruption"><summary>Rehearse a collection disruption</summary><p>Record a lower collection capacity for one allocated organisation, then re-run the fleet. The original plan stays in history; existing pickup commitments become invalid. This is sandbox evidence, not a report from a recipient.</p>
+  return <details className="panel padded disruption"><summary>Rehearse a collection disruption</summary><p>Record a lower collection capacity for one allocated organisation, then recalculate the split. The original plan stays in history; existing pickup commitments become invalid. This is sandbox evidence, not a report from a recipient.</p>
     {allowed ? <form onSubmit={e => { e.preventDefault(); if (!busy && valid && row.plan) void mutate(row.offer.id, 'disrupt', {org, capacity: Number(capacity), consent: true, digest: row.plan.digest, run_id: row.plan.run_id}); }}>
-      <label>Organisation affected<select value={org} disabled={busy} onChange={e => { setOrg(e.target.value); setCapacity('0'); }}>{shares.map(a => <option key={a.org}>{a.org}</option>)}</select></label>
-      <label>New collection capacity ({row.offer.unit})<input type="number" min="0" max={share ? share.quantity - 0.01 : 0} step="0.01" value={capacity} disabled={busy} onChange={e => setCapacity(e.target.value)}/></label>
-      <p>Zero means this organisation cannot collect any of this offer. Other safety, premises, policy and capacity constraints still apply.</p><button disabled={busy || !valid}>Record simulated disruption</button>{!valid && <p className="small-note">Enter a capacity below the selected allocation, zero or above, with at most two decimals.</p>}
+      <label>Organisation affected<select value={org} disabled={busy} aria-describedby={describedBy(busy && `${uid}-busy`)} onChange={e => { setOrg(e.target.value); setCapacity('0'); }}>{shares.map(a => <option key={a.org}>{a.org}</option>)}</select></label>
+      <label>New collection capacity ({row.offer.unit})<input type="number" min="0" max={share ? share.quantity - 0.01 : 0} step="0.01" value={capacity} disabled={busy} aria-describedby={describedBy(busy && `${uid}-busy`)} onChange={e => setCapacity(e.target.value)}/></label>
+      <p>Zero means this organisation cannot collect any of this offer. Other safety, premises, policy and capacity constraints still apply.</p><button disabled={busy || !valid} aria-describedby={describedBy(busy && `${uid}-busy`, !valid && `${uid}-valid`)}>Record simulated disruption</button>{busy && <p className="small-note" id={`${uid}-busy`}>Recording paused while the workspace loads, saves or needs a refresh.</p>}{!valid && <p className="small-note" id={`${uid}-valid`}>Enter a capacity below the selected allocation, zero or above, with at most two decimals.</p>}
     </form> : <p className="notice">{data.mode !== 'sandbox' ? 'Switch to Sandbox to rehearse; live source records cannot be edited here.' : confirmed ? 'Collection is already confirmed. This donation cannot be reallocated.' : 'A consistent computed plan is required before recording a disruption.'}</p>}
   </details>;
 }

@@ -1,9 +1,9 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, expect, it, vi } from 'vitest';
 import { App } from './App';
 import * as api from './api';
-import { removePreference } from './storage';
+import { removePreference, writePreference } from './storage';
 import { workspace } from './test/fixtures';
 vi.mock('./api', async original => ({...await original<typeof api>(),loadWorkspace:vi.fn(),action:vi.fn(),startIsolatedWorkspace:vi.fn()}));
 beforeEach(() => { vi.clearAllMocks(); removePreference('merismos.mode'); vi.mocked(api.loadWorkspace).mockResolvedValue(workspace()); vi.mocked(api.action).mockResolvedValue(workspace()); vi.mocked(api.startIsolatedWorkspace).mockResolvedValue(workspace()); });
@@ -11,9 +11,10 @@ async function navigate(path: string) { await act(async () => { location.hash=pa
 it('loads, navigates with durable URLs, switches mode and refreshes', async () => {
   const user=userEvent.setup(); render(<App/>); expect(screen.getByText(/Loading your coordinator/)).toBeVisible();
   await screen.findByRole('heading',{name:'Dashboard'});
-  const legacy = screen.getByRole('link',{name:'Legacy offer view ↗'});
-  expect(legacy).toHaveAttribute('href','https://efnt6e0kv7.execute-api.eu-west-1.amazonaws.com/offer/offer-4471');
-  expect(legacy).toHaveAttribute('target','_blank'); expect(legacy).toHaveAttribute('rel','noreferrer');
+  expect(screen.queryByRole('link',{name:/Legacy offer view/})).not.toBeInTheDocument();
+  expect(document.querySelector('a[href*="execute-api"]')).toBeNull();
+  expect(within(screen.getByRole('navigation',{name:'Main navigation'})).queryByRole('link',{name:/testbook|acceptance/i})).not.toBeInTheDocument();
+  expect(document.querySelector('.sidebar a[href="/UAT.testbook.html"]')).toBeNull();
   await user.click(screen.getByText('Skip to main content')); expect(screen.getByRole('main')).toHaveFocus();
   await navigate('/pickups'); expect(screen.getByRole('heading',{name:'Pickups'})).toBeVisible(); expect(document.title).toContain('Pickups');
   await navigate('/history'); expect(screen.getByText('Sandbox history')).toBeVisible(); expect(document.title).toContain('History');
@@ -39,7 +40,7 @@ it('refreshes on ordinary failures and safely handles non-Error failures', async
 });
 it('does not automatically retry failed mutations and reuses the request id on explicit retry', async () => {
   location.hash='/offers/offer-4471'; vi.mocked(api.action).mockRejectedValueOnce(new Error('Connection lost'));
-  render(<App/>); const button=await screen.findByText('Re-run the fleet'); await userEvent.click(button);
+  render(<App/>); const button=await screen.findByText('Recalculate the split'); await userEvent.click(button);
   expect(await screen.findByRole('alert')).toHaveTextContent('Connection lost'); expect(api.action).toHaveBeenCalledTimes(1);
   expect(button).toBeDisabled();
   await userEvent.click(screen.getByText('Refresh and review'));
@@ -71,6 +72,7 @@ it('keeps pending reads passive and explains unauthorized recovery', async () =>
   render(<App/>);
   expect(await screen.findByText('Reconcile recorded outcome')).toBeDisabled();
   expect(screen.getByText(/Ask the coordinator to reconcile/)).toBeVisible();
+  expect(screen.getByText('Reconcile recorded outcome')).toHaveAttribute('aria-describedby', screen.getByText(/Ask the coordinator to reconcile/).id);
   await userEvent.click(screen.getByText('Refresh workspace'));
   expect(api.action).not.toHaveBeenCalled();
 });
@@ -98,7 +100,7 @@ it.each(['resolve', 'reject'])('ignores a late previous-session %s without clear
   const user = userEvent.setup();
   render(<App/>);
   await user.selectOptions(screen.getByLabelText('Workspace', {exact: true}), 'live');
-  const run = await screen.findByText('Re-run the fleet');
+  const run = await screen.findByText('Recalculate the split');
   await user.click(run);
   expect(await screen.findByRole('alert')).toHaveTextContent('Current attempt unknown');
   const id = vi.mocked(api.action).mock.calls[0][4];
@@ -114,4 +116,54 @@ it.each(['resolve', 'reject'])('ignores a late previous-session %s without clear
   await waitFor(() => expect(run).toBeEnabled());
   await user.click(run);
   expect(vi.mocked(api.action).mock.calls[1][4]).toBe(id);
+});
+
+it('restarts only after explicit confirmation', async () => {
+  render(<App/>); await screen.findByRole('heading',{name:'Dashboard'});
+  fireEvent.click(screen.getByText('About this demo'));
+  fireEvent.click(screen.getByText('Start over in a new sandbox'));
+  fireEvent.click(screen.getByText('No, keep this sandbox'));
+  expect(api.startIsolatedWorkspace).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByText('Start over in a new sandbox'));
+  fireEvent.click(screen.getByText('Yes, start fresh'));
+  await waitFor(() => expect(api.startIsolatedWorkspace).toHaveBeenCalledTimes(1));
+  await screen.findByText(/New isolated workspace ready/);
+});
+
+it('shows why reconcile is paused while an error needs a refresh', async () => {
+  const pending = {...workspace(), operations: [{id: 'reserved-attempt',
+    offer_id: 'offer-4471', action: 'approve', status: 'pending'}]};
+  vi.mocked(api.loadWorkspace).mockResolvedValue(pending);
+  vi.mocked(api.action).mockRejectedValueOnce(new Error('Connection lost'));
+  render(<App/>);
+  const reconcile = await screen.findByText('Reconcile recorded outcome');
+  fireEvent.click(reconcile);
+  const reason = await screen.findByText('Reconcile paused while a change is saved or an error needs a refresh.');
+  expect(reconcile).toBeDisabled();
+  expect(reconcile).toHaveAttribute('aria-describedby', reason.id);
+});
+
+it.each([
+  {path: '/landing', heading: /Fair food surplus allocation/},
+  {path: '/journeys', heading: /How a donation moves through Merismos/},
+  {path: '/architecture', heading: /AWS architecture/},
+  {path: '/impact', heading: /Impact and limits/},
+])('keeps $path free of forbidden claims', async ({path, heading}) => {
+  render(<App/>); await screen.findByRole('heading',{name:'Dashboard'});
+  await navigate(path);
+  expect(screen.getByRole('heading',{level:1,name:heading})).toBeInTheDocument();
+  expect(document.body.textContent).not.toMatch(/Sklavenitis|Veneti|Vassilopoulos|Panteleimon|Homeless Shelter|Refugee Solidarity|Elderly Care|Youth Community|Gini|CO₂|Diverted|vs\. last week|Telemetry|Executive|👑|arbitrat|negotiat|real-time|tamper|HMAC|Object Lock|Graviton|Non-Repudiation|45 Minutes|Too Good/);
+});
+
+it('labels shared records read-only unless the loaded live workspace can write', async () => {
+  writePreference('merismos.mode', 'live');
+  vi.mocked(api.loadWorkspace).mockResolvedValue({...workspace(), mode: 'live' as const, can_write: false});
+  render(<App/>); await screen.findByRole('heading',{name:'Dashboard'});
+  expect(api.loadWorkspace).toHaveBeenCalledWith('live');
+  expect(screen.getByText('Shared demo records · read-only · synthetic data')).toBeVisible();
+  expect(screen.getByRole('option',{name:'Shared demo records'})).toBeInTheDocument();
+  vi.mocked(api.loadWorkspace).mockResolvedValue({...workspace(), mode: 'live' as const, can_write: true});
+  await userEvent.click(screen.getByText('Refresh workspace'));
+  expect(await screen.findByText('Shared records · synthetic data · your approval publishes a public record')).toBeVisible();
+  expect(screen.queryByText('Shared demo records · read-only · synthetic data')).not.toBeInTheDocument();
 });

@@ -14,8 +14,8 @@ const NOT_MEASURED: { label: string; note: string }[] = [
   { label: 'Human time saved', note: 'Unknown until measured.' },
   { label: 'Food rescued', note: 'Unknown until measured.' },
   { label: 'Beneficiaries reached', note: 'Unknown until measured.' },
-  { label: 'AWS cost per run', note: 'Unknown until measured. See Cost and sustainability in the README.' },
-  { label: 'Latency on AWS', note: 'Unknown until measured. The sandbox runs a scripted planner; its timings are not AWS timings.' },
+  { label: 'AWS cost per run', note: 'A live model run: median $1.62 over five applies, almost all of it Bedrock. The sandbox makes no model call. See Cost and sustainability in the README.' },
+  { label: 'Latency on AWS', note: 'One 10-sample sandbox check on 2026-09-13: a run request took a median of 426 ms, at most 2,628 ms. Not a load test; live-mode latency is not measured.' },
 ];
 
 export function GtmImpactView() {
@@ -100,7 +100,7 @@ export function GtmImpactView() {
               <tr>
                 <td><strong>Merismos</strong></td>
                 <td>Intake, four specialist checks, a bounded solver, human approval of the exact plan, and three separately recorded collection facts.</td>
-                <td>It is a sandbox with synthetic data. Time saved, food rescued and cost per run are not measured. It sends no messages, so the coordinator still has to talk to people.</td>
+                <td>It is a sandbox with synthetic data. Time saved and food rescued are not measured; a live model run costs a median of $1.62. It sends no messages, so the coordinator still has to talk to people.</td>
                 <td>Nothing is automated past the record: no message, no dispatch. What it adds is the kept reason and the recorded decision.</td>
               </tr>
             </tbody>

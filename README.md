@@ -5,20 +5,11 @@ Merismos helps a community-food coordinator review a donation split and keep the
 [Open the coordinator workspace](https://d2qnkmlhs7y5fp.cloudfront.net/) — no account or installation for the synthetic sandbox.
 [CI](https://github.com/upgradedev/merismos-aws/actions/workflows/ci.yml) · [Frontend verification](https://github.com/upgradedev/merismos-aws/actions/workflows/frontend-ci.yml) · [MIT licence](LICENSE)
 
-## Contents
-
-- [Try one short flow](#try-one-short-flow)
-- [What is real and what is demonstrated](#what-is-real-and-what-is-demonstrated)
-- [Architecture](#architecture)
-- [Publication and recovery boundaries](#publication-and-recovery-boundaries)
-- [Evidence and honest limits](#evidence-and-honest-limits)
-- [Current public acceptance](#current-public-acceptance)
-- [Cost](#cost-and-sustainability)
-- [Run it locally](#run-it-locally)
-- [Validation and release](#validation-and-release)
-- [Pre-existing components and licences](#pre-existing-components-and-licences)
-
 ## Try one short flow
+
+No typing needed: on the Dashboard choose **Start with this offer →**, then **Work out the split**,
+tick the consent box and **Approve in sandbox**. **Open collection tasks →** leads to
+**Claim this share**, a collection time and **Confirm collection**.
 
 Choose **Add an offer → Try success**, edit the invented fields, submit, and **Work out the split**.
 Review recipients, exclusions, remaining food and the applied policy source. Consent to the exact
@@ -34,6 +25,8 @@ Open **Evidence bundle and recovery** to copy the current decision, source refer
 workspace revision, provider/mode, record history, handoff and limits. Copying does not send a
 message, approve anything or change custody status.
 
+Provider, snapshot time and the automated test reports sit under **About this demo** in the page footer.
+
 **CSV and disruption flow:** [current AWS acceptance](https://d2qnkmlhs7y5fp.cloudfront.net/acceptance.html)
 reports the served release separately from the dated source checkpoints in the testbook.
 Open **Add an offer → Import a donor CSV instead**. The **CSV schema and sample** panel contains
@@ -48,7 +41,7 @@ Cancelling a preview discards its file and selection. Live intake still needs th
 authenticated network-coordinator grant; this feature creates no new authentication path.
 
 After a sandbox allocation, open **Rehearse a collection disruption**, choose a recipient and
-record a lower capacity in the offer's unit. **Re-run the fleet** shows actual before/after
+record a lower capacity in the offer's unit. **Recalculate the split** shows actual before/after
 recipients, exclusions and reasons. A zero-capacity organisation receives nothing. Other safety,
 premises, transport and policy limits still apply. The prior exact plan, run and receipt are
 retained; stale pickup commitments become invalid. The new plan needs fresh exact consent before
@@ -60,6 +53,19 @@ quantities, dates, allergens, reasons, run/plan identity, before/after changes a
 It sends no message and certifies no recipient receipt. The applied 40% ceiling is this network's
 policy, not a universal or certified definition of fairness. First-use details are collapsed under
 named controls; mode, authorization, next action and simulation limits stay visible.
+
+## Contents
+
+- [Try one short flow](#try-one-short-flow)
+- [What is real and what is demonstrated](#what-is-real-and-what-is-demonstrated)
+- [Architecture](#architecture)
+- [Publication and recovery boundaries](#publication-and-recovery-boundaries)
+- [Evidence and honest limits](#evidence-and-honest-limits)
+- [Current public acceptance](#current-public-acceptance)
+- [Cost](#cost-and-sustainability)
+- [Run it locally](#run-it-locally)
+- [Validation and release](#validation-and-release)
+- [Pre-existing components and licences](#pre-existing-components-and-licences)
 
 ## What is real and what is demonstrated
 
@@ -191,6 +197,20 @@ The [acceptance testbook](frontend/UAT.testbook.html) and [machine-readable case
 keep historical evidence separate from current scope. Changed cases begin at **NOT_RUN** until
 actual CI evidence exists. Human acceptance remains **NOT_RUN** until a person signs off.
 Offline CI, frontend release identity and live AWS acceptance are three different evidence levels.
+
+**Sandbox HTTP latency sample, 2026-09-13.** One workstation sent 10 samples, 15 s apart, to the
+deployed sandbox serving frontend and backend commit `cb97c9e`. Each request opened a new TLS
+connection. There were 0 failures. This is not a load test, not browser render time and not Lambda
+cold-start time. Live mode (Bedrock) was not measured. Raw rows:
+[docs/measurements/sandbox-latency-2026-09-13.json](docs/measurements/sandbox-latency-2026-09-13.json).
+The script that took them, with the exact requests:
+[docs/measurements/sandbox_latency.py](docs/measurements/sandbox_latency.py).
+
+| Request | Samples | Median | Max |
+|---|---|---|---|
+| `POST /api/sessions` | 10 | 337 ms | 1,224 ms |
+| `GET /api/workspace` | 10 | 317 ms | 469 ms |
+| `POST /api/offers/offer-4471/run`, scripted planner | 10 | 426 ms | 2,628 ms |
 
 ### Interpretation evaluation: source preparation, not measured model quality
 
@@ -481,8 +501,18 @@ evidence, not a Bedrock model invocation, human acceptance or measured food resc
 
 ## Cost and sustainability
 
-No dollar figure appears here, because none has been measured. This section says what spends
-money, what bounds it, and when the deployment is meant to come down.
+**One live model run costs a median of $1.62.** This was measured read-only over the five deploy
+applies between 2026-09-09 and 2026-09-13 that started a live run. The median run made 43 Bedrock
+calls to `eu.anthropic.claude-opus-5` with 170,499 input and 23,712 output tokens, and used 365.6
+Lambda GB-seconds. At the AWS Pricing API's eu-west-1 on-demand prices that is $1.62, with a range
+of $1.44 to $1.78 across the five, and Bedrock is about 99.6% of it. Other applications share the
+AWS account and CloudWatch's Bedrock totals are account-wide, so CloudTrail was used to attribute
+every model call in those runs to the Merismos runner's role. Not measured: cache tokens, cold-start
+initialisation time, DynamoDB, S3, CloudFront, Scheduler, logs, data transfer and the actual
+invoice. The functions are not attached to a VPC, so there is no hourly NAT or endpoint charge.
+
+This section also says what spends money, what bounds it, and when the deployment is meant to
+come down.
 
 **The public sandbox never calls a model.** Every sandbox run uses the scripted planner inside the
 reader Lambda (`bedrock.scripted_analyst()` in `src/merismos/api.py`). A visitor costs API Gateway
@@ -494,8 +524,9 @@ starts only through an IAM-authorised invocation of the runner. The deploy workf
 every apply to prove a real model answered (`specialist.answered` with `source: model`), so each
 apply spends at least one live run of four specialists on the configured model.
 
-**What bounds a problem before anyone notices.** These are the Terraform defaults; no tfvars file
-or workflow overrides them.
+**What bounds a problem.** These are the Terraform defaults; no tfvars file or workflow overrides
+them. Neither CloudWatch alarm has an alarm action: no notification target is configured, so an
+alarm changes state in CloudWatch and notifies nobody.
 
 | Control | Value | Source |
 |---|---|---|
@@ -504,8 +535,8 @@ or workflow overrides them.
 | Reader concurrency | at most 5 at once | `reader_reserved_concurrency` |
 | Background runner concurrency | at most 4 at once, in its own pool | `runner_reserved_concurrency` |
 | Reader retries | none | `reader_retries` |
-| Error alarm | 5 reader errors in 5 minutes | `reader_errors` |
-| Volume alarm | 500 reader invocations in one hour | `judge_hourly_alarm` |
+| Error alarm | 5 reader errors in 5 minutes; no notification target configured | `reader_errors` |
+| Volume alarm | 500 reader invocations in one hour; no notification target configured | `judge_hourly_alarm` |
 | Log retention | 14 days; provenance stays in DynamoDB | `log_retention_days` |
 
 **How long it stays up, and how it comes down.** The rules require the entry to stay reachable
