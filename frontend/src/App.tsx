@@ -62,10 +62,6 @@ export function App() {
   }, []);
   const refresh = useCallback(async () => {
     if (mutationLock.current) return;
-    if (expired && mode === 'sandbox') {
-      await restart();
-      return;
-    }
     const current = ++generation.current;
     setLoading(true);
     try {
@@ -76,7 +72,7 @@ export function App() {
       }
     } catch (e) { if (current === generation.current) report(e); }
     finally { if (current === generation.current) setLoading(false); }
-  }, [mode, report, expired]);
+  }, [mode, report]);
   useEffect(() => { setData(undefined); setObservedAt(''); setError(''); setExpired(false); retry.current = null; void refresh(); return () => { generation.current++; }; }, [refresh]);
   useEffect(() => {
     const navigate = () => {
@@ -137,9 +133,9 @@ export function App() {
       const next = await api.startIsolatedWorkspace();
       if (current !== generation.current) return;
       retry.current = null; setSelection(''); setSessionEpoch(value => value + 1);
-      const destination = route.offer && !next.offers.some(row => row.offer.id === route.offer) ? (location.hash ? location.hash : '/dashboard') : '/dashboard';
-      history.replaceState({ merismosContext: readPreference('merismos.session.context'), merismosSandboxVisited: true }, '', window.location.pathname);
-      setAddress(destination.startsWith('#') ? destination.slice(1) : destination); setData(next); setError(''); setExpired(false); setActionBlocked(false);
+      const destination = route.offer && !next.offers.some(row => row.offer.id === route.offer) ? location.hash : '#/dashboard';
+      history.replaceState({ merismosContext: readPreference('merismos.session.context'), merismosSandboxVisited: true }, '', destination);
+      setAddress(destination.slice(1)); setData(next); setError(''); setExpired(false); setActionBlocked(false);
       setObservedAt(new Date().toLocaleString()); setRestarted(true);
     } catch (e) { if (current === generation.current) report(e); }
     finally { mutationLock.current = false; setBusy(false); }
@@ -151,7 +147,7 @@ export function App() {
     if (selected) query.set('offer', selected);
     if (route.pickup) query.set('pickup', route.pickup);
     const nextUrl = query.toString() ? `${window.location.pathname}?${query.toString()}` : window.location.pathname;
-    history.pushState(null, '', nextUrl);
+    history.pushState({ ...history.state, merismosContext: readPreference('merismos.session.context'), merismosSandboxVisited: true }, '', nextUrl);
     setAddress(cleanPath + (query.size ? `?${query.toString()}` : ''));
   }, [selected, route.pickup]);
   const nav = [
