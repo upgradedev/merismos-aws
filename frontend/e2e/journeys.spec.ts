@@ -5,9 +5,21 @@ test('ME01/02/03: exact sandbox approval, persistent claim, scheduled and confir
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
   await context.grantPermissions(['clipboard-read', 'clipboard-write']);
-  // Freeze only the browser calendar so the seeded collection date is tomorrow.
-  // Scheduling and all persisted server state still use the real HTTP backend.
-  await page.clock.setFixedTime(new Date('2026-09-07T12:00:00Z'));
+  // Freeze only the browser calendar so the earliest seeded collection date
+  // reads as tomorrow, whichever day the backend seeded it on. The date comes
+  // from the API itself, so this holds against a backend that seeds relative
+  // to its own date and against one that ships fixed dates. Scheduling and all
+  // persisted server state still use the real HTTP backend.
+  const seeded = await page.request.post('/api/sessions', { data: {} });
+  expect(seeded.status()).toBe(201);
+  const handle = ((await seeded.json()) as { session: string }).session;
+  const snapshot = await page.request.get('/api/workspace?mode=sandbox', { headers: { 'X-Merismos-Session': handle } });
+  expect(snapshot.status()).toBe(200);
+  const earliest = ((await snapshot.json()) as Workspace).offers.map(item => item.offer.collection_date).filter(Boolean).sort()[0];
+  expect(earliest).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  const dayBefore = new Date(`${earliest}T12:00:00Z`);
+  dayBefore.setUTCDate(dayBefore.getUTCDate() - 1);
+  await page.clock.setFixedTime(dayBefore);
   await page.emulateMedia({reducedMotion: 'no-preference'});
   await page.goto('/');
   await expect(page.getByRole('heading', { name: 'Dashboard', exact: true })).toBeVisible();

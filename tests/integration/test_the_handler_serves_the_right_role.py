@@ -315,7 +315,8 @@ def test_a_base64_body_is_decoded(monkeypatch):
     assert _json(handler.handler(event))["outcome"] == "blocked"
 
 
-def test_a_malformed_body_does_not_take_the_run_down(monkeypatch):
+def test_a_malformed_body_is_refused_rather_than_run_with_defaults(monkeypatch):
+    """It used to answer 200 and run offer-4471, because ``{not json`` became ``{}``."""
     monkeypatch.setenv("MERISMOS_ROLE", "reader")
     event = {
         "requestContext": {"http": {"method": "POST", "path": "/run"},
@@ -325,7 +326,10 @@ def test_a_malformed_body_does_not_take_the_run_down(monkeypatch):
         "body": "{not json",
     }
 
-    assert handler.handler(event)["statusCode"] == 200
+    reply = handler.handler(event)
+
+    assert reply["statusCode"] == 400
+    assert "not valid JSON" in _json(reply)["detail"]
 
 
 def test_the_role_comes_from_the_environment_and_not_from_the_request(monkeypatch):

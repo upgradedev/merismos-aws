@@ -15,7 +15,7 @@ import re
 import secrets
 import time
 from dataclasses import replace
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from importlib.resources import files
 
 from . import background, bedrock, csv_intake, gate, intake, pickup, replanning
@@ -99,6 +99,36 @@ def fairness_history(state, network, offer):
         if len(same) == 2:
             break
     return same
+
+
+SEED_ANCHOR = "2026-09-08"
+"""The day the seeded offers were written as of. offer-4471 collects that day."""
+
+_ISO_DATE = re.compile(r"\b(20\d\d)-(\d\d)-(\d\d)\b")
+
+
+def rebase_dates(seed: dict, today: date, anchor: str = SEED_ANCHOR) -> dict:
+    """Move every seeded offer date forward so the earliest collection is tomorrow.
+
+    The seeded offers carry the dates they were written with. A sandbox opened
+    weeks later showed "Date passed" on all three, and the first thing a judge
+    read about a food-allocation tool was that its food had expired. The dates
+    are fixture, not fact; the intervals between them are what the rules read
+    (use-by minus collection decides the same-day rule for offer-4471), so every
+    date moves by the same number of days. Only offers move: registers and
+    manifests keep the dates they were written with, because those say when a
+    policy was agreed rather than when food is available.
+    """
+    delta = (today - date.fromisoformat(anchor)).days + 1
+    if delta == 0:
+        return dict(seed)
+
+    def shift(match: re.Match) -> str:
+        return (date.fromisoformat(match.group(0)) + timedelta(days=delta)).isoformat()
+
+    return {path: _ISO_DATE.sub(shift, text)
+            if path.startswith("offers/") and path.endswith(".json") else text
+            for path, text in seed.items()}
 
 
 def initial_state(mode: str) -> dict:
@@ -320,7 +350,9 @@ def route(event: dict, method: str, path: str, body: dict) -> dict:
         if path == "/api/sessions" and method == "POST":
             handle = secrets.token_urlsafe(32)
             state = initial_state("sandbox")
-            state["files"] = json.loads(files("merismos").joinpath("demo_corpus.json").read_text())
+            state["files"] = rebase_dates(
+                json.loads(files("merismos").joinpath("demo_corpus.json").read_text()),
+                date.today())
             store.save(fingerprint(handle), state, 0)
             return _reply(201, {"session": handle, "expires_at": state["expires_at"]})
         mode = str(body.get("mode", "live"))
