@@ -10,7 +10,7 @@ export function parseRoute(value: string) {
   const filter = params.get('filter') || 'all';
   return { path: path || '/dashboard', offer, pickup: params.get('pickup') || '', unit: params.get('unit') || '', query: params.get('q') || '',
     filter: (Object.hasOwn(filters, filter) ? filter : 'all') as Filter,
-    page: path === '/workspace' || legacyOffer ? 'workspace' : path === '/records' || path === '/offers' ? 'records' : path === '/history' ? 'history' : path === '/pickups' ? 'pickups' : path === '/offers/new' ? 'intake' : path === '/landing' ? 'landing' : path === '/journeys' ? 'journeys' : path === '/architecture' ? 'architecture' : path === '/impact' ? 'impact' : !path || path === '/dashboard' ? 'dashboard' : 'missing' };
+    page: path === '/workspace' || legacyOffer ? 'workspace' : path === '/records' || path === '/offers' ? 'records' : path === '/history' ? 'history' : path === '/pickups' ? 'pickups' : path === '/offers/new' ? 'intake' : path === '/landing' || path === '/overview' ? 'landing' : path === '/journeys' ? 'journeys' : path === '/architecture' ? 'architecture' : path === '/impact' ? 'impact' : !path || path === '/dashboard' ? 'dashboard' : 'missing' };
 }
 export function routeLink(path: string, options: { offer?: string; filter?: Filter; unit?: string; query?: string; pickup?: string } = {}) {
   const params = new URLSearchParams();
