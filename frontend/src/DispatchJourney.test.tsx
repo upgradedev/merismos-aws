@@ -98,7 +98,7 @@ it('disruption control explains live, no-plan, confirmed and busy boundaries', a
   expect(screen.getByText(/Collection is already confirmed/)).toBeVisible();
   view.rerender(<DisruptionControl {...props} busy/>);
   expect(screen.getByText('Record simulated disruption')).toBeDisabled();
-  expect(screen.getByText('Recording paused until the current change is saved.')).toBeVisible();
+  expect(screen.getByText('Recording paused while the workspace loads, saves or needs a refresh.')).toBeVisible();
 });
 it('journey and manifest keep unknown, draft, replan and recorded states distinct', () => {
   const data = workspace(); const row = data.offers[0];

@@ -45,7 +45,7 @@ it('renders missing, running, refused, ready and already-recorded states truthfu
   const {rerender}=render(<OfferDetail data={data} busy={false} mutate={mutate}/>); expect(screen.getByText('Offer not found')).toBeVisible();
   const ready={...row,status:'not_started',result:{},plan:null,offer:{...row.offer,use_by:'',allergens:null}};
   rerender(<OfferDetail row={ready} data={data} busy={false} mutate={mutate}/>); expect(screen.getByText('Unknown; needs checking')).toBeVisible(); expect(screen.getByText('Not provided')).toBeVisible();
-  rerender(<OfferDetail row={{...ready,status:'running',progress:undefined}} data={data} busy={false} mutate={mutate}/>); expect(screen.getByRole('status')).toHaveTextContent('Starting the runner'); expect(screen.getByText('Four specialists check food safety, capacity, equity and premises')).toBeVisible();
+  rerender(<OfferDetail row={{...ready,status:'running',progress:undefined}} data={data} busy={false} mutate={mutate}/>); expect(screen.getByRole('status')).toHaveTextContent('Starting the runner'); expect(screen.getByText('Specialists check food safety, capacity, equity and premises where each applies to this category')).toBeVisible(); expect(screen.getByText('A split is proposed for your approval, or the run stops with the reason')).toBeVisible();
   rerender(<OfferDetail row={{...ready,status:'running',progress:row.progress}} data={data} busy mutate={mutate}/>); expect(screen.getByText('Working…')).toBeDisabled();
   rerender(<OfferDetail row={{...ready,result:{outcome:'blocked'},offer:{...row.offer,allergens:[]}}} data={data} busy={false} mutate={mutate}/>); expect(screen.getByText('Declared none')).toBeVisible(); expect(screen.getByText(/No allocation was approved/)).toBeVisible();
   rerender(<OfferDetail row={{...row,plan:{...row.plan!,recorded:true}}} data={data} busy={false} mutate={mutate}/>); expect(screen.getByText('The recorded plan')).toBeVisible(); expect(screen.getByText('Open collection tasks →')).toBeVisible();
@@ -54,7 +54,7 @@ it('clearly gates live approval and displays its consequence', async () => {
   const data=workspace(); data.mode='live'; data.can_write=false;
   const {rerender}=render(<OfferDetail row={row} data={data} busy={false} mutate={vi.fn()}/>);
   expect(screen.getByText('Approve and publish')).toBeDisabled(); expect(screen.getByText(/permanent public allocation/)).toBeVisible();
-  rerender(<OfferDetail row={row} data={{...data,can_write:true}} busy mutate={vi.fn()}/>); expect(screen.getByText('Recording decision…')).toBeDisabled(); expect(screen.getByText('Approval paused until the current change is saved.')).toBeVisible();
+  rerender(<OfferDetail row={row} data={{...data,can_write:true}} busy mutate={vi.fn()}/>); expect(screen.getByText('Recording decision…')).toBeDisabled(); expect(screen.getByText('Approval paused while the workspace loads, saves or needs a refresh.')).toBeVisible();
 });
 it('takes a pickup from claim through scheduling and explicit confirmation', async () => {
   const data=workspace(); const mutate=vi.fn().mockResolvedValue(true); const user=userEvent.setup();
@@ -89,7 +89,7 @@ it('explains paused and unticked pickup actions beside their disabled buttons', 
   const data=workspace(); const mutate=vi.fn();
   data.pickups=[{offer_id:'offer-4471',title:'Bread',org:'Kitchen',quantity:96,unit:'kg',role:'',state:'unclaimed',agreed_at:'',plan_digest:'digest',run_id:'run'}];
   const {rerender}=render(<Pickups data={data} busy mutate={mutate}/>);
-  const paused=()=>screen.getByText('Actions on this share are paused until the current change is saved.');
+  const paused=()=>screen.getByText('Actions on this share are paused while the workspace loads, saves or needs a refresh.');
   expect(paused()).toBeVisible(); expect(screen.getByText('Claim this share')).toHaveAttribute('aria-describedby',paused().id);
   data.pickups[0]={...data.pickups[0],state:'claimed',role:'kitchen lead'};
   rerender(<Pickups data={data} busy mutate={mutate}/>);
@@ -99,7 +99,7 @@ it('explains paused and unticked pickup actions beside their disabled buttons', 
   expect(screen.getByText('Save collection time')).toHaveAttribute('aria-describedby',`${paused().id} ${screen.getByText('Choose a future time within the next 14 days.').id}`);
   expect(screen.getByText('Confirm collection')).toHaveAttribute('aria-describedby',`${paused().id} ${screen.getByText('Confirm arrival before marking this share collected.').id}`);
   rerender(<PickupCard item={{...data.pickups[0],state:'confirmed'}} data={data} busy mutate={mutate} today="2026-09-09"/>);
-  expect(screen.getByText('Simulation confirmed')).toBeVisible(); expect(screen.queryByText(/paused until the current change/)).not.toBeInTheDocument();
+  expect(screen.getByText('Simulation confirmed')).toBeVisible(); expect(screen.queryByText(/paused while the workspace loads/)).not.toBeInTheDocument();
 });
 
 it('requires renewed observation consent and retains it after a failed handoff save', async () => {

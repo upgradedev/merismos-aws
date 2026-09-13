@@ -18,7 +18,7 @@ export function PickupCard({ item, data, busy, mutate, today }: { item: Pickup; 
   const [observed, setObserved] = useState(false);
   const payload = { digest: item.plan_digest, run_id: item.run_id, org: item.org };
   const closed = ['invalidated', 'confirmed'].includes(item.state);
-  return <article className="panel padded pickup-card"><div className="section-heading"><Status value={item.state}/><span>{item.quantity} {item.unit}</span></div><h2>{item.org}</h2>{busy && !closed && data.can_write && <p className="small-note" id={`${uid}-busy`}>Actions on this share are paused until the current change is saved.</p>}<a href={`#/offers/${item.offer_id}`}>{item.title}</a>
+  return <article className="panel padded pickup-card"><div className="section-heading"><Status value={item.state}/><span>{item.quantity} {item.unit}</span></div><h2>{item.org}</h2>{busy && !closed && data.can_write && <p className="small-note" id={`${uid}-busy`}>Actions on this share are paused while the workspace loads, saves or needs a refresh.</p>}<a href={`#/offers/${item.offer_id}`}>{item.title}</a>
     <DateCue offer={data.offers.find(row => row.offer.id === item.offer_id)?.offer} today={today} closed={closed}/>
     {item.role && <p>Collecting role: {item.role}</p>}{item.agreed_at && <p>Scheduled: <time dateTime={item.agreed_at}>{new Date(item.agreed_at).toLocaleString()}</time></p>}
     {item.state === 'invalidated' && <p className="notice">The allocation changed or the commitment expired. This agreement cannot authorize collection.</p>}
