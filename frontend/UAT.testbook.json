@@ -105,7 +105,7 @@
       "steps": [
         "Open /",
         "read the banner and provider label",
-        "switch between Sandbox and Live records"
+        "switch between My sandbox and Shared demo records (read-only)"
       ],
       "expected_outcome": "Sandbox names scripted-planner and a real Strands loop; live configuration is separately labelled",
       "negative_recovery_case": "Blocked storage keeps the tab usable and displays a recovery note",
@@ -165,7 +165,7 @@
       "requirement": "Claim, schedule and confirm a share without double collection",
       "preconditions": "An approved sandbox allocation",
       "steps": [
-        "Open selected offer in Workspace; use Claim & collection, or the Collection tasks route",
+        "Open selected offer in Workspace; use Claim & collection, or the Pickups page",
         "select collecting role",
         "claim",
         "set future time",
