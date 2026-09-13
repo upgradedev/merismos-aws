@@ -595,7 +595,7 @@ cd frontend && npm ci && npm run dev
 
 Open the address Vite prints. `/api` is proxied to the harness on `127.0.0.1:8765`, which keeps
 sandbox state in SQLite and never supplies live coordinator authorisation. `npm test` runs the unit
-suite; `npx playwright install chromium webkit && npm run test:e2e` runs the same desktop and mobile
+suite; `npx playwright install --with-deps chromium webkit && npm run test:e2e` runs the same desktop and mobile
 journeys CI runs, plus the `mobile-webkit` project, against the same harness. That project is
 Playwright's WebKit engine with the iPhone 13 preset, not real-device Safari.
 
