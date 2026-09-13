@@ -12,7 +12,7 @@ interface ArchitectureNode {
   resilienceMechanism: string;
 }
 
-const NOT_MEASURED = 'Not measured. See Cost and sustainability in the README for what is bounded.';
+const NOT_MEASURED = 'Not measured per component. One live model run cost a median of $1.62 in total, almost all of it Bedrock; see Cost and sustainability in the README.';
 
 const NODES: ArchitectureNode[] = [
   {
@@ -92,7 +92,7 @@ const NODES: ArchitectureNode[] = [
     awsService: 'Strands Agents SDK · Amazon Bedrock (live)',
     description: 'Four specialists (food safety, capacity, equity, premises) built with Agent and @tool from strands-agents>=1.53.0. Live mode uses BedrockModel; the model id is a Terraform variable and a separate critic model variable exists. The sandbox and CI use ScriptedPlanner, a Model subclass with scripted responses: a real agent loop, no Bedrock call.',
     securityControls: 'Tools are bounded and read-only with a budget of distinct paths. A BeforeToolCallEvent hook cancels any tool call outside the allowed corpus. A deterministic gate checks the draft record for personal data before it can be approved.',
-    costProfile: 'Not measured. See Cost and sustainability in the README. No Bedrock call happens in the sandbox.',
+    costProfile: 'About 99.6% of the $1.62 median cost of one live model run. The median of five applies was 43 calls, 170,499 input tokens and 23,712 output tokens. No Bedrock call happens in the sandbox.',
     resilienceMechanism: 'The swap test proves the demo stops when the SDK is replaced. Food-safety refusals are final; the model cannot clear one.',
   },
 ];

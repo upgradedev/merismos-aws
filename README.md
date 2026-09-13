@@ -203,6 +203,8 @@ deployed sandbox serving frontend and backend commit `cb97c9e`. Each request ope
 connection. There were 0 failures. This is not a load test, not browser render time and not Lambda
 cold-start time. Live mode (Bedrock) was not measured. Raw rows:
 [docs/measurements/sandbox-latency-2026-09-13.json](docs/measurements/sandbox-latency-2026-09-13.json).
+The script that took them, with the exact requests:
+[docs/measurements/sandbox_latency.py](docs/measurements/sandbox_latency.py).
 
 | Request | Samples | Median | Max |
 |---|---|---|---|
@@ -499,8 +501,18 @@ evidence, not a Bedrock model invocation, human acceptance or measured food resc
 
 ## Cost and sustainability
 
-No dollar figure appears here, because none has been measured. This section says what spends
-money, what bounds it, and when the deployment is meant to come down.
+**One live model run costs a median of $1.62.** This was measured read-only over the five deploy
+applies between 2026-09-09 and 2026-09-13 that started a live run. The median run made 43 Bedrock
+calls to `eu.anthropic.claude-opus-5` with 170,499 input and 23,712 output tokens, and used 365.6
+Lambda GB-seconds. At the AWS Pricing API's eu-west-1 on-demand prices that is $1.62, with a range
+of $1.44 to $1.78 across the five, and Bedrock is about 99.6% of it. Other applications share the
+AWS account and CloudWatch's Bedrock totals are account-wide, so CloudTrail was used to attribute
+every model call in those runs to the Merismos runner's role. Not measured: cache tokens, cold-start
+initialisation time, DynamoDB, S3, CloudFront, Scheduler, logs, data transfer and the actual
+invoice. The functions are not attached to a VPC, so there is no hourly NAT or endpoint charge.
+
+This section also says what spends money, what bounds it, and when the deployment is meant to
+come down.
 
 **The public sandbox never calls a model.** Every sandbox run uses the scripted planner inside the
 reader Lambda (`bedrock.scripted_analyst()` in `src/merismos/api.py`). A visitor costs API Gateway
