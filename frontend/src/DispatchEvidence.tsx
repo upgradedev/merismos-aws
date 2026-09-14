@@ -82,8 +82,7 @@ export function DigestCustody({ plan, mode }: { plan: Plan; mode: Mode }) {
       </button></div>
     {!plan.digest && <p className="small-note" id={missingReason}>The server has not supplied a digest to copy.</p>}
     <label className="digest-label">Content digest (SHA-256)<input className="digest-value" aria-label="Approval content digest" readOnly value={plan.digest}/></label>
-    <p className="digest-explanation">Binds the record text, address and network. Not a Merkle proof or independently verified custody.
-      {mode === 'sandbox' ? ' Sandbox records are not public publications.' : ''}</p>
+    <p className="digest-explanation">Binds the record text, address and network. Not a Merkle proof or independently verified custody.</p>
     {copyState === 'copied' && <p role="status" className="copy-feedback">Digest copied. Record status is unchanged.</p>}
     {copyState === 'failed' && <p role="status" className="copy-feedback">Clipboard unavailable. Select and copy the digest field above.</p>}
   </div>;

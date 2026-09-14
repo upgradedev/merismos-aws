@@ -54,7 +54,7 @@ export function LandingPage({ data, onLaunchCockpit, onNavigate }: LandingPagePr
         <p style={{ fontSize: '1.2rem', lineHeight: 1.6, color: 'var(--text)', maxWidth: '820px', marginBottom: '32px' }}>
           A volunteer coordinator in a neighbourhood food network receives a surplus offer and has to decide who can take it, and be able to say why.
           <strong> Merismos</strong> checks the offer against the network’s own registers (food safety, capacity, equity and premises rules) and proposes a split with a reason on every line, including what nobody can take.
-          A person approves the exact plan. Nothing moves and nothing is sent: no message, no notification, no vehicle.
+          A person approves the exact plan: approval records the decision. Merismos sends no message or notification and dispatches no vehicle.
         </p>
 
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px', alignItems: 'center' }}>

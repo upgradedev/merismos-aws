@@ -128,6 +128,7 @@ it('recovers clipboard denial with a selectable field and reports only server-re
   expect(screen.getByRole('textbox')).toHaveAttribute('readonly');
   expect(screen.getByText('Sandbox record · server reported')).toBeVisible();
   expect(screen.getByText(/Not a Merkle proof or independently verified custody/)).toBeVisible();
+  expect(screen.queryByText(/Sandbox records are not public publications/)).not.toBeInTheDocument();
   rerender(<DigestCustody plan={{...row.plan!, recorded: true}} mode="live"/>);
   expect(screen.getByText('Published record · server reported')).toBeVisible();
   expect(screen.getByRole('button', {name: 'Copy digest'})).not.toHaveAttribute('aria-describedby');

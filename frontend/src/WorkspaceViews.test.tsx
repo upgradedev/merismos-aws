@@ -123,6 +123,7 @@ it('puts the skip button before the decision pane, the journey after it and the 
   const journey = screen.getByRole('region', { name: 'Offer to pickup journey' }); const stream = screen.getByRole('region', { name: 'Intake and allocation' });
   const follows = (a: Element, b: Element) => !!(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
   expect(follows(skip, pane)).toBe(true); expect(follows(pane, journey)).toBe(true); expect(follows(journey, stream)).toBe(true);
+  expect(within(pane).getByText('Approval records your decision; collection is confirmed separately.')).toBeVisible(); expect(within(pane).getByText('No pickup is authorised for this offer until you approve the exact allocation.')).toBeVisible();
   expect(follows(within(pane).getByRole('button', { name: 'Recalculate the split' }), within(pane).getAllByText('The gate passed. Approval is required.')[0])).toBe(true);
   await userEvent.click(skip); expect(pane).toHaveFocus();
 });
