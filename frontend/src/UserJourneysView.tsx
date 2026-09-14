@@ -24,7 +24,7 @@ const JOURNEYS: JourneyStep[] = [
     id: 'intake',
     number: '01',
     title: 'Intake',
-    summary: 'A donor or the coordinator types the offer. Merismos refuses personal data and instruction-like text at the door and says which field it refused.',
+    summary: 'A donor or the coordinator types the offer. Merismos refuses personal data and instruction-like text at the door, names what it refused, and marks the field when it can match it.',
     actor: 'Donor or coordinator typing the offer',
     timeToComplete: 'a form',
     constraints: [
@@ -35,7 +35,7 @@ const JOURNEYS: JourneyStep[] = [
     ],
     awsServices: ['Amazon API Gateway HTTP API', 'AWS Lambda', 'Workspace session: DynamoDB in AWS, SQLite in CI'],
     artifactProduced: 'The offer JSON: title, donor, quantity + unit, category (ambient / chilled / frozen), collection date, use-by, hours unrefrigerated, allergens, manifest, note',
-    deepDive: 'The intake form takes the fields above and nothing else. If a field contains a phone number, an IBAN, a card number, a national ID, a named household, or text that reads like an instruction, the offer is refused and the response names the field. Donor and organisation names are carried as untrusted text, not as instructions.',
+    deepDive: 'The intake form takes the fields above and nothing else. If a field contains a phone number, an IBAN, a card number, a national ID, a named household, or text that reads like an instruction, the offer is refused, the response names what it refused, and the form marks the field when it can match it. Donor and organisation names are carried as untrusted text, not as instructions.',
   },
   {
     id: 'checks',

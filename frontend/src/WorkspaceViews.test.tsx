@@ -68,6 +68,7 @@ it('completed sandbox says every donation is recorded and only opens the confirm
   expect(start.getAllByRole('button').map(button => button.textContent)).toEqual(['Start over with a fresh sample']);
   expect(start.queryByRole('link', { name: /Start with this offer|Continue my work/ })).not.toBeInTheDocument();
   expect(start.getByRole('link', { name: 'History' })).toHaveAttribute('href', '#/history');
+  expect(start.getByText(/Starting over opens a new sandbox with the synthetic sample offers\.$/)).toBeVisible(); expect(start.queryByText(/not changed or deleted/)).not.toBeInTheDocument();
   await userEvent.click(start.getByRole('button', { name: 'Start over with a fresh sample' })); expect(onStartOver).toHaveBeenCalledTimes(1);
   data.offers[1] = { ...data.offers[1], plan: null, status: 'blocked' }; data.mode = 'live';
   rerender(<Dashboard data={data} selected="" today={today} unit="kg"/>);
@@ -117,13 +118,39 @@ it('empty workspace and unknown allocation do not expose an approval path', () =
   const data = workspace(); data.offers = []; render(<DispatchWorkspace data={data} selected="" filter="all" unit="" today={today} busy={false} mutate={vi.fn()}/>);
   expect(screen.getByText('No offers yet')).toBeVisible(); expect(screen.getByText('No offers match')).toBeVisible();
 });
-it('a blocked or refused offer with no allocation shows no approval sentence beside its pickups', () => {
-  const data = workspace(); data.offers[0] = { ...data.offers[0], status: 'blocked', result: { run_id: 'run-refused', outcome: 'blocked', note: 'The cold chain is broken, so the offer is refused in full.' }, plan: null };
-  render(<DispatchWorkspace data={data} selected="offer-4471" filter="all" unit="" today={today} busy={false} mutate={vi.fn()}/>);
+it('pickup copy (a): a food-safety refusal like offer-4477 says the run stopped with no plan and never offers approval', () => {
+  const data = workspace(); data.offers[0] = { ...data.offers[0], offer: { ...data.offers[0].offer, id: 'offer-4477', title: 'Chilled dairy', category: 'chilled', quantity: 310, hours_unrefrigerated: 6 }, status: 'blocked', result: { run_id: 'run-refused', outcome: 'blocked', note: 'The cold chain is broken, so the offer is refused in full.' }, plan: null };
+  render(<DispatchWorkspace data={data} selected="offer-4477" filter="all" unit="" today={today} busy={false} mutate={vi.fn()} pickup="" onPickupChange={vi.fn()}/>);
+  const tasks = within(screen.getByRole('region', { name: 'Selected offer pickups' }));
+  expect(tasks.getByText('This run stopped with a reason and produced no plan, so there is nothing to approve and no collection to record.')).toBeVisible();
+  expect(tasks.queryByText(/No allocation is approved|until the exact allocation is approved|collection is confirmed separately|The plan is recorded/)).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Approve in sandbox' })).not.toBeInTheDocument(); expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
+});
+it('pickup copy (b): an offer with no run yet says no allocation is approved and nothing else about pickups', () => {
+  render(<DispatchWorkspace data={twoOffers()} selected="offer-4483" filter="all" unit="" today={today} busy={false} mutate={vi.fn()} pickup="" onPickupChange={vi.fn()}/>);
   const tasks = within(screen.getByRole('region', { name: 'Selected offer pickups' }));
   expect(tasks.getByText('No allocation is approved for this offer, so there is no collection to record.')).toBeVisible();
-  expect(tasks.queryByText(/until the exact allocation is approved|collection is confirmed separately/)).not.toBeInTheDocument();
-  expect(screen.queryByRole('button', { name: 'Approve in sandbox' })).not.toBeInTheDocument(); expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
+  expect(tasks.queryByText(/stopped with a reason|until the exact allocation is approved|collection is confirmed separately|The plan is recorded/)).not.toBeInTheDocument();
+});
+it('pickup copy (c): a proposed plan awaiting approval says no pickup is authorised until it is approved', () => {
+  render(<DispatchWorkspace data={workspace()} selected="offer-4471" filter="all" unit="" today={today} busy={false} mutate={vi.fn()} pickup="" onPickupChange={vi.fn()}/>);
+  const tasks = within(screen.getByRole('region', { name: 'Selected offer pickups' }));
+  expect(tasks.getByText('Approval records your decision; collection is confirmed separately.')).toBeVisible();
+  expect(tasks.getByText('No pickup is authorised for this offer until the exact allocation is approved.')).toBeVisible();
+  expect(tasks.queryByText(/stopped with a reason|No allocation is approved|The plan is recorded/)).not.toBeInTheDocument();
+});
+it('pickup copy (d): a recorded plan never says pickups wait for approval, including the first render without a pickup parameter', () => {
+  const data = workspace(); data.offers[0].plan!.recorded = true; data.offers[0].status = 'recorded';
+  data.pickups = [{ offer_id: 'offer-4471', title: 'Bread', org: 'Kitchen', quantity: 96, unit: 'kg', role: '', state: 'unclaimed', agreed_at: '', plan_digest: 'digest', run_id: 'run' }];
+  const onPickupChange = vi.fn(); const props = { selected: 'offer-4471', filter: 'all' as const, unit: '', today, busy: false, mutate: vi.fn(), pickup: '', onPickupChange };
+  const { rerender } = render(<DispatchWorkspace data={data} {...props}/>);
+  const tasks = within(screen.getByRole('region', { name: 'Selected offer pickups' }));
+  expect(tasks.getByText('The plan is recorded. Choose a pickup organisation above to record its collection.')).toBeVisible();
+  expect(tasks.getByLabelText('Pickup organisation')).toHaveValue(''); expect(onPickupChange).toHaveBeenCalledWith(JSON.stringify(['Kitchen', 'digest']));
+  expect(tasks.queryByText(/until the exact allocation is approved|No allocation is approved|stopped with a reason/)).not.toBeInTheDocument();
+  rerender(<DispatchWorkspace data={{ ...data, pickups: [] }} {...props}/>);
+  expect(tasks.getByText('The plan is recorded, but no pickup task is available for this offer.')).toBeVisible();
+  expect(tasks.queryByText(/until the exact allocation is approved/)).not.toBeInTheDocument();
 });
 it('puts the skip button before the decision pane, the journey after it and the offer stream last', async () => {
   render(<DispatchWorkspace data={workspace()} selected="offer-4471" filter="all" unit="" today={today} busy={false} mutate={vi.fn()}/>);

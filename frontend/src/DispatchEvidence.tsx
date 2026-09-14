@@ -67,7 +67,9 @@ export function ClockBasis({ today }: { today: string }) {
 // local feedback only: it cannot attest to publication, integrity or custody.
 export function DigestCustody({ plan, mode }: { plan: Plan; mode: Mode }) {
   const [copyState, setCopyState] = useState<'idle' | 'copying' | 'copied' | 'failed'>('idle');
-  const missingReason = `${useId()}-missing-digest`;
+  const uid = useId();
+  const missingReason = `${uid}-missing-digest`;
+  const copyingReason = `${uid}-copying-digest`;
   const label = plan.recorded ? mode === 'sandbox' ? 'Sandbox record · server reported' : 'Published record · server reported'
     : 'Draft · approval still required';
   async function copy() {
@@ -77,10 +79,11 @@ export function DigestCustody({ plan, mode }: { plan: Plan; mode: Mode }) {
   }
   return <div className="digest-custody">
     <div className="custody-heading"><span className="custody-pill">{label}</span>
-      <button type="button" className="secondary digest-copy" disabled={copyState === 'copying' || !plan.digest} aria-describedby={plan.digest ? undefined : missingReason} onClick={copy}>
+      <button type="button" className="secondary digest-copy" disabled={copyState === 'copying' || !plan.digest} aria-describedby={[copyState === 'copying' && copyingReason, !plan.digest && missingReason].filter(Boolean).join(' ') || undefined} onClick={copy}>
         {copyState === 'copying' ? 'Copying digest…' : 'Copy digest'}
       </button></div>
     {!plan.digest && <p className="small-note" id={missingReason}>The server has not supplied a digest to copy.</p>}
+    {copyState === 'copying' && <p className="small-note" id={copyingReason}>Waiting for your browser to finish copying the digest.</p>}
     <label className="digest-label">Content digest (SHA-256)<input className="digest-value" aria-label="Approval content digest" readOnly value={plan.digest}/></label>
     <p className="digest-explanation">Binds the record text, address and network. Not a Merkle proof or independently verified custody.</p>
     {copyState === 'copied' && <p role="status" className="copy-feedback">Digest copied. Record status is unchanged.</p>}

@@ -3,7 +3,7 @@ import { Empty, Status, Summary } from './components';
 import { DonationEvidence, AllocationEvidence, DecisionPanel, type Mutate } from './OfferDetail';
 import { PickupCard } from './Pickups';
 import { DateCue, EvidenceBundle } from './DispatchEvidence';
-import { filters, filterOffers, projection, type Filter } from './workspaceModel';
+import { filters, filterOffers, isStopped, projection, type Filter } from './workspaceModel';
 import { routeLink } from './routes';
 import type { OfferRow, Workspace } from './types';
 import { DispatchJourney, DisruptionControl, ManifestExport, ReplanComparison } from './DispatchJourney';
@@ -23,7 +23,7 @@ function DispatchTasks({ data, row, busy, mutate, today, pickup, onPickupChange 
   return <section className="dispatch-tasks" aria-label="Selected offer pickups"><div className="section-heading"><h2>Record the collection</h2><a href={routeLink('/pickups', { offer: row.offer.id })}>All pickup tasks →</a></div>
     {row.plan && <p className="small-note">Approval records your decision; collection is confirmed separately.</p>}
     {pickups.length > 0 && <><label htmlFor="pickup-organisation">Pickup organisation</label><select id="pickup-organisation" value={item ? identity(item) : ''} onChange={event => setSelected(event.target.value)}>{!item && <option value="">Choose a current pickup</option>}{pickups.map(p => <option key={identity(p)} value={identity(p)}>{p.org} · {p.quantity} {p.unit} · {p.state}</option>)}</select></>}
-    {item ? <PickupCard key={`${identity(item)}-${item.state}-${data.version}`} item={item} data={data} busy={busy} mutate={mutate} today={today}/> : <p className="notice">{!row.plan ? 'No allocation is approved for this offer, so there is no collection to record.' : selected ? 'The selected pickup is unavailable. Choose a current pickup before acting.' : 'No pickup is authorised for this offer until the exact allocation is approved.'}</p>}
+    {item ? <PickupCard key={`${identity(item)}-${item.state}-${data.version}`} item={item} data={data} busy={busy} mutate={mutate} today={today}/> : <p className="notice">{!row.plan ? (isStopped(row) ? 'This run stopped with a reason and produced no plan, so there is nothing to approve and no collection to record.' : 'No allocation is approved for this offer, so there is no collection to record.') : selected ? 'The selected pickup is unavailable. Choose a current pickup before acting.' : row.plan.recorded ? (pickups.length ? 'The plan is recorded. Choose a pickup organisation above to record its collection.' : 'The plan is recorded, but no pickup task is available for this offer.') : 'No pickup is authorised for this offer until the exact allocation is approved.'}</p>}
   </section>;
 }
 export function DispatchWorkspace({ data, selected, filter, unit, today, busy, mutate, pickup, onPickupChange }: { data: Workspace; selected: string; filter: Filter; unit: string; today: string; busy: boolean; mutate: Mutate } & PickupSelection) {
