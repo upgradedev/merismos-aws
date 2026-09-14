@@ -151,7 +151,7 @@ export function App() {
     setAddress(next.slice(1));
   }, [selected, route.pickup]);
   // A completed Dashboard opens the footer's confirmed restart. It never restarts on its own.
-  const requestRestart = useCallback(() => { aboutDemo.current!.open = true; setConfirmRestart(true); setRestartRequest(value => value + 1); }, []);
+  const requestRestart = useCallback(() => { if (aboutDemo.current) aboutDemo.current.open = true; setConfirmRestart(true); setRestartRequest(value => value + 1); }, []);
   useEffect(() => { if (restartRequest) confirmFresh.current?.focus(); }, [restartRequest]);
   const nav = [
     ['/dashboard', 'Dashboard', 'dashboard'],
