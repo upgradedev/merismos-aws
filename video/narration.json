@@ -1,5 +1,5 @@
 {
-  "_comment": "Draft narration for the current synthetic coordinator flows. Capture actual product only after exact-release acceptance; captions do not establish deployment. Merismos video schema and ElevenLabs provider contract.",
+  "_comment": "Production narration for the exact-release synthetic coordinator journey. Every beat uses the deployed product; captions do not establish deployment. Merismos video schema and ElevenLabs provider contract.",
   "schemaVersion": "merismos.submission-video/v1",
   "provider": "elevenlabs",
   "elevenLabs": {
@@ -9,42 +9,42 @@
   },
   "languageCode": "en-GB",
   "speakingRate": 0.98,
-  "_comment_length": "Target 90–174 seconds, seven beats of 3–40 seconds. Draft timing only; measured audio/video and captions must pass the project gates before publication.",
+  "_comment_length": "Target 90–174 seconds, seven beats of 3–40 seconds. Measured audio, video and captions must pass the project gates before publication.",
   "segments": [
     {
       "id": "hook",
-      "captionText": "A community-food coordinator needs more than a split. They need to know why one organisation receives food, why another cannot, and who will collect it. Merismos demonstrates that workflow with five invented organisations and synthetic donations. No real delivery or impact is claimed.",
-      "speechText": "A community-food coordinator needs more than a split. They need to know why one organisation receives food, why another cannot, and who will collect it. Merismos demonstrates that workflow with five invented organisations and synthetic donations. No real delivery or impact is claimed."
+      "captionText": "Maria is a fictional volunteer coordinator in a neighbourhood food network. One offer may suit several organisations, but storage, transport and food-safety rules differ. A split without reasons can create an unsafe or uncollectable handoff. Merismos keeps the checks and collection decision together.",
+      "speechText": "Maria is a fictional volunteer coordinator in a neighbourhood food network. One offer may suit several organisations, but storage, transport and food safety rules differ. A split without reasons can create an unsafe or uncollectable handoff. Merismos keeps the checks and collection decision together."
     },
     {
       "id": "surface",
-      "captionText": "Before recording, select My sandbox and start a fresh workspace. On the Dashboard, choose + Add offer, then Try success. Choose Add to sandbox, and the invented donation opens on Decide. This uses the real HTTP API and Strands loop, driven by a fixed scripted tool sequence and closing answer; deterministic rules compute the outcome.",
-      "speechText": "Before recording, select My sandbox and start a fresh workspace. On the Dashboard, choose + Add offer, then Try success. Choose Add to sandbox, and the invented donation opens on Decide. This uses the real HTTP API and Strands loop, driven by a fixed scripted tool sequence and closing answer; deterministic rules compute the outcome."
+      "captionText": "This is the live AWS application. In a fresh synthetic sandbox, we open an editable offer, change its title and file it through the public HTTP API. The organisations and donations are invented. Nothing is published.",
+      "speechText": "This is the live AWS application. In a fresh synthetic sandbox, we open an editable offer, change its title and file it through the public H T T P A P I. The organisations and donations are invented. Nothing is published."
     },
     {
       "id": "trigger",
-      "captionText": "The coordinator chooses Work out the split. Live-only capacity deferrals can schedule a wake that appends an escalation, not approve a publication; this sandbox creates no schedule. There is no automatic chat intake or message delivery. The public sandbox makes no model network call. Live records are separately read-only.",
-      "speechText": "The coordinator chooses Work out the split. Live-only capacity deferrals can schedule a wake that appends an escalation, not approve a publication; this sandbox creates no schedule. There is no automatic chat intake or message delivery. The public sandbox makes no model network call. Live records are separately read-only."
+      "captionText": "Maria selects Work out the split. Deterministic rules run first. Eligible specialists use the Strands Agents SDK through bounded read-only tools. A bounded solver proposes each share and explains the remainder. The sandbox uses a fixed scripted tool sequence and closing answer, with no model network call.",
+      "speechText": "Maria selects Work out the split. Deterministic rules run first. Eligible specialists use the Strands Agents S D K through bounded read only tools. A bounded solver proposes each share and explains the remainder. The sandbox uses a fixed scripted tool sequence and closing answer, with no model network call."
     },
     {
       "id": "live",
-      "captionText": "Try refusal fills in a broken cold chain: after Add to sandbox and Work out the split, the result offers no approval. Try correction fills in an invented phone-shaped note: intake is refused and the fields remain available to correct. On a passing plan, read the exact record text and address, tick the consent box and choose Approve in sandbox. On Pickups, collection needs a claim and a separate explicit confirmation.",
-      "speechText": "Try refusal fills in a broken cold chain: after Add to sandbox and Work out the split, the result offers no approval. Try correction fills in an invented phone-shaped note: intake is refused and the fields remain available to correct. On a passing plan, read the exact record text and address, tick the consent box and choose Approve in sandbox. On Pickups, collection needs a claim and a separate explicit confirmation."
+      "captionText": "Maria reviews and approves the exact plan. Approval does not claim collection. In Pickups, she claims one share and separately confirms the simulated collection. The working path is complete, from editable offer to recorded handoff.",
+      "speechText": "Maria reviews and approves the exact plan. Approval does not claim collection. In Pickups, she claims one share and separately confirms the simulated collection. The working path is complete, from editable offer to recorded handoff."
     },
     {
       "id": "sponsor",
-      "captionText": "Each applicable specialist runs deterministic rules first. If those rules do not refuse, Strands runs the agent loop and dispatches tool calls. A guard on BeforeToolCallEvent cancels forbidden calls before they run; CI removes the guard and then the SDK to test both boundaries. Terraform configures Bedrock for live runs, but the final video names an exact model only after the frozen deploy proof confirms it.",
-      "speechText": "Each applicable specialist runs deterministic rules first. If those rules do not refuse, Strands runs the agent loop and dispatches tool calls. A guard on BeforeToolCallEvent cancels forbidden calls before they run; CI removes the guard and then the SDK to test both boundaries. Terraform configures Bedrock for live runs, but the final video names an exact model only after the frozen deploy proof confirms it."
+      "captionText": "Strands is load-bearing. A BeforeToolCallEvent guard cancels forbidden tool calls before they execute. CI removes the guard and the SDK to test both boundaries. Private proof run 34894779949 exercised eu.anthropic.claude-opus-5 on backend 4bf2238. Public visitors cannot start that Bedrock path.",
+      "speechText": "Strands is load bearing. A Before Tool Call Event guard cancels forbidden tool calls before they execute. C I removes the guard and the S D K to test both boundaries. Private proof run three four eight nine four seven seven nine nine four nine exercised E U dot anthropic dot Claude Opus five on backend four B F two two three eight. Public visitors cannot start that Bedrock path."
     },
     {
       "id": "evidence",
-      "captionText": "The evidence bundle keeps logical source references from the current API snapshot, decision reasons, run and workspace revision, provider, mode, record history and handoff together. Hashes bind bytes, not source truth or delivery. Live recovery requires an authenticated coordinator and checks one reserved attempt without publishing again. Historical records are not silently repaired.",
-      "speechText": "The evidence bundle keeps logical source references from the current API snapshot, decision reasons, run and workspace revision, provider, mode, record history and handoff together. Hashes bind bytes, not source truth or delivery. Live recovery requires an authenticated coordinator and checks one reserved attempt without publishing again. Historical records are not silently repaired."
+      "captionText": "The evidence bundle keeps logical source references from the current API snapshot, reasons, run identity, revision and history together. A digest binds bytes, not truth. Recovery and public publication still require authenticated authority.",
+      "speechText": "The evidence bundle keeps logical source references from the current A P I snapshot, reasons, run identity, revision and history together. A digest binds bytes, not truth. Recovery and public publication still require authenticated authority."
     },
     {
       "id": "close",
-      "captionText": "Merismos keeps an allocation decision beside its collection handoff. Copy the evidence for your own review; nothing is sent automatically. Human active time, savings and food rescued remain unmeasured. Open the sandbox and try the three editable flows. CI and the deployed release run automated checks; human acceptance testing has not been done.",
-      "speechText": "Merismos keeps an allocation decision beside its collection handoff. Copy the evidence for your own review; nothing is sent automatically. Human active time, savings and food rescued remain unmeasured. Open the sandbox and try the three editable flows. CI and the deployed release run automated checks; human acceptance testing has not been done."
+      "captionText": "Merismos shows a complete coordinator workflow, the Strands boundary and the human decisions that remain. Nothing is sent automatically. Human time saved, food rescued and beneficiary outcomes are unmeasured. Try the public synthetic sandbox at d2qnkmlhs7y5fp.cloudfront.net.",
+      "speechText": "Merismos shows a complete coordinator workflow, the Strands boundary and the human decisions that remain. Nothing is sent automatically. Human time saved, food rescued and beneficiary outcomes are unmeasured. Try the public synthetic sandbox at D two Q N K M L H S seven Y five F P dot cloudfront dot net."
     }
   ]
 }

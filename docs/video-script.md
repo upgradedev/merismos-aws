@@ -1,41 +1,51 @@
-# Merismos: submission video draft
+# Merismos submission video
 
-For a community-food coordinator, [open Merismos](https://d2qnkmlhs7y5fp.cloudfront.net/).
-On the Dashboard choose **Start with this offer →**; on Decide choose **Work out the split**, tick
-the consent box and **Approve in sandbox**; then open Pickups. To edit an invented donation, start
-with **+ Add offer → Try success**, edit, choose **Add to sandbox**, then **Work out the split** and **Approve in sandbox**.
-The sandbox uses the real HTTP API, a session saved in DynamoDB whose handle stops working after
-24 hours, and a real Strands agent loop driven by the scripted model `scripted-planner/1.0.0`,
-which makes no model network call. Live records are publicly read-only.
+The video follows Maria, a fictional volunteer coordinator in a neighbourhood food network. One surplus offer
+may suit several organisations, but their storage, transport and food-safety rules differ. Merismos helps Maria
+reach an explained allocation and keep the collection handoff beside the decision. This matters because a split
+without clear reasons can be unsafe, impossible to collect or hard for the network to review later.
 
-Target **90–174 seconds**, with seven beats of **3–40 seconds** each. These are production
-bounds, not measured timing. The audio, video and caption gates of the video pipeline remain
-authoritative. No recording or public upload is claimed by this draft.
-Capture the actual release after its exact-SHA acceptance; an edited wait must disclose the elapsed
-time removed. Capture preflight is mandatory: set **Workspace** to **My sandbox**, open **About this
-demo**, choose **Start over in a new sandbox**, then **Yes, start fresh**. Verify the sandbox banner
-and do not record **Shared demo records** or the known contradictory offer-4471 record.
+The public workspace is [the deployed AWS application](https://d2qnkmlhs7y5fp.cloudfront.net/), not a mock-up.
+Its five organisations and every offer shown in the video are synthetic. Nothing in the sandbox is published or
+sent, and the video makes no claim about food rescued, time saved or beneficiary outcomes.
 
-| Beat | Actual product to capture |
-| --- | --- |
-| hook | Banner "Sandbox · synthetic data · nothing is published", the Dashboard’s “Next offer:” heading and **Start with this offer →**. Record it in a fresh sandbox: once the sandbox has a run or a record, the heading reads “Next open decision:” and the button **Continue my work →**. To reset, open **About this demo** in the page footer, choose **Start over in a new sandbox**, then **Yes, start fresh**. No staged customer story. |
-| surface | On the Dashboard, **+ Add offer** opens “Add an offer”. **Try success** fills the editable fields, **Add to sandbox** sends the real request, and Decide opens on the new offer. |
-| trigger | On Decide, **Go to next decision ↓** moves focus to “Your decision”, where the explicit **Work out the split** button shows **Working…** and the status “Saving through the backend. Please wait before making another change.” A sandbox run returns in the same request, so the run-step list is not shown. Scheduled escalation support is separate, not a recorded schedule firing. |
-| live | In the sandbox, not live mode. **Try refusal**, **Add to sandbox** and **Work out the split**: a refused cold chain and no **Approve in sandbox** button. **Try correction** and **Add to sandbox**: the phone-shaped note is refused and the fields are kept. Remove the phone-shaped number from the note, choose **Add to sandbox** again, then **Work out the split** on the corrected offer. On its passing plan: **Read the exact record text**, tick the consent box, **Approve in sandbox**; then on Pickups **Claim this share**, tick “This collection actually happened in the simulation.” and **Confirm collection**. |
-| sponsor | Open **About this demo** in the page footer: the provider line, then **Overview**, **How a donation moves** or **AWS architecture**, which show deterministic rules before eligible Strands agent loops. Show the CI guard and SDK-removal checks from the CI run, not as product footage. The sandbox uses a fixed scripted tool sequence and closing answer. A public request cannot start a live Bedrock run; name its exact model only after the frozen deploy proof confirms it. |
-| evidence | On Decide with the offer selected, expand **Evidence bundle and recovery** under “Your decision”: sources, decision, run/revision, provider/mode, history, failure/recovery and limits. Hashes are not source truth. |
-| close | On **Impact and limits** (page footer, **About this demo**): observed outcomes; the historical 10-sample sandbox latency check at frontend/backend `cb97c9e` (not a load test; live mode not measured); the absence of a reproducible total-AWS-cost claim; unmeasured human active time and benefits; then the workspace URL. |
+## Production contract
 
-`video/narration.json` holds the seven caption and speech beats under the same ids. Its close beat
-does not speak the cost or latency figures; they appear on screen only. The existing video tool
-schema/provider settings are preserved as production contracts, not app runtime providers.
-`docs/video/cards.html` is only a labelled recording aid, never a substitute for product footage.
+The target is 90–174 seconds, with seven measured beats of 3 to 40 seconds. ElevenLabs synthesises each beat
+separately in CI, so one beat can be replaced without rebuilding the other six. The final gate checks the exact
+frontend and backend commits independently, one-frame audio and video duration, caption order, caption bounds and
+caption pixels in the encoded MP4.
 
-Do not claim a live critic Lambda, automatic sends, compliance, measured savings or real food
-rescued. The known contradictory historical record stays disclosed; it is not silently repaired.
-A trusted public coordinator sign-in integration is not supplied. AWS permission/model probes are
-separate IAM-authorized checks, never fabricated browser authorization.
+The hook, architecture and close combine three source-controlled animated title scenes with the real architecture
+and impact views. The allocation bars and architecture component selection add motion inside the product. The
+central beats show the real public API journey from an editable offer through approval and simulated collection
+confirmation. No presentation scene substitutes for product footage.
 
-Current code, CI and live release evidence must be shown distinctly. New capture and human
-acceptance remain NOT_RUN until performed. Pre-existing-material and dependency licence
-disclosures are preserved in the README.
+Before the measured timeline starts, capture selects **My sandbox**, opens **About this demo**, chooses
+**Start over in a new sandbox**, and confirms **Yes, start fresh**. The capture then verifies the sandbox banner.
+It never records **Shared demo records** or presents the known contradictory offer-4471 record as a correct plan.
+
+## Seven screen and caption beats
+
+| Beat | Screen and motion | Narration purpose |
+| --- | --- | --- |
+| **Hook** | Open the animated Merismos title scene, built from the repository banner, persona and problem statement. | Name Maria, the volunteer coordinator, the neighbourhood network and the consequence of an unsafe or uncollectable split. State that Merismos keeps checks, allocation and collection decision together. |
+| **Surface** | Open the fresh **Dashboard**, choose **+ Add offer**, choose **Try success**, change the offer title and choose **Add to sandbox**. | Say explicitly that this is the live AWS application. Show that the offer is editable, the public HTTP API is used and the sandbox is synthetic and non-publishing. |
+| **Trigger** | On **Decide**, choose **Work out the split**. Let the allocation bars animate, then bring **Approve this exact plan** into view. | Explain that deterministic rules run first. Eligible specialists use the **Strands Agents SDK** through bounded read-only tools, and a bounded solver proposes each share and remainder. State that the sandbox uses a fixed scripted model with no model network call. |
+| **Live journey** | Expand **Read the exact record text**, tick the exact-allocation consent and choose **Approve in sandbox**. Open **Pickups**, choose **Claim this share**, tick the separate collection confirmation and choose **Confirm collection**. | Distinguish approval from collection. Complete the real journey from an editable offer to a recorded simulated handoff. |
+| **Sponsor** | Open the animated architecture scene, then the deployed **AWS architecture** view. Select CloudFront and S3, the Lambda package and finally **Strands agents**, allowing the component transitions to complete. | Explain why Strands is load-bearing, the `BeforeToolCallEvent` guard and the guard-removal and SDK-removal tests. Name the private proof: run `34894779949`, backend `4bf2238`, model `eu.anthropic.claude-opus-5`. State that public visitors cannot start this Bedrock path. |
+| **Evidence** | Return to the recorded decision, expand **Evidence bundle and recovery**, and keep the bundle in view. | Name the source references, reasons, run identity, revision, provider and history. Say that a digest binds bytes, not truth, and that authenticated authority is still required for live recovery and publication. |
+| **Close** | Open **Impact and limits**, show the coordination problem, scroll to **What is not measured**, then finish on the animated URL scene. | Describe Merismos as a complete coordinator workflow without turning it into an impact claim. Close with the public sandbox URL and the unmeasured human-time, food-rescue and beneficiary outcomes. |
+
+## Sponsor proof and claim boundaries
+
+The public sandbox executes the real Strands agent loop with `scripted-planner/1.0.0`, a fixed tool sequence and a
+fixed closing answer. It makes no Bedrock or external model network call. Private deploy proof
+[34894779949](https://github.com/upgradedev/merismos-aws/actions/runs/34894779949) configured and exercised
+`eu.anthropic.claude-opus-5` on backend `4bf2238dda6e9663cbae65ea14e1951ce7ed9cea`. A public request cannot start
+that path because no coordinator authorizer is deployed.
+
+Do not claim a separate critic Lambda, automatic messages, vehicle dispatch, compliance, measured savings or real
+food rescued. A trusted public coordinator sign-in integration is not supplied. AWS permission and model probes
+are IAM-authorised checks, never fabricated browser authorisation. The final MP4 is production evidence only when
+the workflow's receipts and sync report pass for the exact deployed frontend and backend commits.

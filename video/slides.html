@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Merismos submission video scenes</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+      background: #07111f;
+      color: #eef4f8;
+    }
+    * { box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; }
+    body {
+      background:
+        radial-gradient(circle at 82% 18%, rgba(113, 222, 205, .16), transparent 30%),
+        radial-gradient(circle at 10% 90%, rgba(132, 86, 216, .14), transparent 33%),
+        #07111f;
+    }
+    .scene {
+      display: none;
+      width: 100vw;
+      height: 100vh;
+      padding: 88px 108px 120px;
+      position: relative;
+    }
+    .scene.active { display: grid; }
+    .eyebrow {
+      color: #71decd;
+      font-size: 22px;
+      font-weight: 750;
+      letter-spacing: .13em;
+      text-transform: uppercase;
+      margin: 0 0 24px;
+    }
+    h1 {
+      font-family: Georgia, "Times New Roman", serif;
+      font-size: 76px;
+      line-height: 1.05;
+      letter-spacing: -.025em;
+      max-width: 980px;
+      margin: 0;
+    }
+    .accent { color: #71decd; }
+    .lead {
+      color: #c8d3df;
+      font-size: 31px;
+      line-height: 1.42;
+      max-width: 920px;
+      margin: 34px 0 0;
+    }
+    .fine {
+      color: #9aa9ba;
+      font-size: 21px;
+      line-height: 1.4;
+    }
+    .hook {
+      grid-template-columns: 1.05fr .95fr;
+      align-items: center;
+      gap: 78px;
+    }
+    .hook-copy { animation: rise .8s cubic-bezier(.2,.7,.2,1) both; }
+    .hook img {
+      width: 100%;
+      border-radius: 24px;
+      box-shadow: 0 34px 90px rgba(0, 0, 0, .42);
+      animation: float-in 1.1s .18s cubic-bezier(.2,.7,.2,1) both;
+    }
+    .persona {
+      display: inline-flex;
+      align-items: center;
+      gap: 14px;
+      margin-top: 40px;
+      padding: 14px 20px;
+      border: 1px solid #3c746e;
+      border-radius: 999px;
+      background: rgba(16, 42, 48, .72);
+      font-size: 22px;
+      animation: rise .7s .5s both;
+    }
+    .persona::before {
+      content: "μ";
+      display: grid;
+      place-items: center;
+      width: 42px;
+      height: 42px;
+      border-radius: 50%;
+      background: #71decd;
+      color: #0c2527;
+      font-family: Georgia, serif;
+      font-weight: 800;
+    }
+    .architecture {
+      grid-template-rows: auto 1fr;
+      align-items: start;
+      gap: 34px;
+      padding-top: 64px;
+    }
+    .architecture header {
+      display: flex;
+      align-items: end;
+      justify-content: space-between;
+      gap: 60px;
+      animation: rise .7s both;
+    }
+    .architecture h1 { font-size: 58px; max-width: 1080px; }
+    .architecture .proof {
+      color: #b7c5d2;
+      font-size: 20px;
+      max-width: 520px;
+      text-align: right;
+      line-height: 1.45;
+    }
+    .architecture figure {
+      margin: 0;
+      min-height: 0;
+      display: grid;
+      place-items: center;
+      animation: diagram-in 1.15s .18s cubic-bezier(.2,.7,.2,1) both;
+    }
+    .architecture img {
+      width: min(1500px, 88vw);
+      max-height: 780px;
+      object-fit: contain;
+      filter: drop-shadow(0 28px 65px rgba(0, 0, 0, .4));
+    }
+    .architecture .pulse {
+      position: absolute;
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      border: 3px solid #71decd;
+      left: 54.5%;
+      top: 56.5%;
+      animation: pulse 1.8s 1.1s ease-out 3;
+      pointer-events: none;
+    }
+    .close {
+      place-items: center;
+      text-align: center;
+    }
+    .close-inner { max-width: 1420px; animation: rise .8s both; }
+    .close h1 { max-width: none; font-size: 82px; }
+    .url {
+      display: inline-block;
+      margin-top: 48px;
+      padding: 23px 34px;
+      border-radius: 16px;
+      background: #71decd;
+      color: #0c2527;
+      font: 750 31px/1.2 "Segoe UI", sans-serif;
+      letter-spacing: .01em;
+      box-shadow: 0 20px 60px rgba(113, 222, 205, .22);
+      animation: glow 2.1s .5s ease-in-out infinite alternate;
+    }
+    .limits {
+      display: flex;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 16px 30px;
+      margin-top: 44px;
+      color: #aebdca;
+      font-size: 21px;
+    }
+    .limits span::before { content: "✓"; color: #71decd; margin-right: 10px; }
+    .limits .unknown::before { content: "○"; color: #f0b86e; }
+    @keyframes rise {
+      from { opacity: 0; transform: translateY(34px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes float-in {
+      from { opacity: 0; transform: translateX(42px) scale(.96); }
+      to { opacity: 1; transform: translateX(0) scale(1); }
+    }
+    @keyframes diagram-in {
+      from { opacity: 0; transform: translateY(28px) scale(.96); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    @keyframes pulse {
+      from { opacity: .9; transform: scale(.5); }
+      to { opacity: 0; transform: scale(4.2); }
+    }
+    @keyframes glow {
+      from { transform: translateY(0); box-shadow: 0 18px 50px rgba(113, 222, 205, .18); }
+      to { transform: translateY(-5px); box-shadow: 0 25px 72px rgba(113, 222, 205, .36); }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <section class="scene hook" data-scene="hook" aria-labelledby="hook-title">
+      <div class="hook-copy">
+        <p class="eyebrow">Good Neighbor Agents</p>
+        <h1 id="hook-title">One offer. Several constraints. <span class="accent">One accountable decision.</span></h1>
+        <p class="lead">Maria coordinates a fictional neighbourhood food network. Every share needs a reason, and every collection needs a person.</p>
+        <p class="persona">For volunteer community-food coordinators</p>
+      </div>
+      <img src="../docs/assets/banner.svg" alt="Merismos keeps a synthetic offer, its checked allocation and its collection handoff together">
+    </section>
+
+    <section class="scene architecture" data-scene="architecture" aria-labelledby="architecture-title">
+      <header>
+        <div>
+          <p class="eyebrow">AWS architecture and Strands</p>
+          <h1 id="architecture-title">Rules first. Strands when eligible. A person approves.</h1>
+        </div>
+        <p class="proof">Private proof: backend 4bf2238 · run 34894779949<br>Amazon Bedrock · eu.anthropic.claude-opus-5</p>
+      </header>
+      <figure>
+        <img src="../docs/assets/overview.svg" alt="Merismos production architecture with a public sandbox, private Bedrock runner and exact writer approval">
+      </figure>
+      <span class="pulse" aria-hidden="true"></span>
+    </section>
+
+    <section class="scene close" data-scene="close" aria-labelledby="close-title">
+      <div class="close-inner">
+        <p class="eyebrow">Merismos</p>
+        <h1 id="close-title">The allocation, its reasons and the collection handoff stay together</h1>
+        <p class="lead" style="margin-inline:auto">Try the complete synthetic journey. No account. No installation.</p>
+        <div class="url">d2qnkmlhs7y5fp.cloudfront.net</div>
+        <div class="limits" aria-label="Demonstrated scope and limits">
+          <span>Working AWS application</span>
+          <span>Strands Agents SDK</span>
+          <span class="unknown">Human impact remains unmeasured</span>
+        </div>
+      </div>
+    </section>
+  </main>
+  <script>
+    const requested = new URLSearchParams(window.location.search).get("scene");
+    const scene = document.querySelector(`[data-scene="${requested}"]`);
+    if (!scene) throw new Error("Unknown Merismos video scene");
+    scene.classList.add("active");
+  </script>
+</body>
+</html>

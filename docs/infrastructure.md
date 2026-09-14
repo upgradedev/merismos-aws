@@ -180,7 +180,7 @@ the known contradictory offer-4471 record as a health proxy (`.github/workflows/
 
 ### Resource count
 
-Terraform declares 66 instances: 52 plus the 14 corpus objects. `deploy.yml` says "This stack is 52 resources" and fails any plan that adds more than 12 (`.github/workflows/deploy.yml:83-90`). The frontend stack adds 7 CloudFormation resources (`infra/frontend_stack.py:57-188`). The [dated deployment record](deploy-2026-09-02.md) counted 61 at its own checkpoint.
+Terraform declares 66 instances: 52 plus the 14 corpus objects. `deploy.yml` says "This stack is 52 resources" and fails any plan that adds more than 12 (`.github/workflows/deploy.yml:83-90`). The frontend stack adds 7 CloudFormation resources (`infra/frontend_stack.py:57-188`).
 
 ## IAM roles and what each may do
 

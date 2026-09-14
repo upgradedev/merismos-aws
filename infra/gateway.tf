@@ -6,8 +6,8 @@
 # really does allow lambda:InvokeFunctionUrl to everyone, there are no service
 # control policies, no resource control policies and no declarative policies in
 # the organisation, and it is the management account anyway. A throwaway Lambda
-# with a two line handler and a public URL was also refused, which is what
-# settled it. docs/deploy-2026-09-02.md has the whole elimination.
+# with a two line handler and a public URL was also refused, which settled the
+# choice of an HTTP API for the public path.
 #
 # So the reader is fronted by an HTTP API instead. Everything below except the
 # integration exists to make an open endpoint survivable: this URL has to stay

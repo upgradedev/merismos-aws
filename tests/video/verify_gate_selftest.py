@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Prove the Merismos video gate passes good media and rejects five bad cases.
+"""Prove the Merismos video gate passes good media and rejects eight bad cases.
 
 The fixtures are synthetic, contain no product capture or speech, use no network or
 credential, and are removed when the test exits.
@@ -22,7 +22,8 @@ GATE = REPO / "scripts" / "verify_video_sync.py"
 GENERATOR = REPO / "video" / "generate-narration.py"
 NARRATION = REPO / "video" / "narration.json"
 SCENE_IDS = ("hook", "surface", "trigger", "live", "sponsor", "evidence", "close")
-RELEASE_SHA = "0" * 40
+FRONTEND_SHA = "0" * 40
+BACKEND_SHA = "1" * 40
 FPS = 25
 SCENE_SECONDS = 13.0
 SPOKEN_SECONDS = 12.35
@@ -218,6 +219,7 @@ def write_contracts(
             "startSeconds": (index - 1) * SCENE_SECONDS,
             "holdFrames": int(SCENE_SECONDS * FPS),
             "captionCount": 1,
+            "captionAlignment": "elevenlabs-character",
         }
         for index, identifier in enumerate(order, start=1)
     ]
@@ -247,13 +249,15 @@ def write_contracts(
         for scene in scenes
     ]
     capture = {
-        "schemaVersion": "merismos.submission-video-capture/v1",
-        "releaseSha": RELEASE_SHA,
+        "schemaVersion": "merismos.submission-video-capture/v2",
+        "frontendSha": FRONTEND_SHA,
+        "backendSha": BACKEND_SHA,
         "deployRunId": 1,
         "frontendRunId": 2,
         "sourceUrl": "https://example.invalid/",
-        "servedFrontendCommit": RELEASE_SHA,
-        "answeringBackendCommit": RELEASE_SHA,
+        "servedFrontendCommit": FRONTEND_SHA,
+        "answeringBackendCommit": BACKEND_SHA,
+        "releaseVerifiedBeforeAndAfter": True,
         "sceneCount": len(SCENE_IDS),
         "sceneIds": list(order),
         "scenes": capture_scenes,
@@ -267,8 +271,9 @@ def write_contracts(
     }
     write_json(capture_path, capture)
     probe = {
-        "schemaVersion": "merismos.submission-video-ffprobe/v1",
-        "releaseSha": RELEASE_SHA,
+        "schemaVersion": "merismos.submission-video-ffprobe/v2",
+        "frontendSha": FRONTEND_SHA,
+        "backendSha": BACKEND_SHA,
         "file": media.name,
         "sha256": sha256(media),
         "probe": ffprobe(media),
@@ -277,8 +282,11 @@ def write_contracts(
     video_probe = probe["probe"]
     video_stream = next(item for item in video_probe["streams"] if item["codec_type"] == "video")
     receipt = {
-        "schemaVersion": "merismos.submission-video-receipt/v1",
-        "releaseSha": RELEASE_SHA,
+        "schemaVersion": "merismos.submission-video-receipt/v2",
+        "frontendSha": FRONTEND_SHA,
+        "backendSha": BACKEND_SHA,
+        "servedFrontendCommit": FRONTEND_SHA,
+        "answeringBackendCommit": BACKEND_SHA,
         "deployRunId": 1,
         "frontendRunId": 2,
         "durationSeconds": TOTAL_SECONDS,
@@ -308,8 +316,10 @@ def run_gate(
             sys.executable,
             str(GATE),
             str(media),
-            "--release-sha",
-            RELEASE_SHA,
+            "--frontend-sha",
+            FRONTEND_SHA,
+            "--backend-sha",
+            BACKEND_SHA,
             "--capture-media",
             str(capture_media),
         ],
@@ -365,9 +375,20 @@ def prove_per_beat_cache() -> None:
     spec, segments = module.validate_spec(narration)
     calls: list[str] = []
 
-    def synthesize(text: str, _spec: dict[str, object]) -> bytes:
+    def synthesize(
+        text: str, _spec: dict[str, object]
+    ) -> tuple[bytes, dict[str, object], str]:
         calls.append(text)
-        return (f"synthetic-{len(calls)}".encode() * 400)[:4000]
+        step = 4.5 / len(text)
+        alignment = {
+            "characters": list(text),
+            "character_start_times_seconds": [index * step for index in range(len(text))],
+            "character_end_times_seconds": [
+                (index + 1) * step for index in range(len(text))
+            ],
+        }
+        audio = (f"synthetic-{len(calls)}".encode() * 400)[:4000]
+        return audio, alignment, hashlib.sha256(audio).hexdigest()
 
     module.synthesize_elevenlabs = synthesize
     module.duration = lambda _path: 5.0
@@ -387,13 +408,34 @@ def prove_per_beat_cache() -> None:
         sidecar = root / f"04-{changed['id']}.cache.json"
         changed_result = module.synthesize_scene(audio, sidecar, changed, spec, set())
 
+        attempts = sorted(root.glob("*.attempt.json"))
+        if len(attempts) != len(SCENE_IDS) + 1:
+            raise SystemExit(f"attempt ledger count is wrong: {len(attempts)}")
+        unresolved = json.loads(attempts[-1].read_text(encoding="utf-8"))
+        unresolved["status"] = "started"
+        write_json(attempts[-1], unresolved)
+        try:
+            module.attempt_records(root)
+        except SystemExit:
+            pass
+        else:
+            raise SystemExit("an unresolved billed attempt did not block another provider call")
+        acknowledged = module.acknowledge_attempt(root, attempts[-1].name)
+        acknowledged_record = json.loads(acknowledged.read_text(encoding="utf-8"))
+        if acknowledged_record.get("status") != "acknowledged":
+            raise SystemExit("a reviewed provider attempt was not acknowledged")
+        module.attempt_records(root)
+
     if first != ["synthesized"] * len(SCENE_IDS):
         raise SystemExit(f"cold narration cache did not synthesize all beats: {first}")
     if second != ["reused"] * len(SCENE_IDS):
         raise SystemExit(f"unchanged narration cache did not reuse all beats: {second}")
     if changed_result != "synthesized" or len(calls) != len(SCENE_IDS) + 1:
         raise SystemExit("one changed beat did not cause exactly one additional synthesis")
-    print("[OK ] PER_BEAT_CACHE                 cold=7; unchanged=0; one edit=1")
+    print(
+        "[OK ] PER_BEAT_CACHE                 cold=7; unchanged=0; one edit=1; "
+        "unresolved blocked; reviewed attempt acknowledged"
+    )
 
 
 def main() -> int:
@@ -416,6 +458,61 @@ def main() -> int:
         write_contracts(good_dir, good, source)
         rc, failures, log = run_gate(good_dir, good, source)
         results.append(("GOOD", rc == 0, rc, failures, log))
+
+        backend_dir, backend_media = copy_case(good, root, "bad-backend-sha")
+        write_contracts(backend_dir, backend_media, source)
+        backend_capture = backend_dir / "capture-receipt.json"
+        backend_contract = json.loads(backend_capture.read_text(encoding="utf-8"))
+        backend_contract["backendSha"] = "2" * 40
+        write_json(backend_capture, backend_contract)
+        rc, failures, log = run_gate(backend_dir, backend_media, source)
+        results.append(
+            (
+                "BAD_BACKEND_SHA",
+                rc != 0 and "backend-capture" in failures,
+                rc,
+                failures,
+                log,
+            )
+        )
+
+        frontend_dir, frontend_media = copy_case(good, root, "bad-frontend-sha")
+        write_contracts(frontend_dir, frontend_media, source)
+        frontend_capture = frontend_dir / "capture-receipt.json"
+        frontend_contract = json.loads(frontend_capture.read_text(encoding="utf-8"))
+        frontend_contract["frontendSha"] = "2" * 40
+        write_json(frontend_capture, frontend_contract)
+        rc, failures, log = run_gate(frontend_dir, frontend_media, source)
+        results.append(
+            (
+                "BAD_FRONTEND_SHA",
+                rc != 0 and "frontend-capture" in failures,
+                rc,
+                failures,
+                log,
+            )
+        )
+
+        observed_dir, observed_media = copy_case(good, root, "bad-observed-backend")
+        write_contracts(observed_dir, observed_media, source)
+        observed_capture = observed_dir / "capture-receipt.json"
+        observed_contract = json.loads(observed_capture.read_text(encoding="utf-8"))
+        observed_contract["answeringBackendCommit"] = "2" * 40
+        write_json(observed_capture, observed_contract)
+        observed_receipt = observed_dir / "video-receipt.json"
+        observed_receipt_contract = json.loads(observed_receipt.read_text(encoding="utf-8"))
+        observed_receipt_contract["captureReceiptSha256"] = sha256(observed_capture)
+        write_json(observed_receipt, observed_receipt_contract)
+        rc, failures, log = run_gate(observed_dir, observed_media, source)
+        results.append(
+            (
+                "BAD_OBSERVED_BACKEND",
+                rc != 0 and "answering-backend-capture" in failures,
+                rc,
+                failures,
+                log,
+            )
+        )
 
         missing_dir, missing_media = copy_case(source, root, "bad-missing-burn-in")
         write_contracts(missing_dir, missing_media, source)
@@ -496,7 +593,7 @@ def main() -> int:
         return 1
     print(
         "video gate self-test: captioned media passed; missing and within-cue truncation, "
-        "order, caption, and A/V defects failed closed"
+        "backend identity, order, caption, and A/V defects failed closed"
     )
     return 0
 

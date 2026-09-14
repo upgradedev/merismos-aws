@@ -33,6 +33,12 @@ not total AWS cost or an invoice. Its raw rows are not published, so no dollar a
 The method and limitations are in
 [Cost and latency](cost-and-latency.md#historical-deploy-proof-pricing-estimate).
 
+The frozen backend proof is
+[deploy run 34894779949](https://github.com/upgradedev/merismos-aws/actions/runs/34894779949) from
+`4bf2238dda6e9663cbae65ea14e1951ce7ed9cea`. It configured and exercised
+`eu.anthropic.claude-opus-5` through the private IAM-authorised runner. The public sandbox does not use that model
+path and cannot start it.
+
 The optional critic is a second Bedrock call with no tools, which reviews the prose about an allocation. The
 reader-role function that runs the specialists makes it in-process; it is not a separate Lambda. It is off by
 default: `critic_model_id` defaults to empty and the deploy workflow does not set it.

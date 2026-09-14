@@ -9,6 +9,7 @@ network request, ffmpeg invocation, or output write.
 from __future__ import annotations
 
 import argparse
+import base64
 import hashlib
 import json
 import math
@@ -24,13 +25,19 @@ SPEC = pathlib.Path(__file__).with_name("narration.json")
 SCENE_IDS = ("hook", "surface", "trigger", "live", "sponsor", "evidence", "close")
 SCHEMA = "merismos.submission-video/v1"
 FPS = 25
+FRAME_SECONDS = 1 / FPS
 TAIL_SECONDS = 0.65
 MIN_TOTAL_SECONDS = 90
 MAX_TOTAL_SECONDS_EXCLUSIVE = 175
 MIN_SCENE_SECONDS = 3
 MAX_SCENE_SECONDS = 40
-CACHE_CONTRACT = "merismos-elevenlabs-per-beat/v1"
+MAX_PROVIDER_RESPONSE_BYTES = 32 * 1024 * 1024
+MAX_BILLED_CHARACTERS = 12_000
+CACHE_CONTRACT = "merismos-elevenlabs-per-beat/v2"
 ELEVENLABS_KEY_ENV_NAMES = ("ELEVENLABS_API_KEY", "XI_API_KEY", "ELEVEN_LABS_KEY")
+ATTEMPT_FILENAME = re.compile(
+    r"[a-z][a-z-]{1,24}\.[a-f0-9]{16}\.[1-9][0-9]*\.attempt\.json"
+)
 
 
 def run(args: list[str]) -> str:
@@ -84,6 +91,19 @@ def wrapped(text: str, width: int = 66) -> str:
         return "\n".join(lines)
     midpoint = max(1, len(words) // 2)
     return " ".join(words[:midpoint]) + "\n" + " ".join(words[midpoint:])
+
+
+def sentence_spans(text: str) -> list[tuple[str, int, int]]:
+    spans: list[tuple[str, int, int]] = []
+    for match in re.finditer(r".+?(?:[.!?](?=\s|$)|$)", text, flags=re.DOTALL):
+        raw = match.group(0)
+        leading = len(raw) - len(raw.lstrip())
+        trailing = len(raw) - len(raw.rstrip())
+        start = match.start() + leading
+        end = match.end() - trailing
+        if start < end:
+            spans.append((text[start:end], start, end))
+    return spans
 
 
 def speaking_rate(spec: dict[str, object]) -> float:
@@ -147,10 +167,16 @@ def validate_spec(spec: object) -> tuple[dict[str, object], list[dict[str, str]]
             raise SystemExit(f"scene text is invalid: {identifier}")
         if "<" in f"{speech}{caption}" or ">" in f"{speech}{caption}":
             raise SystemExit(f"scene {identifier} contains an unfilled placeholder")
+        if len(sentence_spans(speech)) != len(sentence_spans(caption)):
+            raise SystemExit(
+                f"scene {identifier} speech and caption sentence counts differ"
+            )
         identifiers.append(identifier)
         validated.append({"id": identifier, "speechText": speech, "captionText": caption})
     if tuple(identifiers) != SCENE_IDS:
         raise SystemExit(f"scene order must be: {', '.join(SCENE_IDS)}")
+    if sum(len(segment["speechText"]) for segment in validated) > MAX_BILLED_CHARACTERS:
+        raise SystemExit(f"narration exceeds the {MAX_BILLED_CHARACTERS}-character provider cap")
     return spec, validated
 
 
@@ -184,38 +210,45 @@ def elevenlabs_request_body(text: str, spec: dict[str, object]) -> bytes:
     ).encode("utf-8")
 
 
-def synthesize_elevenlabs(text: str, spec: dict[str, object], retries: int = 3) -> bytes:
+def synthesize_elevenlabs(
+    text: str, spec: dict[str, object]
+) -> tuple[bytes, dict[str, object], str]:
     config = elevenlabs_config(spec)
     url = (
-        f"https://api.elevenlabs.io/v1/text-to-speech/{config['voiceId']}"
+        f"https://api.elevenlabs.io/v1/text-to-speech/{config['voiceId']}/with-timestamps"
         f"?output_format={config['outputFormat']}"
     )
     body = elevenlabs_request_body(text, spec)
     key = elevenlabs_key()
-    last_error = "unknown provider error"
-    for attempt in range(retries):
-        try:
-            request = urllib.request.Request(
-                url,
-                data=body,
-                headers={
-                    "xi-api-key": key,
-                    "Content-Type": "application/json",
-                    "Accept": "audio/mpeg",
-                },
-            )
-            with urllib.request.urlopen(request, timeout=90) as response:
-                data = response.read()
-            if len(data) < 3000:
-                raise RuntimeError(f"provider returned only {len(data)} audio bytes")
-            return data
-        except urllib.error.HTTPError as error:
-            last_error = f"HTTP {error.code}"
-        except Exception as error:  # noqa: BLE001 - retried at the provider boundary
-            last_error = type(error).__name__
-        if attempt + 1 < retries:
-            time.sleep(2 * (attempt + 1))
-    raise SystemExit(f"ElevenLabs failed after {retries} attempts: {last_error}")
+    request = urllib.request.Request(
+        url,
+        data=body,
+        headers={
+            "xi-api-key": key,
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+        },
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=120) as response:
+            raw = response.read(MAX_PROVIDER_RESPONSE_BYTES + 1)
+    except urllib.error.HTTPError as error:
+        raise SystemExit(f"ElevenLabs returned HTTP {error.code}; no automatic billed retry") from None
+    except Exception as error:  # noqa: BLE001 - provider boundary, deliberately no retry
+        raise SystemExit(
+            f"ElevenLabs transport failed with {type(error).__name__}; no automatic billed retry"
+        ) from None
+    if len(raw) > MAX_PROVIDER_RESPONSE_BYTES:
+        raise SystemExit("ElevenLabs response exceeded the 32 MiB bound")
+    try:
+        result = json.loads(raw)
+        audio = base64.b64decode(result["audio_base64"], validate=True)
+        alignment = result["alignment"]
+    except (KeyError, TypeError, ValueError, json.JSONDecodeError) as error:
+        raise SystemExit("ElevenLabs returned an invalid timestamped response; no retry") from error
+    if len(audio) < 3000 or not isinstance(alignment, dict):
+        raise SystemExit("ElevenLabs returned incomplete audio or alignment; no retry")
+    return audio, alignment, sha256_bytes(raw)
 
 
 def voice_signature(spec: dict[str, object]) -> str:
@@ -252,6 +285,110 @@ def cached_record(sidecar: pathlib.Path) -> dict[str, object] | None:
     return value if isinstance(value, dict) else None
 
 
+def attempt_records(directory: pathlib.Path) -> list[dict[str, object]]:
+    records: list[dict[str, object]] = []
+    for path in sorted(directory.glob("*.attempt.json")):
+        record = cached_record(path)
+        if (
+            record is None
+            or record.get("schemaVersion") != "merismos.narration-attempt/v1"
+            or not isinstance(record.get("characters"), int)
+            or not 0 < int(record["characters"]) <= MAX_BILLED_CHARACTERS
+        ):
+            raise SystemExit(f"invalid ElevenLabs attempt ledger: {path.name}")
+        if record.get("status") not in {"completed", "acknowledged"}:
+            raise SystemExit(
+                f"unresolved ElevenLabs attempt; reconcile before another paid call: {path.name}"
+            )
+        records.append(record)
+    return records
+
+
+def acknowledge_attempt(directory: pathlib.Path, name: str) -> pathlib.Path:
+    if pathlib.PurePath(name).name != name or not ATTEMPT_FILENAME.fullmatch(name):
+        raise SystemExit("--acknowledge-attempt must be one exact attempt-ledger filename")
+    path = directory / name
+    record = cached_record(path)
+    if (
+        record is None
+        or record.get("schemaVersion") != "merismos.narration-attempt/v1"
+        or record.get("status") != "started"
+        or not isinstance(record.get("characters"), int)
+        or not 0 < int(record["characters"]) <= MAX_BILLED_CHARACTERS
+    ):
+        raise SystemExit("only one valid unresolved attempt can be acknowledged")
+    record["status"] = "acknowledged"
+    record["acknowledgement"] = "provider billing reviewed before an explicit retry"
+    record["acknowledgedByWorkflowRun"] = os.environ.get("GITHUB_RUN_ID", "manual")
+    write_json(path, record)
+    return path
+
+
+def reserve_attempt(
+    directory: pathlib.Path, segment: dict[str, str], key: str
+) -> pathlib.Path:
+    spent = sum(int(record["characters"]) for record in attempt_records(directory))
+    characters = len(segment["speechText"])
+    if spent + characters > MAX_BILLED_CHARACTERS:
+        raise SystemExit(
+            f"ElevenLabs cumulative character cap exceeded: {spent} + {characters} > "
+            f"{MAX_BILLED_CHARACTERS}"
+        )
+    path = directory / f"{segment['id']}.{key[:16]}.{time.time_ns()}.attempt.json"
+    payload = {
+        "schemaVersion": "merismos.narration-attempt/v1",
+        "status": "started",
+        "sceneId": segment["id"],
+        "cacheKey": key,
+        "characters": characters,
+    }
+    with path.open("x", encoding="utf-8") as stream:
+        stream.write(json.dumps(payload, sort_keys=True, separators=(",", ":")) + "\n")
+        stream.flush()
+        os.fsync(stream.fileno())
+    return path
+
+
+def validate_alignment(
+    alignment: object, speech: str, seconds: float
+) -> dict[str, list[object]]:
+    if not isinstance(alignment, dict):
+        raise SystemExit("ElevenLabs character alignment is missing")
+    characters = alignment.get("characters")
+    starts = alignment.get("character_start_times_seconds")
+    ends = alignment.get("character_end_times_seconds")
+    if not isinstance(characters, list) or not isinstance(starts, list) or not isinstance(ends, list):
+        raise SystemExit("ElevenLabs character alignment arrays are missing")
+    if not characters or not len(characters) == len(starts) == len(ends):
+        raise SystemExit("ElevenLabs character alignment lengths differ")
+    if not all(isinstance(character, str) and len(character) == 1 for character in characters):
+        raise SystemExit("ElevenLabs character alignment contains an invalid character")
+    if "".join(characters) != speech:
+        raise SystemExit("ElevenLabs character alignment does not match the requested speech")
+    previous = 0.0
+    checked_starts: list[float] = []
+    checked_ends: list[float] = []
+    for character, start, end in zip(characters, starts, ends, strict=True):
+        if (
+            isinstance(start, bool)
+            or isinstance(end, bool)
+            or not isinstance(start, (int, float))
+            or not isinstance(end, (int, float))
+            or not math.isfinite(float(start))
+            or not math.isfinite(float(end))
+            or not previous <= float(start) <= float(end) <= seconds + FRAME_SECONDS
+        ):
+            raise SystemExit("ElevenLabs character alignment is not monotonic or in bounds")
+        checked_starts.append(float(start))
+        checked_ends.append(min(float(end), seconds))
+        previous = float(end)
+    return {
+        "characters": characters,
+        "startSeconds": checked_starts,
+        "endSeconds": checked_ends,
+    }
+
+
 def write_json(path: pathlib.Path, value: object) -> None:
     temporary = path.with_suffix(path.suffix + ".tmp")
     temporary.write_text(json.dumps(value, indent=2) + "\n", encoding="utf-8")
@@ -274,15 +411,18 @@ def synthesize_scene(
         and record is not None
         and record.get("cacheKey") == key
         and record.get("audioSha256") == sha256_bytes(audio.read_bytes())
+        and isinstance(record.get("alignment"), dict)
     ):
         return "reused"
-    data = synthesize_elevenlabs(segment["speechText"], spec)
+    attempt = reserve_attempt(sidecar.parent, segment, key)
+    data, raw_alignment, response_sha = synthesize_elevenlabs(segment["speechText"], spec)
     temporary = audio.with_suffix(".part.mp3")
     temporary.write_bytes(data)
     seconds = duration(temporary)
     if not MIN_SCENE_SECONDS <= seconds <= MAX_SCENE_SECONDS:
         temporary.unlink(missing_ok=True)
         raise SystemExit(f"scene audio duration is unsafe: {segment['id']} measured {seconds:.3f}s")
+    alignment = validate_alignment(raw_alignment, segment["speechText"], seconds)
     temporary.replace(audio)
     write_json(
         sidecar,
@@ -291,6 +431,20 @@ def synthesize_scene(
             "cacheKey": key,
             "provider": "elevenlabs",
             "audioSha256": sha256_bytes(data),
+            "providerResponseSha256": response_sha,
+            "alignment": alignment,
+        },
+    )
+    write_json(
+        attempt,
+        {
+            "schemaVersion": "merismos.narration-attempt/v1",
+            "status": "completed",
+            "sceneId": segment["id"],
+            "cacheKey": key,
+            "characters": len(segment["speechText"]),
+            "audioSha256": sha256_bytes(data),
+            "providerResponseSha256": response_sha,
         },
     )
     return "synthesized"
@@ -307,6 +461,11 @@ def parse_args() -> argparse.Namespace:
         default=[],
         metavar="BEAT",
         help="re-synthesize one named beat, or all",
+    )
+    parser.add_argument(
+        "--acknowledge-attempt",
+        metavar="FILENAME",
+        help="acknowledge one reviewed unresolved attempt, count it as spent and exit",
     )
     return parser.parse_args()
 
@@ -333,12 +492,17 @@ def main() -> None:
     root_value = os.environ.get("MERISMOS_VIDEO_ROOT", "").strip()
     if not root_value:
         raise SystemExit("MERISMOS_VIDEO_ROOT is required")
-    ffprobe = os.environ.get("FFPROBE", "").strip()
-    if not ffprobe:
-        raise SystemExit("FFPROBE is required")
     root = pathlib.Path(root_value)
     out = root / "narration"
     out.mkdir(parents=True, exist_ok=True)
+    if args.acknowledge_attempt:
+        path = acknowledge_attempt(out, args.acknowledge_attempt)
+        print(f"Acknowledged reviewed attempt: {path.name}")
+        return
+    ffprobe = os.environ.get("FFPROBE", "").strip()
+    if not ffprobe:
+        raise SystemExit("FFPROBE is required")
+    attempt_records(out)
     forced = set(args.force)
     forced.update(
         item.strip() for item in os.environ.get("NARRATION_FORCE", "").split(",") if item.strip()
@@ -362,17 +526,22 @@ def main() -> None:
             )
         hold_frames = math.ceil((seconds + TAIL_SECONDS) * FPS)
         hold = hold_frames / FPS
-        sentences = [
-            part.strip()
-            for part in re.split(r"(?<=[.!?])\s+", segment["captionText"])
-            if part.strip()
-        ]
-        weight = sum(len(part) for part in sentences) or 1
-        cursor = 0.0
-        for sentence in sentences:
-            share = seconds * len(sentence) / weight
-            cues.append((offset + cursor, offset + cursor + share, wrapped(sentence), identifier))
-            cursor += share
+        record = cached_record(sidecar)
+        if record is None:
+            raise SystemExit(f"narration cache record is missing: {sidecar.name}")
+        alignment = validate_alignment(record.get("alignment"), segment["speechText"], seconds)
+        speech_sentences = sentence_spans(segment["speechText"])
+        caption_sentences = sentence_spans(segment["captionText"])
+        for speech_sentence, caption_sentence in zip(
+            speech_sentences, caption_sentences, strict=True
+        ):
+            _, start_index, end_index = speech_sentence
+            caption, _, _ = caption_sentence
+            start = float(alignment["startSeconds"][start_index])
+            end = float(alignment["endSeconds"][end_index - 1])
+            if not 0 <= start < end <= seconds:
+                raise SystemExit(f"caption alignment is outside scene {identifier}")
+            cues.append((offset + start, offset + end, wrapped(caption), identifier))
         timing.append(
             {
                 "id": identifier,
@@ -382,7 +551,8 @@ def main() -> None:
                 "holdSeconds": round(hold, 3),
                 "startSeconds": round(offset, 3),
                 "holdFrames": hold_frames,
-                "captionCount": len(sentences),
+                "captionCount": len(caption_sentences),
+                "captionAlignment": "elevenlabs-character",
             }
         )
         print(f"{outcome} {audio.name} ({seconds:.3f}s)")

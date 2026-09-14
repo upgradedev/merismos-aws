@@ -14,30 +14,11 @@
     // reviewer judges length, not a counter.
     "MD013": false,
     // Table column style. Some tables pad their cells but keep the delimiter row
-    // tight (|---|---|), such as the "What held" table in the dated record
-    // docs/deploy-2026-09-02.md and tables moved verbatim from README.md. The
-    // default reports every pipe of such a table against its closest style.
+    // tight (|---|---|). The default reports every pipe of such a table against
+    // its closest style.
     // GitHub renders both spellings the same, so this is source cosmetics.
     "MD060": false
   },
-  // Only the first override whose filter matches a file applies. The filter
-  // names the file both ways. docs/ has no configuration file of its own, so
-  // cli2 matches the path relative to the repository root,
-  // docs/deploy-2026-09-02.md, which **/deploy-2026-09-02.md covers; the bare
-  // name would match only a path relative to docs/.
-  "overrides": [
-    {
-      // A dated record. Near its end it quotes two separate log lines as two
-      // quotes with a blank line between them, which GitHub shows as two quotes.
-      // Joining them would edit a dated record for a lint rule. Its code blocks
-      // stay indented, which MD046 accepts because none of them is fenced.
-      "filter": ["**/deploy-2026-09-02.md", "deploy-2026-09-02.md"],
-      "combine": "merge",
-      "config": {
-        "MD028": false
-      }
-    }
-  ],
   // An inline <!-- markdownlint-disable --> comment could quietly excuse a file.
   // Relax a rule here, with a reason, or not at all.
   "noInlineConfig": true,

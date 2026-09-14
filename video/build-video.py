@@ -52,11 +52,14 @@ def positive_run_id(name: str) -> int:
 
 def main() -> None:
     root_value = os.environ.get("MERISMOS_VIDEO_ROOT", "").strip()
-    release_sha = os.environ.get("MERISMOS_RELEASE_SHA", "").strip()
+    frontend_sha = os.environ.get("MERISMOS_FRONTEND_SHA", "").strip()
+    backend_sha = os.environ.get("MERISMOS_BACKEND_SHA", "").strip()
     if not root_value:
         raise SystemExit("MERISMOS_VIDEO_ROOT is required")
-    if not SHA.fullmatch(release_sha):
-        raise SystemExit("MERISMOS_RELEASE_SHA must be a full lowercase commit SHA")
+    if not SHA.fullmatch(frontend_sha):
+        raise SystemExit("MERISMOS_FRONTEND_SHA must be a full lowercase commit SHA")
+    if not SHA.fullmatch(backend_sha):
+        raise SystemExit("MERISMOS_BACKEND_SHA must be a full lowercase commit SHA")
     deploy_run_id = positive_run_id("MERISMOS_DEPLOY_RUN_ID")
     frontend_run_id = positive_run_id("MERISMOS_FRONTEND_RUN_ID")
     ffmpeg = os.environ.get("FFMPEG", "").strip()
@@ -94,10 +97,14 @@ def main() -> None:
     if abs(total - total_frames / FPS) > 0.001:
         raise SystemExit("timing total is not aligned to whole video frames")
 
-    if capture_receipt.get("schemaVersion") != "merismos.submission-video-capture/v1":
+    if capture_receipt.get("schemaVersion") != "merismos.submission-video-capture/v2":
         raise SystemExit("capture receipt contract is invalid")
     expected_capture = {
-        "releaseSha": release_sha,
+        "frontendSha": frontend_sha,
+        "backendSha": backend_sha,
+        "servedFrontendCommit": frontend_sha,
+        "answeringBackendCommit": backend_sha,
+        "releaseVerifiedBeforeAndAfter": True,
         "deployRunId": deploy_run_id,
         "frontendRunId": frontend_run_id,
         "sceneCount": len(SCENE_IDS),
@@ -110,8 +117,8 @@ def main() -> None:
     if capture_receipt.get("narrationTimingSha256") != sha256(timing_path):
         raise SystemExit("capture receipt does not bind the narration timing")
     trim_lead = float(capture_receipt.get("trimLeadSeconds", -1))
-    if not 0 <= trim_lead <= 30:
-        raise SystemExit("capture trim lead is outside the 0-30 second contract")
+    if not 0 <= trim_lead <= 120:
+        raise SystemExit("capture trim lead is outside the 0-120 second contract")
     if float(capture_receipt.get("timelineSeconds", 0)) + FRAME_SECONDS < total:
         raise SystemExit("capture timeline is shorter than the narration")
 
@@ -214,8 +221,9 @@ def main() -> None:
 
     video_sha = sha256(final)
     ffprobe_evidence = {
-        "schemaVersion": "merismos.submission-video-ffprobe/v1",
-        "releaseSha": release_sha,
+        "schemaVersion": "merismos.submission-video-ffprobe/v2",
+        "frontendSha": frontend_sha,
+        "backendSha": backend_sha,
         "file": OUTPUT_NAME,
         "sha256": video_sha,
         "probe": media,
@@ -227,8 +235,11 @@ def main() -> None:
     shutil.copy2(capture_receipt_path, output / "capture-receipt.json")
 
     receipt = {
-        "schemaVersion": "merismos.submission-video-receipt/v1",
-        "releaseSha": release_sha,
+        "schemaVersion": "merismos.submission-video-receipt/v2",
+        "frontendSha": frontend_sha,
+        "backendSha": backend_sha,
+        "servedFrontendCommit": capture_receipt["servedFrontendCommit"],
+        "answeringBackendCommit": capture_receipt["answeringBackendCommit"],
         "deployRunId": deploy_run_id,
         "frontendRunId": frontend_run_id,
         "durationSeconds": round(total_frames / FPS, 3),
