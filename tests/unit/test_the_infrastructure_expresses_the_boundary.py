@@ -1,7 +1,8 @@
 """The IAM in ``infra/`` is read and asserted, not reviewed by eye.
 
-The README's central claim is that the reader and the evaluator cannot reach the
-publish credential and that AWS refuses them rather than our code. That claim
+The README's central claim is that the reader and the evaluator cannot put a
+record or read the boundary canary, and that AWS refuses them rather than our
+code. That claim
 lives in Terraform, so it is checked here against the Terraform, in a test that
 runs with no AWS account and no terraform binary.
 
@@ -126,9 +127,9 @@ def test_the_writer_cannot_rewrite_the_filing_it_was_judged_against(iam):
     """Otherwise a compromised writer could edit the register to justify itself.
 
     The writer gained one corpus prefix when the intake form was added, because
-    a coordinator filing their own offer is a write and every write in this
-    system happens under this one identity. What it must never gain is the two
-    prefixes it is measured against: ``orgs/`` is who the members are and
+    a coordinator filing their own offer is a write and every S3 write the three
+    fleet roles can make happens under this one identity. What it must never gain
+    is the two prefixes it is measured against: ``orgs/`` is who the members are and
     ``registers/`` is the policy the gate applies. A fleet that can edit the
     rules it is judged by is a fleet whose refusals mean nothing.
     """

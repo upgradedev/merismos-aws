@@ -1,8 +1,8 @@
 """A cold chain refusal was scheduled for another look in two days.
 
-``_defer`` parked every blocked specialist, unconditionally. The README says what
-the feature is for, in its own example: "The shelter cannot confirm fridge space
-until Thursday, so the decision is parked." That is an unknown which resolves.
+``_defer`` parked every blocked specialist, unconditionally. The feature is for
+an unknown which resolves: a shelter cannot confirm fridge space until Thursday,
+so the decision is parked.
 
 Six hours above eight degrees is not an unknown. It is a fact about the past, and
 the register's answer is "refused in full. Not reduced, not allocated to whoever
@@ -116,7 +116,7 @@ def test_silence_is_read_as_final_rather_than_as_revisitable():
 
 
 # --------------------------------------------------------------------------
-# The case the README actually describes still works.
+# The case the feature is for still works.
 # --------------------------------------------------------------------------
 
 

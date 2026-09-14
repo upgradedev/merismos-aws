@@ -12,8 +12,8 @@ the five members cannot accept that, absolutely, for reasons about the people
 they serve.
 
 Both halves are asserted here, and neither needs a credential. If the pattern
-half ever starts catching it, the README's comparison stops being true and this
-test says so before a judge does.
+half ever starts catching it, the claim that rules alone are not enough stops
+being true, and this test says so before a judge does.
 """
 
 from __future__ import annotations

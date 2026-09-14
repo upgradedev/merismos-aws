@@ -17,14 +17,18 @@
 # seconds and that ceiling cannot be raised. A specialist reading with Claude
 # Opus 5 takes about 100 seconds, so a chore cannot be awaited inside a request.
 #
-# It is not awaited. Pressing the button starts the chore on a background
-# invocation of the reader, which has its own 900 second budget, and the page
+# It is not awaited. The reader starts a live run as an asynchronous invocation
+# of the runner, which carries the reader's role in its own concurrency pool and
+# has a 900 second budget (the reader itself has 60, main.tf), and the page
 # polls the provenance thread. The first deployment did run the deterministic
 # rules synchronously, and a review caught what that cost: with the SDK removed
 # the deployed path still worked, so the strongest claim in the entry was true
 # of the repository and false of the demonstration.
 ###############################################################################
 
+# The description below predates the CloudFront site. A judge opens the site,
+# which forwards API paths to this API; the API also answers directly. Editing
+# the description would update this resource in the plan, so it is left as is.
 resource "aws_apigatewayv2_api" "judge" {
   name          = "${var.project}-judge"
   protocol_type = "HTTP"
@@ -107,9 +111,10 @@ resource "aws_lambda_permission" "gateway_may_invoke_the_reader" {
 # what a sustained problem can cost before anybody notices.
 ###############################################################################
 
-# A hard ceiling on how many readers can run at once. Without this, a burst
-# through the gateway becomes an unbounded number of concurrent Lambdas, each
-# of which may call Bedrock.
+# No retry of an asynchronous invoke of the reader. This is not the ceiling on
+# how many readers run at once: that is the reader's reserved concurrency in
+# main.tf. Chores go to the runner, which has no such configuration here, so
+# Lambda's default of two retries applies to its asynchronous invokes.
 resource "aws_lambda_function_event_invoke_config" "reader_retries" {
   function_name          = aws_lambda_function.fleet["reader"].function_name
   maximum_retry_attempts = 0

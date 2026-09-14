@@ -2,9 +2,11 @@
 # The privilege boundary. This file is the entry's central claim, so it is its
 # own file rather than a section of main.tf.
 #
-# Three roles. **The authority that matters is s3:PutObject on the records
-# bucket**, held by merismos-writer alone. That is what publishing a record
-# actually needs, and /identity proves it by attempting the write.
+# Three fleet roles. **The authority that matters is s3:PutObject on the records
+# bucket**, held by merismos-writer alone among the three. That is what
+# publishing a record actually needs, and /identity proves it by attempting the
+# write. Outside the fleet, the GitHub deploy role that infra/bootstrap.sh
+# creates also holds s3:* on the fleet's buckets.
 #
 # The Secrets Manager value is a **canary**. The publish path never reads it.
 # It exists so a refusal is observable from all three identities in one
@@ -263,11 +265,13 @@ data "aws_iam_policy_document" "writer" {
     ]
   }
 
-  # A coordinator filing their own offer. Every write in this system happens
-  # under this one identity, and it is scoped to offers/ alone: not orgs/, which
-  # is the register of who the members are, and not policies/, which is what the
-  # fleet is measured against. A fleet that could edit the rules it is judged by
-  # is a fleet whose refusals mean nothing, so no identity here can.
+  # A coordinator filing their own offer. Every S3 write the three fleet roles
+  # can make happens under this one identity, and this grant is scoped to
+  # offers/ alone: not orgs/, which is the register of who the members are, and
+  # not registers/, which is what the fleet is measured against. A fleet that
+  # could edit the rules it is judged by is a fleet whose refusals mean nothing,
+  # so no fleet identity here can. The GitHub deploy role, outside the fleet,
+  # holds s3:* on these buckets.
   statement {
     sid       = "FileAnOfferAPersonTyped"
     actions   = ["s3:PutObject"]
@@ -295,6 +299,11 @@ resource "aws_iam_role_policy" "writer" {
 
 ###############################################################################
 # The explicit Deny. Reason (2) at the top of this file.
+#
+# The Sid and the attached policy's name call the canary "the publish
+# credential". They predate the canary wording, and renaming either changes the
+# plan, so they stay. What they protect is the boundary canary; the publish
+# authority is PublishTheRecord, above.
 ###############################################################################
 
 data "aws_iam_policy_document" "never_the_publish_credential" {
@@ -314,11 +323,14 @@ resource "aws_iam_role_policy" "never_the_publish_credential" {
 }
 
 ###############################################################################
-# The scheduler's own role. It may wake the reader and do nothing else.
+# The scheduler's own role. It may wake the runner, which carries the reader's
+# role in its own concurrency pool, and send a failed wake to the dead-letter
+# queue, and do nothing else.
 #
 # An unattended wake is limited to appending an escalation, which is enforced in
 # handler._wake. This role is the second half of that: even if the code were
-# wrong, the scheduler can invoke one function and holds no other permission.
+# wrong, the scheduler can invoke one function and send to one queue, and holds
+# no other permission.
 ###############################################################################
 
 data "aws_iam_policy_document" "scheduler_assume" {
@@ -356,6 +368,9 @@ data "aws_iam_policy_document" "scheduler" {
   }
 }
 
+# Named wake-the-reader from before the runner existed; the grant above is on
+# the runner. Renaming the policy would replace it in the plan, so the name
+# stays.
 resource "aws_iam_role_policy" "scheduler" {
   name   = "wake-the-reader"
   role   = aws_iam_role.scheduler.id

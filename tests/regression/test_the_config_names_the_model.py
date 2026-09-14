@@ -78,7 +78,7 @@ def test_the_critic_is_reported_and_defaults_to_none(monkeypatch):
 
 
 def test_the_bounds_it_always_published_are_still_there():
-    """A new field must not have displaced the ones the README points at."""
+    """A new field must not have displaced the bounds /config always published."""
     reported = handler.config()
 
     for key in (
