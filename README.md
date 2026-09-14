@@ -113,11 +113,11 @@ flowchart TB
 ```
 
 In the diagram, the blue rounded box is the coordinator's browser, teal parallelograms are AWS entry points, orange
-rectangles are Lambda functions, slate cylinders are data stores (the DynamoDB thread and approvals tables and two S3
-buckets), the magenta double-sided box is Amazon Bedrock and the olive trapezoid is GitHub Actions. Dotted arrows are
-the live coordinator path, which the public API refuses. To stay readable at page width, it leaves out the S3 corpus
-both Lambdas read, the EventBridge Scheduler wake that only appends an escalation and the release job that publishes
-the app; [Infrastructure](docs/infrastructure.md) draws them.
+rectangles are Lambda functions, slate cylinders are data stores (the DynamoDB thread and approvals tables and two
+S3 buckets), the magenta double-sided box is Amazon Bedrock and the olive trapezoid is GitHub Actions. Dotted
+arrows are the live coordinator path, which the public API refuses. To stay readable at page width, the diagram
+leaves out the S3 corpus that the reader, runner and writer read, the EventBridge Scheduler wake that only appends
+an escalation and the release job that publishes the app; [Infrastructure](docs/infrastructure.md) draws them.
 
 Three fleet IAM roles separate the reader, evaluator and writer; the runner runs under the reader role, and
 EventBridge Scheduler has its own role. The evaluator Lambda, not in the diagram, only answers identity probes; the

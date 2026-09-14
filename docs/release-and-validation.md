@@ -69,10 +69,11 @@ the frontend release.
 
 In words: a pull request runs CI and Frontend verification, plus the AWS hosting contract and Docs
 verification when their files change. A push to `main` runs Frontend verification again, checks that the
-backend answering `/api/version` matches the runtime source, publishes the site, smoke tests it and runs
-the live Playwright testbook against AWS. The backend deploys only when someone dispatches `deploy.yml`
-by hand, and it defaults to a dry run. `still-up.yml` checks the API Gateway URL and one published record
-twice a week.
+backend answering `/api/version` matches the runtime source, confirms that `main` has not moved,
+publishes the site, smoke tests it, runs the live Playwright testbook against AWS, publishes an
+acceptance receipt and reads the public proof page without credentials. The backend deploys only when
+someone dispatches `deploy.yml` by hand, and it defaults to a dry run. `still-up.yml` checks the API
+Gateway URL and one published record twice a week.
 
 ## What each workflow checks
 

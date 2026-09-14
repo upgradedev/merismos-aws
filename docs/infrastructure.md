@@ -53,7 +53,7 @@ flowchart TB
 ```mermaid
 flowchart LR
     accTitle: Merismos infrastructure, part 2: who can touch which data
-    accDescr: The reader role, used by the reader and runner Lambdas, writes the DynamoDB thread table and mints approvals, reads the S3 corpus, has no put on records and is explicitly denied the Secrets Manager canary. The evaluator role writes only the thread table and is denied the canary. The writer role writes the thread table, spends approvals, files offers in the corpus, puts records and reads the canary. The GitHub deploy role has all S3 actions on the Merismos buckets, records included, and all Secrets Manager actions on the canary. Anyone may read published records under records/.
+    accDescr: The reader role, used by the reader and runner Lambdas, writes the DynamoDB thread table and mints approvals, reads the S3 corpus, has no put on records and is explicitly denied the Secrets Manager canary. The evaluator role writes only the thread table and is denied the canary. The writer role writes the thread table, spends approvals, reads approval evidence in the corpus and files offers there, puts records and reads the canary. The GitHub deploy role has all S3 actions on the Merismos buckets, records included, and all Secrets Manager actions on the canary. Anyone may read published records under records/.
 
     Anyone("Anyone on the internet"):::browser
     ReaderRole["reader role: reader and runner"]:::agent
@@ -72,7 +72,7 @@ flowchart LR
     EvaluatorRole -->|"thread only"| Tables
     EvaluatorRole -.-x|"Deny"| Canary
     WriterRole -->|"write, spend approvals"| Tables
-    WriterRole -->|"put offers/"| Corpus
+    WriterRole -->|"read evidence, put offers/"| Corpus
     WriterRole -->|"put records/"| Records
     WriterRole -->|"read"| Canary
     Deploy -->|"all S3 actions"| Records

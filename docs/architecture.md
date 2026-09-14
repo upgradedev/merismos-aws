@@ -42,6 +42,14 @@ default: `critic_model_id` defaults to empty and the deploy workflow does not se
 This follows `api.mutate`, `fleet.run_chore`, the Strands tool guard, `approval.authorise` and
 `handler.publish`/`publication_status`.
 
+Both diagrams below share one key. Purple stadium: a person's act. Slate cylinder: data seeded or kept. Green
+hexagon: a rule or check that can stop the run. Orange rectangle: code that runs. Magenta box with double
+sides: the model, scripted in the sandbox and Amazon Bedrock in a live run. Teal parallelogram: a scheduled
+wake. Olive trapezoid: GitHub Actions. Red flag with a dashed border: a refusal or a stop. A dotted arrow is
+the live path. With no authorizer deployed, only the two deploy proof runs reach it: the offer-4471 run stops
+at the approval card and the offer-4477 run at its refusal. The authenticated publication and recovery drill
+is NOT_RUN.
+
 ### From an offer to an approved plan
 
 ```mermaid
@@ -142,21 +150,14 @@ flowchart TB
     classDef refused fill:#d22231,stroke:#971823,stroke-width:2px,color:#ffffff,stroke-dasharray:5 5
 ```
 
-Purple stadium: a person's act. Slate cylinder: data seeded or kept. Green hexagon: a rule or check that can
-stop the run. Orange rectangle: code that runs. Magenta box with double sides: the model, scripted in the
-sandbox and Amazon Bedrock in a live run. Teal parallelogram: a scheduled wake. Olive trapezoid: GitHub
-Actions. Red flag with a dashed border: a refusal or a stop. A dotted arrow is the live path. With no
-authorizer deployed, only the two deploy proof runs reach it: the offer-4471 run stops at the approval card
-and the offer-4477 run at its refusal. The authenticated publication and recovery drill is NOT_RUN.
-
-In words: each woken specialist runs its deterministic rules first, and a specialist whose rules refuse is not
-sent to the model; the others still are. Any blocking specialist refuses the offer in full before the solver
-runs, and only a changeable capacity block in a live run is parked with a one-shot wake, which later appends
-an escalation and nothing else. Otherwise the solver drafts a bounded split and the draft gate checks it. In
-the sandbox, approval records the decision in the isolated session. In a live run, approval goes to the
-writer, which creates the record only if it is absent; an unknown outcome waits for an explicit reconcile, and
-a missing or mismatched object stays unknown until an operator investigates. Claiming a share and confirming
-collection are separate acts.
+In words, across both parts: each woken specialist runs its deterministic rules first, and a specialist whose
+rules refuse is not sent to the model; the others still are. Any blocking specialist refuses the offer in full
+before the solver runs, and only a changeable capacity block in a live run is parked with a one-shot wake,
+which later appends an escalation and nothing else. Otherwise the solver drafts a bounded split and the draft
+gate checks it. In the sandbox, approval records the decision in the isolated session. In a live run, approval
+goes to the writer, which creates the record only if it is absent; an unknown outcome waits for an explicit
+reconcile, and a missing or mismatched object stays unknown until an operator investigates. Claiming a share
+and confirming collection are separate acts.
 
 A refusal cannot be cleared by a model. Approval records an allocation; it does not prove collection. In the
 public sandbox, approval publishes nothing and never calls the private writer. The authenticated live publication
