@@ -20,10 +20,9 @@ import time
 import urllib.error
 import urllib.request
 
-
 SPEC = pathlib.Path(__file__).with_name("narration.json")
 SCENE_IDS = ("hook", "surface", "trigger", "live", "sponsor", "evidence", "close")
-SCHEMA = "archon.submission-video/v1"
+SCHEMA = "merismos.submission-video/v1"
 FPS = 25
 TAIL_SECONDS = 0.65
 MIN_TOTAL_SECONDS = 90
@@ -142,7 +141,9 @@ def validate_spec(spec: object) -> tuple[dict[str, object], list[dict[str, str]]
         caption = segment.get("captionText")
         if not isinstance(identifier, str) or not re.fullmatch(r"[a-z][a-z-]{1,24}", identifier):
             raise SystemExit("scene identifier is invalid")
-        if not all(isinstance(value, str) and 20 <= len(value) <= 800 for value in (speech, caption)):
+        if not all(
+            isinstance(value, str) and 20 <= len(value) <= 800 for value in (speech, caption)
+        ):
             raise SystemExit(f"scene text is invalid: {identifier}")
         if "<" in f"{speech}{caption}" or ">" in f"{speech}{caption}":
             raise SystemExit(f"scene {identifier} contains an unfilled placeholder")
@@ -281,9 +282,7 @@ def synthesize_scene(
     seconds = duration(temporary)
     if not MIN_SCENE_SECONDS <= seconds <= MAX_SCENE_SECONDS:
         temporary.unlink(missing_ok=True)
-        raise SystemExit(
-            f"scene audio duration is unsafe: {segment['id']} measured {seconds:.3f}s"
-        )
+        raise SystemExit(f"scene audio duration is unsafe: {segment['id']} measured {seconds:.3f}s")
     temporary.replace(audio)
     write_json(
         sidecar,
@@ -299,7 +298,9 @@ def synthesize_scene(
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--validate", action="store_true", help="validate only; no network or writes")
+    parser.add_argument(
+        "--validate", action="store_true", help="validate only; no network or writes"
+    )
     parser.add_argument(
         "--force",
         action="append",
@@ -339,7 +340,9 @@ def main() -> None:
     out = root / "narration"
     out.mkdir(parents=True, exist_ok=True)
     forced = set(args.force)
-    forced.update(item.strip() for item in os.environ.get("NARRATION_FORCE", "").split(",") if item.strip())
+    forced.update(
+        item.strip() for item in os.environ.get("NARRATION_FORCE", "").split(",") if item.strip()
+    )
     unknown = forced - set(SCENE_IDS) - {"all"}
     if unknown:
         raise SystemExit(f"unknown forced beat: {', '.join(sorted(unknown))}")
@@ -354,7 +357,9 @@ def main() -> None:
         outcome = synthesize_scene(audio, sidecar, segment, spec, forced)
         seconds = duration(audio)
         if not MIN_SCENE_SECONDS <= seconds <= MAX_SCENE_SECONDS:
-            raise SystemExit(f"scene audio duration is unsafe: {identifier} measured {seconds:.3f}s")
+            raise SystemExit(
+                f"scene audio duration is unsafe: {identifier} measured {seconds:.3f}s"
+            )
         hold_frames = math.ceil((seconds + TAIL_SECONDS) * FPS)
         hold = hold_frames / FPS
         sentences = [

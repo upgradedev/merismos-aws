@@ -11,7 +11,6 @@ import pathlib
 import re
 import subprocess
 
-
 SCENE_IDS = ("hook", "surface", "trigger", "live", "sponsor", "evidence", "close")
 SHA = re.compile(r"[0-9a-f]{40}")
 SRT_WINDOW = re.compile(
@@ -126,6 +125,9 @@ def frame_hash(path: pathlib.Path, at: float) -> str | None:
             f"{at:.3f}",
             "-i",
             str(path),
+            "-map",
+            "0:v:0",
+            "-an",
             "-frames:v",
             "1",
             "-f",
@@ -207,16 +209,44 @@ def main() -> int:
     gate = Gate()
 
     print("== exact-release and artifact chain ==")
-    gate.check(receipt.get("releaseSha") == args.release_sha, "release-receipt", str(receipt.get("releaseSha")))
-    gate.check(capture.get("releaseSha") == args.release_sha, "release-capture", str(capture.get("releaseSha")))
-    gate.check(ffprobe_evidence.get("releaseSha") == args.release_sha, "release-ffprobe", str(ffprobe_evidence.get("releaseSha")))
+    gate.check(
+        receipt.get("releaseSha") == args.release_sha,
+        "release-receipt",
+        str(receipt.get("releaseSha")),
+    )
+    gate.check(
+        capture.get("releaseSha") == args.release_sha,
+        "release-capture",
+        str(capture.get("releaseSha")),
+    )
+    gate.check(
+        ffprobe_evidence.get("releaseSha") == args.release_sha,
+        "release-ffprobe",
+        str(ffprobe_evidence.get("releaseSha")),
+    )
     video_sha = sha256(paths["mp4"])
     gate.check(receipt.get("sha256") == video_sha, "receipt-video-sha", video_sha)
     gate.check(ffprobe_evidence.get("sha256") == video_sha, "ffprobe-video-sha", video_sha)
-    gate.check(receipt.get("timingSha256") == sha256(paths["timing"]), "receipt-timing-sha", sha256(paths["timing"]))
-    gate.check(receipt.get("captionsSha256") == sha256(paths["captions"]), "receipt-caption-sha", sha256(paths["captions"]))
-    gate.check(receipt.get("captureReceiptSha256") == sha256(paths["capture"]), "receipt-capture-sha", sha256(paths["capture"]))
-    gate.check(receipt.get("ffprobeSha256") == sha256(paths["ffprobe"]), "receipt-ffprobe-sha", sha256(paths["ffprobe"]))
+    gate.check(
+        receipt.get("timingSha256") == sha256(paths["timing"]),
+        "receipt-timing-sha",
+        sha256(paths["timing"]),
+    )
+    gate.check(
+        receipt.get("captionsSha256") == sha256(paths["captions"]),
+        "receipt-caption-sha",
+        sha256(paths["captions"]),
+    )
+    gate.check(
+        receipt.get("captureReceiptSha256") == sha256(paths["capture"]),
+        "receipt-capture-sha",
+        sha256(paths["capture"]),
+    )
+    gate.check(
+        receipt.get("ffprobeSha256") == sha256(paths["ffprobe"]),
+        "receipt-ffprobe-sha",
+        sha256(paths["ffprobe"]),
+    )
 
     print("== seven-beat continuous timeline ==")
     scenes = timing.get("scenes") if isinstance(timing.get("scenes"), list) else []
@@ -241,13 +271,17 @@ def main() -> int:
         timeline_ok = timeline_ok and abs(hold - frames / 25) <= 0.002
         expected_start += hold
     timeline_ok = timeline_ok and abs(expected_start - total) <= 0.002
-    gate.check(timeline_ok, "timeline-contiguous", f"reconstructed={expected_start:.3f}s total={total:.3f}s")
+    gate.check(
+        timeline_ok,
+        "timeline-contiguous",
+        f"reconstructed={expected_start:.3f}s total={total:.3f}s",
+    )
 
     capture_scenes = capture.get("scenes") if isinstance(capture.get("scenes"), list) else []
     capture_ids = [scene.get("id") for scene in capture_scenes if isinstance(scene, dict)]
     gate.check(tuple(capture_ids) == SCENE_IDS, "capture-scene-order", f"observed={capture_ids}")
     capture_alignment = len(capture_scenes) == len(scenes)
-    for planned, observed in zip(scenes, capture_scenes):
+    for planned, observed in zip(scenes, capture_scenes, strict=False):
         if not isinstance(planned, dict) or not isinstance(observed, dict):
             capture_alignment = False
             continue
@@ -257,15 +291,27 @@ def main() -> int:
         observed_end = float(observed.get("observedEndSeconds", -99))
         action = float(observed.get("actionSeconds", -1))
         capture_alignment = capture_alignment and abs(start - observed_start) <= 0.75
-        capture_alignment = capture_alignment and abs(hold - (observed_end - observed_start)) <= 0.75
+        capture_alignment = (
+            capture_alignment and abs(hold - (observed_end - observed_start)) <= 0.75
+        )
         capture_alignment = capture_alignment and 0 <= action <= hold
     capture_total = float(capture.get("timelineSeconds", 0))
     capture_alignment = capture_alignment and total <= capture_total <= total + 2
-    gate.check(capture_alignment, "capture-timeline", f"observed={capture_total:.3f}s planned={total:.3f}s")
-    gate.check(capture.get("pageErrors") == [] and capture.get("requestFailures") == [], "capture-browser-errors", f"page={capture.get('pageErrors')} requests={capture.get('requestFailures')}")
+    gate.check(
+        capture_alignment, "capture-timeline", f"observed={capture_total:.3f}s planned={total:.3f}s"
+    )
+    gate.check(
+        capture.get("pageErrors") == [] and capture.get("requestFailures") == [],
+        "capture-browser-errors",
+        f"page={capture.get('pageErrors')} requests={capture.get('requestFailures')}",
+    )
 
     print("== shipped frames and audio ==")
-    gate.check(len(videos) == 1 and len(audios) == 1, "stream-count", f"video={len(videos)} audio={len(audios)}")
+    gate.check(
+        len(videos) == 1 and len(audios) == 1,
+        "stream-count",
+        f"video={len(videos)} audio={len(audios)}",
+    )
     video_duration = audio_duration = 0.0
     frame_tolerance = 1 / 25
     if len(videos) == 1 and len(audios) == 1:
@@ -277,12 +323,36 @@ def main() -> int:
         audio_duration = stream_duration(audio, media)
         gate.check(abs(measured_fps - 25) < 0.001, "video-fps", f"fps={measured_fps:.3f}")
         gate.check(frame_count > 0, "frame-count", f"frames={frame_count}")
-        gate.check(video.get("width") == 1920 and video.get("height") == 1080, "video-size", f"{video.get('width')}x{video.get('height')}")
-        gate.check(video.get("codec_name") == "h264" and video.get("pix_fmt") == "yuv420p", "video-codec", f"{video.get('codec_name')}/{video.get('pix_fmt')}")
+        gate.check(
+            video.get("width") == 1920 and video.get("height") == 1080,
+            "video-size",
+            f"{video.get('width')}x{video.get('height')}",
+        )
+        gate.check(
+            video.get("codec_name") == "h264" and video.get("pix_fmt") == "yuv420p",
+            "video-codec",
+            f"{video.get('codec_name')}/{video.get('pix_fmt')}",
+        )
         gate.check(audio.get("codec_name") == "aac", "audio-codec", str(audio.get("codec_name")))
-        gate.check(abs(video_duration - total) <= frame_tolerance, "video-timeline", f"frames/fps={video_duration:.3f}s expected={total:.3f}s tol={frame_tolerance:.3f}s")
-        gate.check(abs(audio_duration - video_duration) <= frame_tolerance, "av-duration", f"audio={audio_duration:.3f}s video={video_duration:.3f}s delta={abs(audio_duration-video_duration):.3f}s tol={frame_tolerance:.3f}s")
-        gate.check(receipt.get("frameCount") == frame_count, "receipt-frame-count", f"receipt={receipt.get('frameCount')} measured={frame_count}")
+        gate.check(
+            abs(video_duration - total) <= frame_tolerance,
+            "video-timeline",
+            f"frames/fps={video_duration:.3f}s expected={total:.3f}s tol={frame_tolerance:.3f}s",
+        )
+        duration_delta = abs(audio_duration - video_duration)
+        gate.check(
+            duration_delta <= frame_tolerance,
+            "av-duration",
+            (
+                f"audio={audio_duration:.3f}s video={video_duration:.3f}s "
+                f"delta={duration_delta:.3f}s tol={frame_tolerance:.3f}s"
+            ),
+        )
+        gate.check(
+            receipt.get("frameCount") == frame_count,
+            "receipt-frame-count",
+            f"receipt={receipt.get('frameCount')} measured={frame_count}",
+        )
 
     frame_hashes = []
     audible = True
@@ -295,14 +365,28 @@ def main() -> int:
         frame_hashes.append(frame_hash(paths["mp4"], start + hold / 2))
         volume = max_volume(paths["mp4"], start + 0.2, max(0.5, spoken - 0.4))
         audible = audible and volume is not None and volume > -50
-    gate.check(all(frame_hashes), "scene-frames-present", f"sampled={sum(bool(value) for value in frame_hashes)}/{len(SCENE_IDS)}")
-    gate.check(len(set(frame_hashes)) >= 4, "scene-pixels-vary", f"unique_midpoint_frames={len(set(frame_hashes))}")
+    gate.check(
+        all(frame_hashes),
+        "scene-frames-present",
+        f"sampled={sum(bool(value) for value in frame_hashes)}/{len(SCENE_IDS)}",
+    )
+    gate.check(
+        len(set(frame_hashes)) >= 4,
+        "scene-pixels-vary",
+        f"unique_midpoint_frames={len(set(frame_hashes))}",
+    )
     gate.check(audible, "every-beat-audible", "max volume above -50 dB in every spoken window")
 
     print("== captions ==")
     captions = parse_srt(paths["captions"])
-    expected_captions = sum(int(scene.get("captionCount", 0)) for scene in scenes if isinstance(scene, dict))
-    gate.check(len(captions) == expected_captions and len(captions) > 0, "caption-count", f"observed={len(captions)} expected={expected_captions}")
+    expected_captions = sum(
+        int(scene.get("captionCount", 0)) for scene in scenes if isinstance(scene, dict)
+    )
+    gate.check(
+        len(captions) == expected_captions and len(captions) > 0,
+        "caption-count",
+        f"observed={len(captions)} expected={expected_captions}",
+    )
     monotonic = True
     in_bounds = True
     per_scene = {identifier: 0 for identifier in SCENE_IDS}
