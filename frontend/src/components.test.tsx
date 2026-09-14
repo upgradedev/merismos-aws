@@ -95,8 +95,11 @@ it('points a disabled approval at the reason its consent box is disabled instead
 it('clearly gates live approval and displays its consequence', async () => {
   const data=workspace(); data.mode='live'; data.can_write=false;
   const {rerender}=render(<OfferDetail row={row} data={data} busy={false} mutate={vi.fn()}/>);
-  expect(screen.getByText('Approve and publish')).toBeDisabled(); expect(screen.getByText(/permanent public allocation/)).toBeVisible();
+  expect(screen.getByText('Approve and publish')).toBeDisabled(); expect(screen.getByText(/publicly readable, versioned allocation record/)).toBeVisible();
+  expect(screen.getByText('Known historical contradiction.')).toBeVisible();
   rerender(<OfferDetail row={row} data={{...data,can_write:true}} busy mutate={vi.fn()}/>); expect(screen.getByText('Recording decision…')).toBeDisabled(); expect(screen.getByText('Approval paused while the workspace loads, saves or needs a refresh.')).toBeVisible();
+  rerender(<OfferDetail row={{...row,offer:{...row.offer,id:'offer-4483'}}} data={data} busy={false} mutate={vi.fn()}/>);
+  expect(screen.queryByText('Known historical contradiction.')).not.toBeInTheDocument();
 });
 it('takes a pickup from claim through scheduling and explicit confirmation', async () => {
   const data=workspace(); const mutate=vi.fn().mockResolvedValue(true); const user=userEvent.setup();
@@ -107,6 +110,7 @@ it('takes a pickup from claim through scheduling and explicit confirmation', asy
   data.pickups[0]={...data.pickups[0],state:'claimed',role:'kitchen lead'};
   rerender(<Pickups data={data} busy={false} mutate={mutate}/>);
   expect(screen.getByText('Save collection time')).toBeDisabled();
+  expect(screen.getByText(/Optional\. If you set one/)).toBeVisible();
   fireEvent.change(screen.getByLabelText('Collection time (your local time)'),{target:{value:'2026-10-01T12:00'}});
   await user.click(screen.getByText('Save collection time')); expect(mutate).toHaveBeenLastCalledWith('offer-4471','pickup',expect.objectContaining({action:'schedule'}));
   expect(screen.getByText('Confirm collection')).toBeDisabled(); await user.click(screen.getByLabelText(/This collection actually/)); await user.click(screen.getByText('Confirm collection'));
@@ -140,7 +144,7 @@ it('explains paused and unticked pickup actions beside their disabled buttons', 
   expect(paused()).toBeVisible(); expect(observe).toBeVisible();
   expect(paused().nextElementSibling).toBe(screen.getByText('Save collection time').closest('form'));
   expect(screen.getByText('Save handoff report')).toHaveAttribute('aria-describedby',`${paused().id} ${observe.id}`);
-  expect(screen.getByText('Save collection time')).toHaveAttribute('aria-describedby',`${paused().id} ${screen.getByText('Choose a future time within the next 14 days.').id}`);
+  expect(screen.getByText('Save collection time')).toHaveAttribute('aria-describedby',`${paused().id} ${screen.getByText('Optional. If you set one, choose a future time within the next 14 days.').id}`);
   expect(screen.getByText('Confirm collection')).toHaveAttribute('aria-describedby',`${paused().id} ${screen.getByText('Confirm arrival before marking this share collected.').id}`);
   rerender(<PickupCard item={{...data.pickups[0],state:'confirmed'}} data={data} busy mutate={mutate} today="2026-09-09"/>);
   expect(screen.getByText('Simulation confirmed')).toBeVisible(); expect(screen.queryByText(/paused while the workspace loads/)).not.toBeInTheDocument();
@@ -184,7 +188,7 @@ it('shows current and superseded history without rewriting old records', () => {
   const data=workspace(); const {rerender}=render(<History data={data}/>); expect(screen.getByText('No records yet')).toBeVisible();
   data.records=[{key:'records/offer-4471.md',offer_id:'offer-4471',run_id:'r',content_digest:'d',published_at:1,superseded_by:'records/offer-4471-c2.md',mode:'sandbox'}];
   rerender(<History data={data}/>); expect(screen.getByText(/^Superseded by/)).toBeVisible(); expect(screen.getByText('Simulation')).toBeVisible();
-  data.mode='live'; data.records[0].mode='live'; data.records[0].superseded_by=''; rerender(<History data={data}/>); expect(screen.getByText('Current record in this history')).toBeVisible(); expect(screen.getByText('Published',{exact:true})).toBeVisible();
+  data.mode='live'; data.records[0].mode='live'; data.records[0].superseded_by=''; rerender(<History data={data}/>); expect(screen.getByText('Current record in this history')).toBeVisible(); expect(screen.getByText('Published',{exact:true})).toBeVisible(); expect(screen.getByText('Known historical contradiction.')).toBeVisible();
 });
 it('submits an accessible intake form, retains fields, and asks cold-chain evidence', async () => {
   const user=userEvent.setup(); const mutate=vi.fn().mockResolvedValue(false); const data=workspace();

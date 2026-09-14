@@ -15,6 +15,8 @@ it('exports observed decisions and limits without claiming source truth or deliv
   const data = workspace();
   const text = evidenceBundle(row, data);
   expect(text).toContain('Workspace revision:');
+  expect(text).toContain('Source reference in this API snapshot: offers/offer-4471.json');
+  expect(text).toContain('Raw manifests, internal logs and personal identities are not included');
   expect(text).toContain('Hashes bind bytes; they do not prove source truth');
   expect(text).toContain('Human active time');
   expect(text).toContain('not measured');

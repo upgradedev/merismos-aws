@@ -1,6 +1,6 @@
 {
-  "_comment": "Draft narration for the current synthetic coordinator flows. Capture actual product only after exact-release acceptance; captions do not establish deployment. Existing production-tool schema and provider contract preserved.",
-  "schemaVersion": "archon.submission-video/v1",
+  "_comment": "Draft narration for the current synthetic coordinator flows. Capture actual product only after exact-release acceptance; captions do not establish deployment. Merismos video schema and ElevenLabs provider contract.",
+  "schemaVersion": "merismos.submission-video/v1",
   "provider": "elevenlabs",
   "elevenLabs": {
     "voiceId": "pNInz6obpgDQGcFmaJgB",
@@ -8,9 +8,8 @@
     "outputFormat": "mp3_44100_128"
   },
   "languageCode": "en-GB",
-  "voice": "en-GB-Neural2-B",
   "speakingRate": 0.98,
-  "_comment_length": "Target 90–174 seconds, seven beats of 3–40 seconds. Draft timing only; measured audio/video and captions must pass existing gates before publication.",
+  "_comment_length": "Target 90–174 seconds, seven beats of 3–40 seconds. Draft timing only; measured audio/video and captions must pass the project gates before publication.",
   "segments": [
     {
       "id": "hook",
@@ -19,13 +18,13 @@
     },
     {
       "id": "surface",
-      "captionText": "Open the Merismos coordinator workspace with no account. On the Dashboard, choose + Add offer, then Try success. The fields remain editable. Choose Add to sandbox, and the invented donation opens on Decide. This uses a real HTTP API, a saved sandbox session and a real Strands agent loop, not a prerecorded answer.",
-      "speechText": "Open the Merismos coordinator workspace with no account. On the Dashboard, choose + Add offer, then Try success. The fields remain editable. Choose Add to sandbox, and the invented donation opens on Decide. This uses a real HTTP API, a saved sandbox session and a real Strands agent loop, not a prerecorded answer."
+      "captionText": "Before recording, select My sandbox and start a fresh workspace. On the Dashboard, choose + Add offer, then Try success. Choose Add to sandbox, and the invented donation opens on Decide. This uses the real HTTP API and Strands loop, driven by a fixed scripted tool sequence and closing answer; deterministic rules compute the outcome.",
+      "speechText": "Before recording, select My sandbox and start a fresh workspace. On the Dashboard, choose + Add offer, then Try success. Choose Add to sandbox, and the invented donation opens on Decide. This uses the real HTTP API and Strands loop, driven by a fixed scripted tool sequence and closing answer; deterministic rules compute the outcome."
     },
     {
       "id": "trigger",
-      "captionText": "The coordinator chooses Work out the split. Separate scheduled deferrals can append an escalation, not approve a publication. There is no automatic chat intake or message delivery. The public sandbox uses a scripted model with no model network call. Live records are separately read-only.",
-      "speechText": "The coordinator chooses Work out the split. Separate scheduled deferrals can append an escalation, not approve a publication. There is no automatic chat intake or message delivery. The public sandbox uses a scripted model with no model network call. Live records are separately read-only."
+      "captionText": "The coordinator chooses Work out the split. Live-only capacity deferrals can schedule a wake that appends an escalation, not approve a publication; this sandbox creates no schedule. There is no automatic chat intake or message delivery. The public sandbox makes no model network call. Live records are separately read-only.",
+      "speechText": "The coordinator chooses Work out the split. Live-only capacity deferrals can schedule a wake that appends an escalation, not approve a publication; this sandbox creates no schedule. There is no automatic chat intake or message delivery. The public sandbox makes no model network call. Live records are separately read-only."
     },
     {
       "id": "live",
@@ -34,13 +33,13 @@
     },
     {
       "id": "sponsor",
-      "captionText": "Strands runs each specialist's agent loop and dispatches its tool calls. A Merismos guard on the SDK's BeforeToolCallEvent hook cancels forbidden calls before they run. CI tests remove that guard and then remove the SDK to demonstrate both boundaries. A separate deterministic gate checks the draft. Live runs use Bedrock Opus 5. A public request cannot start one, and each deploy apply fails unless its proof run records a specialist answer from the model.",
-      "speechText": "Strands runs each specialist's agent loop and dispatches its tool calls. A Merismos guard on the SDK's BeforeToolCallEvent hook cancels forbidden calls before they run. CI tests remove that guard and then remove the SDK to demonstrate both boundaries. A separate deterministic gate checks the draft. Live runs use Bedrock Opus 5. A public request cannot start one, and each deploy apply fails unless its proof run records a specialist answer from the model."
+      "captionText": "Each applicable specialist runs deterministic rules first. If those rules do not refuse, Strands runs the agent loop and dispatches tool calls. A guard on BeforeToolCallEvent cancels forbidden calls before they run; CI removes the guard and then the SDK to test both boundaries. Terraform configures Bedrock for live runs, but the final video names an exact model only after the frozen deploy proof confirms it.",
+      "speechText": "Each applicable specialist runs deterministic rules first. If those rules do not refuse, Strands runs the agent loop and dispatches tool calls. A guard on BeforeToolCallEvent cancels forbidden calls before they run; CI removes the guard and then the SDK to test both boundaries. Terraform configures Bedrock for live runs, but the final video names an exact model only after the frozen deploy proof confirms it."
     },
     {
       "id": "evidence",
-      "captionText": "The evidence bundle keeps public sources, decision reasons, run and workspace revision, provider, mode, record history and handoff together. Hashes bind bytes, not source truth or delivery. Live recovery requires an authenticated coordinator and checks one reserved attempt without publishing again. Historical records are not silently repaired.",
-      "speechText": "The evidence bundle keeps public sources, decision reasons, run and workspace revision, provider, mode, record history and handoff together. Hashes bind bytes, not source truth or delivery. Live recovery requires an authenticated coordinator and checks one reserved attempt without publishing again. Historical records are not silently repaired."
+      "captionText": "The evidence bundle keeps logical source references from the current API snapshot, decision reasons, run and workspace revision, provider, mode, record history and handoff together. Hashes bind bytes, not source truth or delivery. Live recovery requires an authenticated coordinator and checks one reserved attempt without publishing again. Historical records are not silently repaired.",
+      "speechText": "The evidence bundle keeps logical source references from the current API snapshot, decision reasons, run and workspace revision, provider, mode, record history and handoff together. Hashes bind bytes, not source truth or delivery. Live recovery requires an authenticated coordinator and checks one reserved attempt without publishing again. Historical records are not silently repaired."
     },
     {
       "id": "close",
