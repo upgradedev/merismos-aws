@@ -70,7 +70,7 @@ const JOURNEYS: JourneyStep[] = [
     ],
     awsServices: ['AWS Lambda', 'Amazon DynamoDB (thread, approvals)', 'Amazon S3 records bucket (live mode)'],
     artifactProduced: 'An approval entry in the append-only ledger; in live mode, a Markdown record at a stable public address',
-    deepDive: 'The coordinator sees every line and its reason before approving. Approval names the record digest and address it applies to; if the plan has changed since, the approval is refused. In the public sandbox the decision is recorded inside the session and nothing is published. In live mode the writer Lambda, the only one of the three fleet roles with s3:PutObject on the records bucket, publishes a Markdown record there. Corrections are new records at the next address that name what they replaced; the superseded record stays served with a notice.',
+    deepDive: 'The coordinator sees every line and its reason before approving. Approval names the record digest and address it applies to; if the plan has changed since, the approval is refused. In the public sandbox the decision is recorded inside the session and nothing is published. In live mode the writer Lambda, whose role is the only one of the three fleet roles with s3:PutObject on the records bucket, publishes a Markdown record there. Corrections are new records at the next address that name what they replaced; the superseded record stays served with a notice.',
   },
   {
     id: 'collection',
