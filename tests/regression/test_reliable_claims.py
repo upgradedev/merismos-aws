@@ -121,7 +121,15 @@ def test_me18_and_capture_preflight_remain_precisely_scoped():
     testbook = json.loads((ROOT / "frontend/UAT.testbook.json").read_text(encoding="utf-8"))
     me18 = next(case for case in testbook["cases"] if case["id"] == "ME18")
     assert me18["requirement"] == "Actual writer read capability"
-    assert me18["current_revision_status"] == "NOT_RUN"
+    assert me18["current_revision_status"] == "PASS_AUTOMATED_AWS"
+    assert "34894779949" in me18["current_revision_observed_result_evidence"]
+    assert "not a publication drill or human signoff" in me18["current_revision_observed_result_evidence"]
+    assert "PASS_AUTOMATED_AWS" in testbook["current_public_proof"]["writer_read_capability_ME18"]
+    for path in ("README.md", "docs/evidence.md", "frontend/UAT.testbook.html",
+                 "frontend/public/acceptance.html"):
+        text = _flat(path)
+        assert "34894779949" in text, path
+        assert "not a publication drill" in text, path
     script = _flat("docs/video-script.md")
     for phrase in ("My sandbox", "Start over in a new sandbox", "Shared demo records",
                    "known contradictory offer-4471 record"):

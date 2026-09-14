@@ -52,7 +52,7 @@
     "source_status": "NOT_RUN",
     "basis": "Read the current page for observed status; source alone is not deployed acceptance. Product JUnit counts exclude the separate proof-display suite. Missing, malformed, stale or mismatched proof never becomes a current pass. Current receipts can independently observe backend identity via safe GET /api/version; missing and historical unknown identities stay unknown. Never use /identity for a version check.",
     "human_uat": "NOT_RUN",
-    "writer_read_capability_ME18": "NOT_RUN"
+    "writer_read_capability_ME18": "PASS_AUTOMATED_AWS at backend 4bf2238; apply run 34894779949; separate from this receipt"
   },
   "cases": [
     {
@@ -509,8 +509,9 @@
       "expected_outcome": "After reviewed backend apply, IAM invoke the read-only writer probe. Assert corpus List/Get and custody GetItem success. No fake authorizer, nonce, receipt or public object write.",
       "negative_recovery_case": "Original trigger, alternate inputs and legitimate controls must all be exercised; no inferred passing result.",
       "automation_mapping": ".github/workflows/deploy.yml; tests/regression/test_reliable_publication.py",
-      "current_revision_status": "NOT_RUN",
-      "human_signoff": "NOT_RUN"
+      "current_revision_status": "PASS_AUTOMATED_AWS",
+      "human_signoff": "NOT_RUN",
+      "current_revision_observed_result_evidence": "Backend 4bf2238 apply run https://github.com/upgradedev/merismos-aws/actions/runs/34894779949 IAM-invoked the read-only writer probe and asserted S3 corpus freshness plus DynamoDB custody-head reads. Artifact writer-read-capabilities-34894779949 is retained. This was not a publication drill or human signoff."
     }
   ],
   "historical_verification": {

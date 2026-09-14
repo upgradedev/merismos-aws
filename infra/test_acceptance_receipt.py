@@ -1,6 +1,7 @@
 """CI-only unit and CLI-functional negative controls; every AWS call is a fake."""
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -77,6 +78,12 @@ class ReceiptContract(unittest.TestCase):
         data = proof.canonical(self.receipt)
         for private in (b"synthetic case", b"do not publish raw output", b"system-out"):
             self.assertNotIn(private, data)
+
+    def test_publisher_and_public_verifier_share_the_exact_limits_contract(self):
+        verifier = (Path(__file__).parents[1] / "frontend" / "public" / "acceptance.js").read_text()
+        match = re.search(r"^export const LIMITS = '([^']*)';$", verifier, re.MULTILINE)
+        self.assertIsNotNone(match, "public verifier must export one literal LIMITS contract")
+        self.assertEqual(match.group(1), proof.LIMITS)
 
     def test_observed_backend_may_differ_from_frontend_without_inventing_parity(self):
         known = {"commit": OTHER, "status": "known", "source": "ci_package"}

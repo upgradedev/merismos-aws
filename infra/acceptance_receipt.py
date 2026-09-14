@@ -31,7 +31,8 @@ LIMITS = (
     "Synthetic scripted-planner/1.0.0 through real Strands and AWS HTTP persistence. "
     "Product journeys only; proof-display fixtures and post-publication proof checks are counted separately. "
     "No Bedrock model calls, real food rescue, "
-    "authenticated live-coordinator publication (ME18), or human UAT."
+    "deploy-time writer read-capability probe (ME18), authenticated "
+    "live-coordinator publication, or human UAT."
 )
 FIELDS = {"schema_version", "application", "environment", "frontend_commit", "backend_commit",
           "backend_basis", "run_id", "run_attempt", "run_url", "observed_at", "preflight",
