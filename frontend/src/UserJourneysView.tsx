@@ -28,7 +28,7 @@ const JOURNEYS: JourneyStep[] = [
     actor: 'Donor or coordinator typing the offer',
     timeToComplete: 'a form',
     constraints: [
-      'Personal data is refused: phone numbers, IBANs, card numbers, national IDs, named households',
+      'Personal data is refused: phone numbers, email and street addresses, IBANs, card numbers, national IDs, named households',
       'Instruction-like text is refused; donor and organisation names are carried as untrusted text',
       'Use-by must not be before the collection date',
       'A chilled or frozen offer must say how many hours it has been out of the fridge; without that figure it is refused',

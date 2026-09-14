@@ -138,7 +138,7 @@ export function LandingPage({ data, onLaunchCockpit, onNavigate }: LandingPagePr
             <h3 style={{ margin: '8px 0', fontSize: '1.15rem' }}>Intake</h3>
             <p style={{ color: 'var(--secondary)', fontSize: '0.92rem', lineHeight: 1.6 }}>
               The offer is typed in: title, donor, quantity and unit, category (ambient, chilled or frozen), collection date, use-by, hours unrefrigerated, allergens and a note.
-              Personal data (phone numbers, IBANs, card numbers, national IDs, named households) and instruction-like text are refused at the door, and the refusal says what it found.
+              Personal data (phone numbers, email and street addresses, IBANs, card numbers, national IDs, named households) and instruction-like text are refused at the door, and the refusal says what it found.
             </p>
           </div>
           <div style={{ borderTop: '2px solid var(--amber)', paddingTop: '16px' }}>
