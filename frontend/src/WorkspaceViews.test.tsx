@@ -100,7 +100,7 @@ it('records filters are URL-backed and empty/unknown results remain reviewable',
 it('offer or exact-plan changes clear approval consent, including return to the previous offer', async () => {
   const data = twoOffers(); vi.mocked(api.loadWorkspace).mockResolvedValue(data); location.hash = '/workspace?offer=offer-4471'; render(<App/>);
   const consent = await screen.findByLabelText(/I have reviewed this exact allocation/); await userEvent.click(consent);
-  await navigate('/workspace?offer=offer-4483'); expect(screen.queryByRole('checkbox')).not.toBeInTheDocument(); expect(screen.getByText(/No pickup is authorised/)).toBeVisible();
+  await navigate('/workspace?offer=offer-4483'); expect(screen.queryByRole('checkbox')).not.toBeInTheDocument(); expect(screen.getByText('No allocation is approved for this offer, so there is no collection to record.')).toBeVisible(); expect(screen.queryByText(/collection is confirmed separately/)).not.toBeInTheDocument();
   await navigate('/workspace?offer=offer-4471'); expect(screen.getByRole('checkbox')).not.toBeChecked();
   await userEvent.click(screen.getByRole('checkbox')); data.offers[0].plan!.digest = 'changed'; vi.mocked(api.loadWorkspace).mockResolvedValue(structuredClone(data));
   await userEvent.click(screen.getByText('Refresh workspace')); await waitFor(() => expect(screen.getByRole('checkbox')).not.toBeChecked());
@@ -117,13 +117,21 @@ it('empty workspace and unknown allocation do not expose an approval path', () =
   const data = workspace(); data.offers = []; render(<DispatchWorkspace data={data} selected="" filter="all" unit="" today={today} busy={false} mutate={vi.fn()}/>);
   expect(screen.getByText('No offers yet')).toBeVisible(); expect(screen.getByText('No offers match')).toBeVisible();
 });
+it('a blocked or refused offer with no allocation shows no approval sentence beside its pickups', () => {
+  const data = workspace(); data.offers[0] = { ...data.offers[0], status: 'blocked', result: { run_id: 'run-refused', outcome: 'blocked', note: 'The cold chain is broken, so the offer is refused in full.' }, plan: null };
+  render(<DispatchWorkspace data={data} selected="offer-4471" filter="all" unit="" today={today} busy={false} mutate={vi.fn()}/>);
+  const tasks = within(screen.getByRole('region', { name: 'Selected offer pickups' }));
+  expect(tasks.getByText('No allocation is approved for this offer, so there is no collection to record.')).toBeVisible();
+  expect(tasks.queryByText(/until the exact allocation is approved|collection is confirmed separately/)).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Approve in sandbox' })).not.toBeInTheDocument(); expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
+});
 it('puts the skip button before the decision pane, the journey after it and the offer stream last', async () => {
   render(<DispatchWorkspace data={workspace()} selected="offer-4471" filter="all" unit="" today={today} busy={false} mutate={vi.fn()}/>);
   const pane = screen.getByRole('complementary', { name: 'Decision and dispatch' }); const skip = screen.getByRole('button', { name: 'Go to next decision ↓' });
   const journey = screen.getByRole('region', { name: 'Offer to pickup journey' }); const stream = screen.getByRole('region', { name: 'Intake and allocation' });
   const follows = (a: Element, b: Element) => !!(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
   expect(follows(skip, pane)).toBe(true); expect(follows(pane, journey)).toBe(true); expect(follows(journey, stream)).toBe(true);
-  expect(within(pane).getByText('Approval records your decision; collection is confirmed separately.')).toBeVisible(); expect(within(pane).getByText('No pickup is authorised for this offer until you approve the exact allocation.')).toBeVisible();
+  expect(within(pane).getByText('Approval records your decision; collection is confirmed separately.')).toBeVisible(); expect(within(pane).getByText('No pickup is authorised for this offer until the exact allocation is approved.')).toBeVisible();
   expect(follows(within(pane).getByRole('button', { name: 'Recalculate the split' }), within(pane).getAllByText('The gate passed. Approval is required.')[0])).toBe(true);
   await userEvent.click(skip); expect(pane).toHaveFocus();
 });
