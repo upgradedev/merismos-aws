@@ -53,8 +53,11 @@ result tags are rejected even when summary counters report zero failures.
 Proof-display fixtures have a separate source-only suite and `proof-junit.xml`; their counts never
 enter the AWS product totals. A separate read-only browser job checks the actual published page.
 The receipt says `workflow_status=NOT_ASSERTED`, because publication precedes workflow completion.
-Human acceptance testing (UAT), the deploy-time writer read-capability probe (ME18), and the separate authenticated
-coordinator publication and recovery drill remain **NOT_RUN**.
+It does not include the separate deploy-time writer read-capability probe (ME18), which passed for backend
+`4bf2238` in [apply run 34894779949](https://github.com/upgradedev/merismos-aws/actions/runs/34894779949).
+That probe asserted read-only S3 corpus freshness and DynamoDB custody-head permissions; it was not a publication
+drill or human signoff. Human acceptance testing (UAT) and the separate authenticated coordinator publication and
+recovery drill remain **NOT_RUN**.
 
 Each immutable `/acceptance/runs/<run-id>-<attempt>.json` contains sanitized aggregate counts,
 statuses, timestamps, source and run references only. Publication creates it conditionally or
@@ -99,11 +102,14 @@ a correct plan. It is not repaired automatically.
 The [dated deployment](deploy-2026-09-02.md) and [dated model run](live-run-2026-09-02.md)
 describe their original checkpoints, not the current release.
 
-## Not measured and not run
+## Observed and still unverified
 
 - Human active time, time saved, food rescued, beneficiary impact and adoption: not measured.
 - Human acceptance testing: NOT_RUN until a person signs off.
-- The deploy-time writer read-capability probe (ME18): NOT_RUN.
+- The deploy-time writer read-capability probe (ME18): PASS_AUTOMATED_AWS for backend `4bf2238` in
+  [apply run 34894779949](https://github.com/upgradedev/merismos-aws/actions/runs/34894779949), with retained
+  artifact `writer-read-capabilities-34894779949`. It checked read-only permissions, not publication or human
+  signoff.
 - The separate authenticated coordinator publication and recovery drill: NOT_RUN.
 - Real-device Safari testing and a timed first-use test: not run.
 - Cost not measured: cache tokens, cold-start initialisation, DynamoDB, S3, CloudFront, EventBridge Scheduler, CloudWatch Logs, data transfer, GitHub Actions minutes, free tier and the actual invoice.

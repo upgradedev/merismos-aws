@@ -62,9 +62,12 @@ critic, a second Bedrock call with no tools that reviews the prose about an allo
 not a separate Lambda. Merismos does not run on AgentCore. The 40% ceiling, under which no organisation receives
 more than 40% of one offer, is this network's policy, not a universal or certified definition of fairness.
 
-Not measured: human active time, time saved, food rescued, beneficiary impact and adoption. Not run: human
-acceptance testing, the deploy-time writer read-capability probe (ME18), the separate authenticated publication
-and recovery drill, real-device Safari testing and a timed first-use test. The first published
+Not measured: human active time, time saved, food rescued, beneficiary impact and adoption. Human acceptance,
+the separate authenticated publication and recovery drill, real-device Safari testing and a timed first-use test
+remain not run. The deploy-time writer read-capability probe (ME18) passed for backend `4bf2238` in
+[apply run 34894779949](https://github.com/upgradedev/merismos-aws/actions/runs/34894779949). It checked read-only
+S3 corpus freshness and DynamoDB custody-head permissions; it was not a publication drill or human signoff. The
+first published
 [offer-4471 record](https://merismos-records-e6ac6047.s3.eu-west-1.amazonaws.com/records/offer-4471.md)
 contains a known contradictory allocation, preserved as historical evidence, not repaired automatically and not
 presented as a correct plan. [Evidence and honest limits](docs/evidence.md) has the evidence levels, retained
