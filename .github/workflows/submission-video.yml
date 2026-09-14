@@ -123,8 +123,9 @@ jobs:
             echo "::error::ElevenLabs public-use rights were not attested"
             exit 1
           }
-          test "${GITHUB_SHA}" = "${MERISMOS_FRONTEND_SHA}"
-          test "$(gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq .sha)" = "${MERISMOS_FRONTEND_SHA}"
+          # The renderer source and frozen product frontend are independently
+          # bound. A video-only repair must not require republishing the app.
+          test "$(gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq .sha)" = "${GITHUB_SHA}"
 
           test "$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${MERISMOS_DEPLOY_RUN_ID}" --jq .head_sha)" = "${MERISMOS_BACKEND_SHA}"
           test "$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${MERISMOS_DEPLOY_RUN_ID}" --jq .conclusion)" = "success"

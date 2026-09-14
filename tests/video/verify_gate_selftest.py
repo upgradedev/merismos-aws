@@ -402,6 +402,9 @@ def prove_per_beat_cache() -> None:
             first.append(module.synthesize_scene(audio, sidecar, segment, spec, set()))
             second.append(module.synthesize_scene(audio, sidecar, segment, spec, set()))
 
+        cached = json.loads((root / "01-hook.cache.json").read_text(encoding="utf-8"))
+        module.validate_alignment(cached["alignment"], segments[0]["speechText"], 5.0)
+
         changed = dict(segments[3])
         changed["speechText"] += " Corrected."
         audio = root / f"04-{changed['id']}.mp3"
