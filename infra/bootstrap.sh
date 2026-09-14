@@ -12,14 +12,14 @@
 #   infra/bootstrap.sh
 #
 # BE HONEST ABOUT WHAT THIS ROLE IS. It holds iam:CreateRole, iam:PutRolePolicy
-# and iam:PassRole, because the stack it manages *is* three IAM roles and a
-# privilege boundary. Anything that can write IAM can escalate to anything in
-# the account. That is inherent to letting a pipeline manage IAM and it is not
-# least privilege, so this file does not call it least privilege. The controls
-# that actually bound it are narrower than a policy document: the workflow is
-# workflow_dispatch only and never fires on a push, the trust policy admits one
-# repository and one environment rather than any ref, and the environment can
-# carry a required reviewer. The README says the same thing in the same words.
+# and iam:PassRole, because the stack it manages *is* four IAM roles (the three
+# fleet roles and the scheduler's) and a privilege boundary. Anything that can
+# write IAM can escalate to anything in the account. That is inherent to letting
+# a pipeline manage IAM and it is not least privilege, so this file does not
+# call it least privilege. The controls that actually bound it are narrower than
+# a policy document: the workflow is workflow_dispatch only and never fires on a
+# push, the trust policy admits one repository and one environment rather than
+# any ref, and the environment can carry a required reviewer.
 set -euo pipefail
 
 REGION="${AWS_REGION:-eu-west-1}"
@@ -142,8 +142,9 @@ else
 fi
 
 # What it may do. Scoped to this project's own resources where a name allows it,
-# and to a service where it does not: an inference profile resolves across
-# regions, and IAM's own list and get calls take no useful resource scope.
+# and wider where it does not: API Gateway in the region, account-level reads
+# and listings, the caller's identity, and the logs and alarms. There is no
+# Bedrock statement.
 #
 # **The Secrets Manager line reads `${PROJECT}*` and not `${PROJECT}-*` on
 # purpose.** Every other resource here is `merismos-something`; the secret is

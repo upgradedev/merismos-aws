@@ -1,10 +1,10 @@
-"""The README says /identity proves the boundary "from all three identities".
+"""/identity is meant to prove the boundary "from all three identities".
 
 A stranger could reach one. The evaluator and the writer sit behind Function URLs
 with ``authorization_type = "AWS_IAM"``, so the two identities whose refusals
 carry the whole argument were the two nobody without AWS credentials could check.
 The claim was true of the system and unverifiable by the person being asked to
-believe it, which is the shape this project spends its README arguing against.
+believe it, which is the shape this project argues against.
 
 It was fixable rather than merely rewordable. The reader already holds
 ``lambda:InvokeFunction`` on both, under a statement named
