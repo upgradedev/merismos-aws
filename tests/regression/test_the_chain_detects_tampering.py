@@ -10,9 +10,9 @@ at once, on the claim the module is named for.
 ``chain_for`` **rebuilds** the chain from whatever entries it is handed and
 ``verify_integrity`` then checks those hashes against each other. A tampered
 thread does not fail; it produces a different chain that is internally
-consistent. Altering an entry does change every hash after it, which is what the
-README says and is true, and there was no stored baseline for the new hashes to
-disagree with, which is what made the property useless.
+consistent. Altering an entry does change every hash after it, which is true,
+and there was no stored baseline for the new hashes to disagree with, which is
+what made the property useless.
 
 Two things close it. ``parent_id`` was already stored on every entry and was
 never read, and reading it catches a deletion or a reorder with no schema change

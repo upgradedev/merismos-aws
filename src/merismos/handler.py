@@ -109,6 +109,56 @@ class MalformedBody(ValueError):
     should run on a request nobody managed to phrase.
     """
 
+    status = 400
+
+
+class BodyTooLarge(MalformedBody):
+    """A body larger than any screen or client of this API ever sends."""
+
+    status = 413
+
+
+# The largest honest body is a donor CSV (csv_intake.MAX_BYTES, 64 KiB) inside a
+# JSON string, where escaping at most sextuples it. A mebibyte is well above that
+# and well below what a Lambda accepts, so nothing honest is refused and nothing
+# enormous is parsed.
+MAX_BODY_BYTES = 1_048_576
+# Every route reads a flat object with, at most, a list or an object inside it.
+MAX_BODY_DEPTH = 16
+
+
+def _refuse_duplicate_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    # Parsers disagree on which of two same-named fields wins, so a proxy and
+    # this handler could each read a different request out of the same bytes.
+    seen: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in seen:
+            raise MalformedBody(f"The request body names the field {key[:40]!r} twice.")
+        seen[key] = value
+    return seen
+
+
+def _refuse_constant(name: str) -> Any:
+    # Python's parser accepts NaN and Infinity; no JSON client emits them, and a
+    # NaN compares false with every bound a route checks.
+    raise MalformedBody(f"The request body contains {name}, which is not a JSON number.")
+
+
+def _too_deep(value: Any, limit: int) -> bool:
+    stack = [(value, 1)]
+    while stack:
+        item, level = stack.pop()
+        if isinstance(item, dict):
+            children = list(item.values())
+        else:
+            children = item if isinstance(item, list) else []
+        for child in children:
+            if isinstance(child, (dict, list)):
+                if level + 1 > limit:
+                    return True
+                stack.append((child, level + 1))
+    return False
+
 
 def _route(event: Any) -> tuple[str, str, dict]:
     """Pull method, path and parsed body out of a Function URL or ALB event."""
@@ -117,13 +167,18 @@ def _route(event: Any) -> tuple[str, str, dict]:
     method = (http.get("method") or event.get("httpMethod") or "GET").upper()
     path = http.get("path") or event.get("rawPath") or event.get("path") or "/"
     raw = event.get("body") or "{}"
+    too_large = f"The request body is larger than {MAX_BODY_BYTES:,} bytes."
     if event.get("isBase64Encoded"):
         import base64
 
+        if len(raw) > MAX_BODY_BYTES * 4 // 3 + 4:
+            raise BodyTooLarge(too_large)
         try:
             raw = base64.b64decode(raw, validate=True).decode("utf-8")
         except (ValueError, UnicodeDecodeError) as why:
             raise MalformedBody("The request body could not be decoded as UTF-8 text.") from why
+    if len(raw) > MAX_BODY_BYTES or len(raw.encode("utf-8")) > MAX_BODY_BYTES:
+        raise BodyTooLarge(too_large)
     content_type = ""
     for k, v in (event.get("headers") or {}).items():
         if k.lower() == "content-type":
@@ -133,12 +188,20 @@ def _route(event: Any) -> tuple[str, str, dict]:
 
         body = {k: v[0] for k, v in parse_qs(raw).items()}
     else:
+        deeper = f"The request body nests deeper than {MAX_BODY_DEPTH} levels."
         try:
-            body = json.loads(raw) if raw.strip() else {}
+            body = json.loads(raw, object_pairs_hook=_refuse_duplicate_keys,
+                              parse_constant=_refuse_constant) if raw.strip() else {}
+        except MalformedBody:
+            raise
+        except RecursionError as why:
+            raise MalformedBody(deeper) from why
         except ValueError as why:
             raise MalformedBody("The request body is not valid JSON.") from why
         if not isinstance(body, dict):
             raise MalformedBody("The request body must be a JSON object.")
+        if _too_deep(body, MAX_BODY_DEPTH):
+            raise MalformedBody(deeper)
     query = event.get("queryStringParameters") or {}
     if isinstance(query, dict):
         body = {**query, **body}
@@ -168,7 +231,7 @@ def _dispatch(event: Any, context: Any = None) -> dict[str, Any]:
     try:
         method, path, body = _route(event)
     except MalformedBody as why:
-        return _reply(400, {"detail": str(why)})
+        return _reply(why.status, {"detail": str(why)})
     me = role()
 
     try:
@@ -331,11 +394,12 @@ def _aws_said(error: Exception) -> str:
 def _ask_the_other_identities() -> dict[str, Any]:
     """Ask the evaluator and the writer what AWS tells each of them.
 
-    The reader holds ``lambda:InvokeFunction`` on both already, for delegating
-    the gate and for publishing. This spends that grant on the one thing a
-    stranger cannot do for themselves: the other two sit behind Function URLs
-    requiring AWS credentials, so their refusals, which are the ones carrying the
-    argument, were unverifiable by anybody being asked to believe them.
+    The reader holds ``lambda:InvokeFunction`` on both already: on the writer for
+    publishing and filing offers, and on the evaluator for this probe alone, since
+    the draft gate runs in-process in ``fleet.run_chore``. This spends that grant
+    on the one thing a stranger cannot do for themselves: the other two sit behind
+    Function URLs requiring AWS credentials, so their refusals, which are the ones
+    carrying the argument, were unverifiable by anybody being asked to believe them.
 
     An identity that does not answer is reported as not having answered.
     Fabricating a denial for a role that never replied would be inventing the
@@ -397,6 +461,8 @@ def config() -> dict[str, Any]:
         "read_budget_per_specialist": READ_BUDGET,
         "max_bytes_per_read": MAX_READ_BYTES,
         "max_files_per_search": MAX_SEARCH_SCAN,
+        "max_request_body_bytes": MAX_BODY_BYTES,
+        "max_request_body_depth": MAX_BODY_DEPTH,
         "ledger": os.environ.get("MERISMOS_LEDGER", "dynamodb"),
         "deferrals_wake_on_a_schedule": bool(os.environ.get("MERISMOS_WAKE_TARGET_ARN")),
         # **The model, said out loud.** This endpoint existed to stop things
@@ -1173,8 +1239,10 @@ def _offer(offer_id: str):
 def _run_in_background(event: dict) -> dict[str, Any]:
     """Run one chore to completion and record the result in the thread.
 
-    This is the reader invoking itself with InvocationType Event, so it has the
-    function's own 900 second budget rather than the gateway's 30. The chore is
+    This runs in the runner, invoked with InvocationType Event (see
+    ``background.start``). The runner carries the reader's role in its own
+    concurrency pool and has a 900 second budget, rather than the gateway's 30 or
+    the reader's 60. The chore is
     unchanged: same specialists, same guard, same gate. What is different is
     that a model can actually be used, which is the whole point of doing it this
     way.

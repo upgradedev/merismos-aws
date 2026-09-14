@@ -1,7 +1,7 @@
 import { routeLink } from './routes';
 
 const DEMONSTRATED: string[] = [
-  'Intake that refuses personal data (phone numbers, IBANs, card numbers, national IDs, named households) and instruction-like text, and says which field was refused.',
+  'Intake that refuses personal data (phone numbers, email addresses, street addresses, IBANs, card numbers, national IDs, named households) and instruction-like text, names what it refused, and marks the field when it can match it.',
   'Four Strands specialists (food safety, capacity, equity, premises) reading the network’s registers through bounded read-only tools, with a guard that cancels any tool call outside the corpus.',
   'A bounded solver: storage is a veto, transport is a cap, the network’s 40% ceiling is its own policy, and what nobody can take is stated as a remainder.',
   'A broken cold chain refused in full, with the reason. Blocks that turn on something changeable are parked with a reason and a one-shot wake.',
@@ -14,8 +14,8 @@ const NOT_MEASURED: { label: string; note: string }[] = [
   { label: 'Human time saved', note: 'Unknown until measured.' },
   { label: 'Food rescued', note: 'Unknown until measured.' },
   { label: 'Beneficiaries reached', note: 'Unknown until measured.' },
-  { label: 'AWS cost per run', note: 'Unknown until measured. See Cost and sustainability in the README.' },
-  { label: 'Latency on AWS', note: 'Unknown until measured. The sandbox runs a scripted planner; its timings are not AWS timings.' },
+  { label: 'AWS cost of the live proof', note: 'The live proof in one deploy apply, which runs offer-4471 and the refused offer-4477: median $1.62 over five applies, almost all of it Bedrock. The sandbox makes no model call. See Cost and sustainability in the README.' },
+  { label: 'Latency on AWS', note: 'One 10-sample sandbox check on 2026-09-13: a run request took a median of 426 ms, at most 2,628 ms. Not a load test; live-mode latency is not measured.' },
 ];
 
 export function GtmImpactView() {
@@ -100,7 +100,7 @@ export function GtmImpactView() {
               <tr>
                 <td><strong>Merismos</strong></td>
                 <td>Intake, four specialist checks, a bounded solver, human approval of the exact plan, and three separately recorded collection facts.</td>
-                <td>It is a sandbox with synthetic data. Time saved, food rescued and cost per run are not measured. It sends no messages, so the coordinator still has to talk to people.</td>
+                <td>It is a sandbox with synthetic data. Time saved and food rescued are not measured; the live proof in one deploy apply costs a median of $1.62. It sends no messages, so the coordinator still has to talk to people.</td>
                 <td>Nothing is automated past the record: no message, no dispatch. What it adds is the kept reason and the recorded decision.</td>
               </tr>
             </tbody>

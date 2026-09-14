@@ -110,7 +110,7 @@ class ReadLog:
         }
 
     def paths_opened(self) -> list[str]:
-        """The choices, in order, for the thread and for the README's table."""
+        """The choices, in order, for the thread and for an envelope's paths_opened."""
         return [e["path"] for e in self.entries if e["served"]]
 
 

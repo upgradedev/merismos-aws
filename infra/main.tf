@@ -188,11 +188,14 @@ resource "aws_lambda_layer_version" "deps_retained" {
 }
 
 ###############################################################################
-# Function URLs. The reader answers a stranger. The other two do not.
+# Function URLs. As designed, the reader answers a stranger and the other two do
+# not: the reader returns 200, and the evaluator and writer return 403 to anyone
+# who is not signing requests with the reader's credentials.
 #
-# This is the half of the boundary a judge can check without an account: the
-# reader returns 200 and the evaluator and writer return 403 to anyone who is
-# not signing requests with the reader's credentials.
+# Public Function URLs were refused at account level on 2026-09-02 (gateway.tf),
+# so in this account the reader's URL is refused too. The public path is
+# CloudFront to the HTTP API in gateway.tf, and /identity?all=1 asks the
+# evaluator and the writer on a stranger's behalf.
 ###############################################################################
 
 resource "aws_lambda_function_url" "reader" {
@@ -299,7 +302,9 @@ resource "aws_dynamodb_table" "approvals" {
 # Buckets
 ###############################################################################
 
-# The network's own filing. Private. Read by the reader and by nobody else.
+# The network's own filing. Private. Among the three fleet roles, the reader
+# reads all of it, and the writer reads offers/, orgs/ and registers/ and files
+# offers under offers/. The GitHub deploy role holds s3:* on it.
 resource "aws_s3_bucket" "corpus" {
   bucket        = "${var.project}-corpus-${random_id.suffix.hex}"
   force_destroy = var.destroyable
@@ -389,7 +394,8 @@ resource "aws_s3_object" "corpus" {
 }
 
 ###############################################################################
-# The publish credential
+# The boundary canary. Its address, its name and the string it holds still say
+# publish; the publish path never reads it.
 ###############################################################################
 
 resource "aws_secretsmanager_secret" "publish" {
@@ -435,6 +441,8 @@ resource "aws_sqs_queue" "wake_dlq" {
   message_retention_seconds = 1209600 # 14 days
 }
 
+# The address says reader; the function is the runner. Renaming the address
+# would move this permission in the plan, and a test anchors on it.
 resource "aws_lambda_permission" "scheduler_may_wake_the_reader" {
   statement_id  = "AllowSchedulerInvoke"
   action        = "lambda:InvokeFunction"

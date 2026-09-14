@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       eval_grant_sha256:
-        description: "Parent-configured one-shot grant digest; empty runs SOURCE ONLY"
+        description: "One-shot grant digest, which must equal the MERISMOS_EVAL_GRANT_SHA256 variable; empty runs SOURCE ONLY"
         required: false
         default: ""
         type: string
@@ -294,10 +294,10 @@ jobs:
 
       # The layer cannot be built on Windows: pip resolves mcp's pywin32 marker
       # against the host interpreter even with --platform, and Git Bash has no
-      # zip. So the artifact CI produces on Linux is the one a deploy uses,
-      # which is the right way round anyway: the thing that ships is the thing
-      # that was built by the pipeline rather than on somebody's laptop.
-      - name: Publish the layer so a deploy uses this exact artifact
+      # zip. So it is built on Linux by a pipeline rather than on somebody's
+      # laptop. deploy.yml runs infra/build.sh again on its own runner and does
+      # not download this artifact, so this copy is kept for review only.
+      - name: Retain the layer this run built, for review
         uses: actions/upload-artifact@v4
         with:
           name: deps-layer
@@ -307,7 +307,7 @@ jobs:
 
       # The boundary this entry argues for lives in iam.tf, so it is linted as
       # policy rather than only as syntax.
-      - name: The publish credential is granted to exactly one role
+      - name: The boundary canary is granted to exactly one role
         run: |
           set -euo pipefail
           # Comments are stripped before counting. The first version of this
@@ -326,6 +326,6 @@ jobs:
             exit 1
           }
           grep -q 'effect    = "Deny"' /tmp/policy.tf || {
-            echo "::error::the explicit deny on the publish credential is gone"
+            echo "::error::the explicit deny on the boundary canary is gone"
             exit 1
           }

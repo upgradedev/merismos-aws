@@ -1,0 +1,45 @@
+// Markdown lint for README.md and docs/**/*.md, run by .github/workflows/docs.yml
+// with markdownlint-cli2 0.23.2 (markdownlint 0.41.1). Every rule runs at its
+// default except the relaxations below, each with its reason. Heading
+// structure, one h1 on the first line (MD025, MD041), fenced code with a
+// language (MD040), one code block style per file (MD046), inline HTML (MD033),
+// bare URLs (MD034), link fragments (MD051), reference links and definitions
+// (MD052, MD053) and link text (MD059) stay at their strict defaults.
+{
+  "config": {
+    "default": true,
+    // Line length. Prose is wrapped by hand or not at all, and tables, URLs and
+    // one-line list items run long; docs/video-script.md holds table cells of
+    // several hundred characters. GitHub wraps prose for the reader, so a
+    // reviewer judges length, not a counter.
+    "MD013": false,
+    // Table column style. Some tables pad their cells but keep the delimiter row
+    // tight (|---|---|), such as the "What held" table in the dated record
+    // docs/deploy-2026-09-02.md and tables moved verbatim from README.md. The
+    // default reports every pipe of such a table against its closest style.
+    // GitHub renders both spellings the same, so this is source cosmetics.
+    "MD060": false
+  },
+  // Only the first override whose filter matches a file applies. The filter
+  // names the file both ways. docs/ has no configuration file of its own, so
+  // cli2 matches the path relative to the repository root,
+  // docs/deploy-2026-09-02.md, which **/deploy-2026-09-02.md covers; the bare
+  // name would match only a path relative to docs/.
+  "overrides": [
+    {
+      // A dated record. Near its end it quotes two separate log lines as two
+      // quotes with a blank line between them, which GitHub shows as two quotes.
+      // Joining them would edit a dated record for a lint rule. Its code blocks
+      // stay indented, which MD046 accepts because none of them is fenced.
+      "filter": ["**/deploy-2026-09-02.md", "deploy-2026-09-02.md"],
+      "combine": "merge",
+      "config": {
+        "MD028": false
+      }
+    }
+  ],
+  // An inline <!-- markdownlint-disable --> comment could quietly excuse a file.
+  // Relax a rule here, with a reason, or not at all.
+  "noInlineConfig": true,
+  "noProgress": true
+}

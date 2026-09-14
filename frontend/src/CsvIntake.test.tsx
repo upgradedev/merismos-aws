@@ -19,7 +19,7 @@ function file(name = 'donors.csv', text = CSV_SAMPLE) {
 beforeEach(() => { vi.clearAllMocks(); vi.mocked(api.previewCsv).mockResolvedValue(review()); });
 it('reviews without mutation and commits only deliberately selected valid rows', async () => {
   const mutate = vi.fn(); render(<CsvIntake data={workspace()} busy={false} mutate={mutate}/>);
-  expect(screen.getByText('File selected rows')).toBeDisabled();
+  expect(screen.getByText('File selected rows')).toBeDisabled(); expect(screen.getByText('Available once you select at least one valid row.')).toBeVisible();
   await userEvent.click(screen.getByText('CSV schema and sample'));
   expect(screen.getByLabelText('CSV sample')).toHaveTextContent('collection_date');
   await userEvent.upload(screen.getByLabelText('Donor CSV file'), file());
@@ -28,7 +28,9 @@ it('reviews without mutation and commits only deliberately selected valid rows',
   expect(mutate).not.toHaveBeenCalled();
   expect(screen.getByLabelText('Select CSV row 3')).toBeDisabled();
   expect(screen.getByLabelText('Select CSV row 4')).toBeDisabled();
+  expect(screen.getByLabelText('Select CSV row 3')).toHaveAttribute('aria-describedby', 'csv-row-3-detail');
   const select = screen.getByLabelText('Select CSV row 2');
+  expect(select).not.toHaveAttribute('aria-describedby');
   expect(select).not.toBeChecked(); await userEvent.click(select); await userEvent.click(select);
   expect(screen.getByText('File selected rows')).toBeDisabled();
   await userEvent.click(select); await userEvent.click(screen.getByText('File selected rows (1)'));
@@ -55,10 +57,20 @@ it('stale workspace, busy import and live authorization withhold commit', async 
   await userEvent.upload(screen.getByLabelText('Donor CSV file'), file());
   await userEvent.click(await screen.findByLabelText('Select CSV row 2'));
   rerender(<CsvIntake data={{...data, version: 2}} busy={false} mutate={mutate}/>);
-  expect(screen.getByText(/Workspace changed since this preview/)).toBeVisible();
+  const staleReason = screen.getByText(/Workspace changed since this preview/);
+  expect(staleReason).toBeVisible(); expect(staleReason).toHaveAttribute('id', 'csv-stale-reason');
   expect(screen.getByText('File selected rows (1)')).toBeDisabled();
+  expect(screen.getByLabelText('Select CSV row 2')).toHaveAttribute('aria-describedby', 'csv-stale-reason');
+  expect(screen.getByLabelText('Select CSV row 3')).toHaveAttribute('aria-describedby', 'csv-stale-reason csv-row-3-detail');
   rerender(<CsvIntake data={data} busy mutate={mutate}/>);
+  expect(screen.getByLabelText('Select CSV row 2')).toBeDisabled();
+  expect(screen.getByLabelText('Select CSV row 2')).toHaveAttribute('aria-describedby', 'csv-file-note');
+  expect(screen.getByLabelText('Select CSV row 4')).toHaveAttribute('aria-describedby', 'csv-file-note csv-row-4-detail');
+  expect(document.getElementById('csv-file-note')).toHaveTextContent(/CSV actions are paused/);
   expect(screen.getByText('Cancel CSV preview')).toBeDisabled();
+  expect(screen.getByText('CSV filing is paused while the workspace saves, loads or needs a refresh.')).toBeVisible();
+  expect(screen.getByText('Cancel CSV preview')).toHaveAttribute('aria-describedby', 'csv-file-note');
+  expect(screen.getByText(/CSV actions are paused while the workspace saves, loads or needs a refresh/)).toBeVisible();
   rerender(<CsvIntake data={{...data, mode: 'live', can_write: false}} busy={false} mutate={mutate}/>);
   expect(screen.getByLabelText('Donor CSV file')).toBeDisabled();
   expect(screen.getByText(/Switch to Sandbox to preview/)).toBeVisible();
@@ -79,9 +91,16 @@ it('a new file supersedes a pending read and unmount aborts its preview', async 
   vi.mocked(slow.text).mockReturnValue(new Promise(done => {resolve = done;}));
   const view = render(<CsvIntake data={workspace()} busy={false} mutate={vi.fn()}/>);
   await userEvent.upload(screen.getByLabelText('Donor CSV file'), slow);
+  expect(screen.getByText('Available once the CSV check finishes.')).toBeVisible();
   await userEvent.click(screen.getByText('Cancel CSV preview'));
   await act(async () => resolve(CSV_SAMPLE)); expect(api.previewCsv).not.toHaveBeenCalled();
   await userEvent.upload(screen.getByLabelText('Donor CSV file'), file('second.csv'));
   await screen.findByLabelText('Select CSV row 2');
   view.unmount(); expect(vi.mocked(api.previewCsv).mock.calls[0][2].aborted).toBe(true);
+});
+it('explains why filing and file choice are unavailable in read-only records', () => {
+  render(<CsvIntake data={{...workspace(), mode: 'live', can_write: false}} busy={false} mutate={vi.fn()}/>);
+  expect(screen.getByText('Unavailable in read-only records. Switch to your sandbox to file rows.')).toBeVisible();
+  expect(screen.getByText('File selected rows')).toHaveAttribute('aria-describedby', 'csv-file-reason');
+  expect(screen.getByLabelText('Donor CSV file')).toHaveAttribute('aria-describedby', 'csv-write-reason');
 });

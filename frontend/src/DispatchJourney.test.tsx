@@ -98,6 +98,7 @@ it('disruption control explains live, no-plan, confirmed and busy boundaries', a
   expect(screen.getByText(/Collection is already confirmed/)).toBeVisible();
   view.rerender(<DisruptionControl {...props} busy/>);
   expect(screen.getByText('Record simulated disruption')).toBeDisabled();
+  expect(screen.getByText('Recording paused while the workspace loads, saves or needs a refresh.')).toBeVisible();
 });
 it('journey and manifest keep unknown, draft, replan and recorded states distinct', () => {
   const data = workspace(); const row = data.offers[0];
@@ -106,6 +107,8 @@ it('journey and manifest keep unknown, draft, replan and recorded states distinc
   expect(pickupManifest({...row, result: {}, plan: null, status: 'not_started'}, data)).toContain('Allocated: unknown');
   const next = changed(); view.rerender(<DispatchJourney row={next.offers[0]} data={next}/>);
   expect(screen.getByText('Fresh approval required')).toBeVisible();
+  view.rerender(<DispatchJourney row={{...next.offers[0], plan: null}} data={next}/>);
+  expect(screen.getByText('Capacity correction needs a new plan')).toBeVisible();
   next.offers[0].plan!.recorded = true;
   view.rerender(<DispatchJourney row={next.offers[0]} data={next}/>);
   expect(screen.getByText('Approved in sandbox')).toBeVisible();
@@ -118,7 +121,11 @@ it('receipt progress includes only unambiguous shares for the approved current p
   const view = render(<DispatchJourney row={row} data={data}/>);
   const stages = within(screen.getByRole('list', {name: 'Allocation and collection status'}));
   expect(stages.getByText('1 of 2 shares confirmed in simulation')).toBeVisible();
-  expect(stages.getByText('Departure not recorded')).toBeVisible();
+  expect(stages.getByText('1 of 2 pickups scheduled')).toBeVisible();
+  data.pickups[0] = {...share, agreed_at: '2026-10-01T12:00:00Z'}; data.pickups[1] = {...share, org: 'Other', state: 'overdue'};
+  view.rerender(<DispatchJourney row={row} data={data}/>);
+  expect(stages.getByText('2 of 2 pickups scheduled')).toBeVisible();
+  expect(stages.getByText('1 of 2 shares confirmed in simulation')).toBeVisible();
   row.plan!.recorded = false; view.rerender(<DispatchJourney row={row} data={data}/>);
   expect(stages.getByText('No receipt confirmed')).toBeVisible();
   expect(stages.getByText('Not approved')).toBeVisible();

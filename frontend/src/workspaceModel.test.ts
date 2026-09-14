@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { activity, allocationTotal, filterOffers, isConfirmed, isPending, isUrgent, metrics, priorityOffers, projection, uniqueRows } from './workspaceModel';
+import { activity, allocationTotal, filterOffers, isConfirmed, isPending, isUrgent, metrics, priorityOffers, projection, startState, uniqueRows } from './workspaceModel';
 import { parseRoute, routeLink } from './routes';
 import { workspace } from './test/fixtures';
 import type { Pickup } from './types';
@@ -105,4 +105,19 @@ it('round-trips selection, filter, unit and multiword query and rejects unrecogn
   const pickup = JSON.stringify(['Community kitchen', 'exact-digest']);
   expect(parseRoute(routeLink('/workspace', { offer: 'offer-4471', pickup }).slice(1))).toMatchObject({ offer: 'offer-4471', pickup });
   expect(routeLink('/workspace', { pickup })).toBe('#/workspace');
+});
+it('derives the Dashboard start state only from offer statuses, plans, pickups and records', () => {
+  const data = sample(); expect(startState({ ...data, offers: [] }, today)).toEqual({ kind: 'empty' });
+  const fresh = sample(); fresh.offers = fresh.offers.map(row => ({ ...row, status: 'not_started', result: {}, plan: null }));
+  expect(startState(fresh, today)).toEqual({ kind: 'first' });
+  expect(startState({ ...fresh, records: [{ key: 'r', offer_id: 'offer-4471', run_id: 'run', content_digest: 'd', published_at: 1, superseded_by: '', mode: 'sandbox' }] }, today).kind).toBe('returning');
+  expect(startState({ ...fresh, pickups: [pickup('invalidated')] }, today).kind).toBe('returning');
+  fresh.offers[1].result = { run_id: 'run' }; expect(startState(fresh, today)).toMatchObject({ kind: 'returning', next: { offer: { id: 'offer-4471' } } });
+  expect(startState(data, today)).toMatchObject({ kind: 'returning', next: { offer: { id: 'offer-4471' } }, recorded: 0, total: 2 });
+  data.offers[0].plan!.recorded = true; data.pickups = [pickup('scheduled')];
+  expect(startState(data, today)).toMatchObject({ kind: 'returning', next: { offer: { id: 'offer-4483' } }, recorded: 1, total: 2 });
+  data.offers[1].status = 'refused_by_gate';
+  expect(startState(data, today)).toMatchObject({ kind: 'returning', next: { offer: { id: 'offer-4471' } } });
+  data.pickups = [pickup('confirmed')]; expect(startState(data, today)).toEqual({ kind: 'completed', stopped: 1 });
+  data.offers[1].plan = { ...data.offers[0].plan! }; expect(startState(data, today)).toEqual({ kind: 'completed', stopped: 0 });
 });

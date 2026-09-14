@@ -30,12 +30,29 @@ python -m pip install \
 # largest things here. Dropping them keeps the layer under the 50 MB zipped
 # limit; the runtime's copy is what the code imports.
 rm -rf "${target}"/boto3 "${target}"/botocore "${target}"/boto3-* "${target}"/botocore-*
+# Console scripts carry the build machine's interpreter path in their first line,
+# and nothing in a layer runs them.
+rm -rf "${target}/bin"
+# What resolved, recorded before the metadata that says so is removed.
+python -m pip list --path "${target}" --format=freeze > "${build}/deps.versions.txt"
 find "${target}" -name "__pycache__" -type d -prune -exec rm -rf {} + 2>/dev/null || true
 find "${target}" -name "*.dist-info" -type d -prune -exec rm -rf {} + 2>/dev/null || true
 
-( cd "${build}" && zip -qr deps.zip python )
+# zip(1) stored modification times and filesystem order, so identical packages
+# hashed differently on every build and every apply replaced the layer and
+# updated all four functions. Sorted names and one fixed timestamp instead: the
+# hash changes only when the packages do.
+layer_hash="$(python "${here}/package_backend.py" --layer "${build}")"
 
-printf 'layer: %s (%s)\n' "${build}/deps.zip" "$(du -h "${build}/deps.zip" | cut -f1)"
+printf 'layer: %s (%s, source_code_hash %s)\n' "${build}/deps.zip" "$(du -h "${build}/deps.zip" | cut -f1)" "${layer_hash}"
+if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+  {
+    echo "### Dependency layer"
+    echo "source_code_hash: ${layer_hash}"
+    echo "Resolved packages:"
+    sed 's/^/    /' "${build}/deps.versions.txt"
+  } >> "${GITHUB_STEP_SUMMARY}"
+fi
 
 # Stamp the committed source, never a runtime environment variable or caller SHA.
 python "${here}/package_backend.py"

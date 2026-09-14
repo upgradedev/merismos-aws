@@ -10,7 +10,12 @@ export default defineConfig({
   reporter: [['list'], ['junit', { outputFile: 'test-results/e2e.xml' }], ['html', { open: 'never' }]],
   use: { baseURL: externalURL || 'http://127.0.0.1:4173', trace: 'on', screenshot: 'on', video: 'retain-on-failure' },
   projects: [{ name: 'desktop', use: { ...devices['Desktop Chrome'], viewport: {width: 1440, height: 1000} } },
-    { name: 'mobile', use: { ...devices['iPhone 13'], defaultBrowserType: 'chromium' } }],
+    { name: 'mobile', use: { ...devices['iPhone 13'], defaultBrowserType: 'chromium' } },
+    // Playwright's WebKit engine with the iPhone 13 preset (390x664, touch, mobile user agent).
+    // It is not real-device Safari on iOS. Only cold start, the critical decision with approval,
+    // and return or expiry run here; the live AWS acceptance pins --project=desktop --project=mobile.
+    { name: 'mobile-webkit', use: { ...devices['iPhone 13'] },
+      testMatch: /[\\/](coordinator-start|journeys|session-recovery)\.spec\.ts$/ }],
   webServer: externalURL ? undefined : [
     { command: 'python ../tests/http_server.py', url: 'http://127.0.0.1:8765/api/workspace', timeout: 30_000, reuseExistingServer: false },
     { command: 'npm run preview', url: 'http://127.0.0.1:4173', timeout: 30_000, reuseExistingServer: false },

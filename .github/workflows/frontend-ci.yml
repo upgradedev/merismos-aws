@@ -135,11 +135,12 @@ jobs:
         if: ${{ !cancelled() && steps.deps_node.outcome == 'success' }}
         working-directory: frontend
         run: npm test
-      - name: Install browser in CI
+      - name: Install Chromium and Playwright WebKit in CI
         id: browser
         if: ${{ !cancelled() && steps.deps_node.outcome == 'success' }}
         working-directory: frontend
-        run: npx playwright install --with-deps chromium
+        run: npx playwright install --with-deps chromium webkit
+      # Includes the mobile-webkit project: Playwright WebKit with the iPhone 13 preset, not real-device Safari.
       - name: Real Python HTTP API and desktop/mobile journeys
         if: ${{ !cancelled() && steps.build.outcome == 'success' && steps.browser.outcome == 'success' }}
         working-directory: frontend

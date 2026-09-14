@@ -97,7 +97,7 @@ def main() -> int:
     if differing:
         print(
             f"{len(differing)} of {len(rows)} differ: {', '.join(differing)}.\n"
-            "The offline agent changes the answer, and the README has to say how."
+            "The offline agent changes the answer, and the documentation has to say how."
         )
         return 0
 
@@ -109,7 +109,7 @@ def main() -> int:
         "  under the real guard, and then answers ok with no findings, so the\n"
         "  union with the deterministic envelope moves nothing.\n"
         "\n"
-        "That is stated in the README in the same sentence as the claim, which is\n"
+        "Saying so in the same sentence as any claim about the offline agent is\n"
         "what this check exists to force. The model that does change an answer is\n"
         "the deployed one, and that evidence is a recorded run rather than this.\n"
     )

@@ -1,7 +1,7 @@
 import { calendarDay, dateCue } from './dispatch';
 import type { OfferRow, Pickup, Workspace } from './types';
 
-export const filters = { all: 'All offers', allocated: 'Computed allocations', unallocated: 'Unallocated quantity', pending: 'Pending pickups', confirmed: 'Confirmed collections', urgent: 'Dated urgency', unknown: 'Allocation unknown' };
+export const filters = { all: 'All offers', allocated: 'Computed allocations', unallocated: 'Unallocated quantity', pending: 'Pending pickups', confirmed: 'Confirmed collections', urgent: 'Due soon or overdue', unknown: 'Allocation unknown' };
 export type Filter = keyof typeof filters;
 const pendingStates = new Set(['unclaimed', 'claimed', 'scheduled', 'overdue']);
 export const amount = (value: number) => new Intl.NumberFormat('en', { maximumFractionDigits: 6 }).format(value);
@@ -83,6 +83,23 @@ export function priorityOffers(data: Workspace, today: string) {
   return projection(data).offers.filter(row => !row.plan?.recorded || data.pickups.some(p => p.offer_id === row.offer.id && isPending(p)))
     .sort((a, b) => Number(isUrgent(b, today)) - Number(isUrgent(a, today)) ||
       (calendarDay(a.offer.collection_date) ?? Infinity) - (calendarDay(b.offer.collection_date) ?? Infinity) || a.offer.id.localeCompare(b.offer.id));
+}
+const stoppedOutcomes = new Set(['blocked', 'refused_by_gate', 'nothing_to_allocate']);
+// A run that stopped with a reason and produced no plan leaves nothing to approve.
+export function isStopped(row: OfferRow) { return !row.plan && stoppedOutcomes.has(row.status); }
+export type StartState = { kind: 'empty' } | { kind: 'first' } | { kind: 'returning'; next: OfferRow; recorded: number; total: number } | { kind: 'completed'; stopped: number };
+// The Dashboard start state comes only from the loaded workspace: no stored flag, route or extra request decides it.
+export function startState(data: Workspace, today: string): StartState {
+  const source = projection(data);
+  if (!source.offers.length) return { kind: 'empty' };
+  const progressed = source.records.length > 0 || source.pickups.length > 0 || source.offers.some(row => row.status !== 'not_started' || !!row.result.run_id || !!row.plan);
+  if (!progressed) return { kind: 'first' };
+  const collecting = (row: OfferRow) => source.pickups.some(p => p.offer_id === row.offer.id && isPending(p));
+  const open = priorityOffers(data, today).filter(row => collecting(row) || (!row.plan?.recorded && !isStopped(row)));
+  // Decisions still to approve come before collections still to close.
+  const next = open.find(row => !row.plan?.recorded) || open[0];
+  return next ? { kind: 'returning', next, recorded: source.offers.filter(row => row.plan?.recorded).length, total: source.offers.length }
+    : { kind: 'completed', stopped: source.offers.filter(isStopped).length };
 }
 export interface Activity { id: string; offerId: string; title: string; detail: string; at: number | null }
 export function activity(data: Workspace): Activity[] {

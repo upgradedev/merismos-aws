@@ -1,10 +1,13 @@
 import { expect, test } from '@playwright/test';
 import type { Workspace } from '../src/types';
 
-test('ME01/02/03: exact sandbox approval, persistent claim, scheduled and confirmed collection', async ({ page, context }, info) => {
+test('ME01/02/03: exact sandbox approval, persistent claim, scheduled and confirmed collection', async ({ page, context, browserName }, info) => {
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
-  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+  // WebKit limitation: Playwright's WebKit accepts 'clipboard-read' but has no 'clipboard-write'
+  // permission (grantPermissions throws "Unknown permission"), so WebKit is granted read only.
+  // Chromium keeps both grants; the clipboard read-back assertion below runs in every engine.
+  await context.grantPermissions(browserName === 'webkit' ? ['clipboard-read'] : ['clipboard-read', 'clipboard-write']);
   // Freeze only the browser calendar so the earliest seeded collection date
   // reads as tomorrow, whichever day the backend seeded it on. The date comes
   // from the API itself, so this holds against a backend that seeds relative
@@ -24,7 +27,10 @@ test('ME01/02/03: exact sandbox approval, persistent claim, scheduled and confir
   await page.goto('/');
   await expect(page.getByRole('heading', { name: 'Dashboard', exact: true })).toBeVisible();
   await expect(page.getByText('Synthetic demo', { exact: true })).toBeVisible();
-  await expect(page.getByText(/Calendar cues use your browser-local date at view opening/)).toBeVisible();
+  await expect(page.getByText(/Calendar cues use your browser-local date at view opening/)).toBeAttached();
+  await expect(page.locator('.date-chip')).toHaveText(/^Today · \d{4}-\d{2}-\d{2}$/);
+  await expect(page.locator('.date-basis')).toHaveText('Browser date at view opening · reload to update');
+  await expect(page.locator('.date-basis')).toBeVisible();
   const upcoming = page.locator('.date-cue-soon .date-cue-label').first();
   await expect(upcoming).toHaveCSS('font-size', '14px');
   await expect(upcoming).toHaveCSS('animation-name', 'dispatch-date-cue');
@@ -161,7 +167,7 @@ test('Safety refusal, empty filters, deep link and live read-only boundary', asy
     await expect(actionCard.getByRole('link', {name: 'Open collection tasks →'})).toBeVisible();
     await expect(actionCard.getByRole('button')).toHaveCount(0);
   } else {
-    await expect(actionCard.getByRole('button', {name: /^(Work out the split|Re-run the fleet)$/})).toBeDisabled();
+    await expect(actionCard.getByRole('button', {name: /^(Work out the split|Recalculate the split)$/})).toBeDisabled();
   }
   await expect(actionCard.getByText(/Live changes require an authenticated/)).toBeVisible();
   const denied = await page.request.post('/api/offers/offer-4471/run', {

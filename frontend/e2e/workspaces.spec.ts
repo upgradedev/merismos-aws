@@ -23,7 +23,7 @@ test('ME09: dashboard metrics, unit drilldowns, search focus, back and reload pr
   await expect(page).toHaveURL(/q=grocery/);
   await page.reload(); await expect(search).toHaveValue('grocery');
   await search.fill('');
-  await page.getByRole('link', { name: 'Review evidence & dispatch →' }).click();
+  await page.getByRole('link', { name: 'Review evidence and pickups →' }).click();
   await expect(page).toHaveURL(/offer=offer-4483/);
   await expect(page.getByRole('heading', { name: 'Assorted ambient grocery, end of line', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Work out the split' })).toBeVisible();

@@ -1,9 +1,11 @@
 """The router, the specialists, and the chore that runs them.
 
-The deterministic verdict is the floor. It runs first, always. Where it refuses,
-the run returns that refusal **without consulting a model at all**, because
-asking and discarding the answer costs a request and invites a later edit that
-uses it. Where the rules pass, a model's answer is unioned in through
+The deterministic verdict is the floor. It runs first, always, for each woken
+specialist. Where a specialist's rules refuse, that specialist is **not sent to
+a model**, because asking and discarding the answer costs a request and invites
+a later edit that uses it. The other woken specialists are still sent when a
+model is configured, and a run with any refusal then stops before the draft
+gate. Where a specialist's rules pass, a model's answer is unioned in through
 ``Envelope.union``, which tightens and cannot loosen.
 
 This ordering is easy to get backwards and the failure is silent. Write it as
@@ -325,10 +327,10 @@ def capacity(offer: Mapping[str, Any], orgs: Sequence[Mapping[str, Any]]) -> Env
             ),
             findings=tuple(findings),
             # The one block in this fleet that turns on something which can
-            # change, and the case the README describes: a member's cold storage
-            # is a fact about today, not about the offer. A freezer is repaired,
-            # a shelter confirms space. Two days is the horizon because a
-            # perishable offer does not have a week.
+            # change, and so the only one that can be parked for another look: a
+            # member's cold storage is a fact about today, not about the offer. A
+            # freezer is repaired, a shelter confirms space. Two days is the
+            # horizon because a perishable offer does not have a week.
             meta={
                 "revisit_because": (
                     "no member could store it today. Cold storage is a fact "
@@ -465,9 +467,8 @@ def premises(
     That is not a hedge. ``offer-4483`` declares ``allergens: []`` and category
     ``ambient``, and its manifest puts wine, pork salami and hazelnut inside a
     gift hamper. Every pattern here passes it. Only an agent that chooses to open
-    the manifest and then the register catches it, which is the comparison the
-    README reports and ``test_rules_alone_are_not_enough.py`` pins from both
-    directions.
+    the manifest and then the register catches it, which is the comparison
+    ``test_rules_alone_are_not_enough.py`` pins from both directions.
     """
     raw = offer.get("allergens", [])
     declared = {str(a).lower() for a in raw or []}
@@ -546,7 +547,7 @@ def premises(
 #: model leaves the fleet more careful rather than less. It is deliberately not
 #: extended to cover every case, because a rule per case is the rules engine this
 #: project argues is insufficient, and pretending otherwise would make the
-#: README's comparison dishonest.
+#: rules-versus-agent comparison on offer-4483 dishonest.
 #:
 #: **Matched on word boundaries since 2026-09-09.** It was a substring match, and
 #: "ham" is inside "hamper", so every manifest mentioning a gift hamper was
@@ -566,8 +567,8 @@ def premises(
 #:
 #: Negation handling would close it and is the beginning of the rules engine this
 #: list exists not to be. Reading "nothing here is alcohol" correctly is the
-#: model's job, and saying the floor does that would be claiming the comparison
-#: this project's README makes is unnecessary.
+#: model's job, and saying the floor does that would be claiming the
+#: rules-versus-agent comparison on offer-4483 is unnecessary.
 _MANIFEST_TOKENS = {
     "alcohol": ("wine", "beer", "spirits", "vodka", "whisky", "ouzo", "liqueur"),
     "pork": ("pork", "salami", "bacon", "ham", "gelatin"),

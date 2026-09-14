@@ -66,7 +66,7 @@ test('Imported offer → allocation → disruption → replan → fresh approval
   await page.reload();
   await expect(page.getByRole('region', {name: 'Before and after disruption'})).toContainText('Omonoia Soup Kitchen');
   const nextResponse = page.waitForResponse(r => r.url().endsWith('/run') && r.request().method() === 'POST');
-  await page.getByRole('button', {name: 'Re-run the fleet'}).click();
+  await page.getByRole('button', {name: 'Recalculate the split'}).click();
   const next: Workspace = await (await nextResponse).json();
   const replanned = next.offers.find(o => o.offer.id === row.offer.id)!;
   expect(replanned.plan!.digest).not.toBe(original.digest);
@@ -75,7 +75,9 @@ test('Imported offer → allocation → disruption → replan → fresh approval
   expect(next.pickups.some(p => p.state === 'invalidated')).toBe(true);
   await expect(page.getByLabel(/I have reviewed this exact allocation/)).not.toBeChecked();
   await expect(page.getByRole('button', {name: 'Approve in sandbox'})).toBeDisabled();
-  await expect(page.getByText(/The solver makes a bounded deterministic allocation/)).toContainText('not universal or certified fairness');
+  await expect(page.getByText(/is network policy, not universal or certified fairness/)).toBeVisible();
+  await page.getByText('Specialist findings and deterministic checks', {exact: true}).click();
+  await expect(page.getByText(/The solver makes a bounded deterministic allocation/)).toContainText('does not claim an optimal knapsack solution');
   await expect(page.getByLabel('Pickup manifest', {exact: true})).toHaveCount(1);
   await page.screenshot({path: info.outputPath('before-after-replan.png'), fullPage: true});
   await page.getByLabel(/I have reviewed this exact allocation/).check();
