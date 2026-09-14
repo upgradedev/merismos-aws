@@ -210,6 +210,22 @@ def test_the_records_bucket_is_public_on_one_prefix_and_not_the_bucket(main):
     assert 'resources = ["${aws_s3_bucket.records.arn}/*"]' not in main
 
 
+def test_only_noncurrent_private_probe_versions_expire(main):
+    start = main.index('resource "aws_s3_bucket_lifecycle_configuration" "records" {')
+    stop = main.index("# Seed the filing", start)
+    lifecycle = main[start:stop]
+
+    assert "bucket = aws_s3_bucket.records.id" in lifecycle
+    assert 'prefix = "probes/"' in lifecycle
+    assert 'prefix = "records/"' not in lifecycle
+    assert "noncurrent_version_expiration" in lifecycle
+    assert "noncurrent_days = 1" in lifecycle
+    assert not re.search(r"(?m)^\s*expiration\s*\{", lifecycle), (
+        "the current capability marker must remain"
+    )
+    assert "depends_on = [aws_s3_bucket_versioning.records]" in lifecycle
+
+
 def test_the_filing_bucket_blocks_public_access_entirely(main):
     block = main[main.index('"aws_s3_bucket_public_access_block" "corpus"') :]
     block = block[: block.index("\n}")]
