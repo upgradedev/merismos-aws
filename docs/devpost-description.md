@@ -1,6 +1,6 @@
 # Merismos
 
-Merismos helps a volunteer food coordinator plan how one donation is split across community organisations, review that split and keep its reasons beside the collection handoff.
+Merismos helps a volunteer food coordinator split one donation across community organisations, review the split and keep its reasons beside the collection handoff.
 
 [Open Merismos](https://d2qnkmlhs7y5fp.cloudfront.net/). No account or installation is needed for
 the synthetic sandbox. On the **Dashboard** choose **Start with this offer →** (on a return visit
@@ -143,8 +143,7 @@ not source truth or delivery. A coordinator may copy the bundle; Merismos sends 
 phone message. A saved allocation is not proof of collection.
 
 No measured time saved, human active time, food rescued, compliance or beneficiary impact is
-claimed. The only latency figure is a sandbox HTTP sample taken on 2026-09-13 against deployed
-commit `cb97c9e`, an earlier release than the one live now: one workstation, 10 samples 15 s apart,
+claimed. The only latency figure is a sandbox HTTP sample taken on 2026-09-13 against backend commit `cb97c9e`, which is still the live backend: one workstation, 10 samples 15 s apart,
 0 failures, and a median of 426 ms for a scripted sandbox run (max 2,628 ms). It is not a load
 test, browser render time or Lambda cold-start time. Live mode was not measured. The dated
 `docs/live-run-2026-09-02.md` in the submitted repository records one earlier live specialist read
