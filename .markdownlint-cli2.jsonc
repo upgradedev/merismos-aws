@@ -21,9 +21,10 @@
     "MD060": false
   },
   // Only the first override whose filter matches a file applies. The filter
-  // names the file both ways, because the match runs relative to the directory
-  // holding the file (docs/) and must not depend on **/ matching zero
-  // directories.
+  // names the file both ways. docs/ has no configuration file of its own, so
+  // cli2 matches the path relative to the repository root,
+  // docs/deploy-2026-09-02.md, which **/deploy-2026-09-02.md covers; the bare
+  // name would match only a path relative to docs/.
   "overrides": [
     {
       // A dated record. Near its end it quotes two separate log lines as two

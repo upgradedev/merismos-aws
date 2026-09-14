@@ -1,13 +1,13 @@
 # Infrastructure
 
-Everything regional is in `eu-west-1` (`infra/variables.tf:10`, `infra/main.tf:29`, `infra/frontend.json:5`); CloudFront is global. Terraform in `infra/*.tf` declares the backend. `infra/frontend_stack.py` renders a separate CloudFormation stack for the site, and `infra/bootstrap.sh` creates the Terraform state bucket and the GitHub deploy role. Names below are patterns: a fresh apply gets new random suffixes (`infra/main.tf:49-51`). This page describes what the repository declares, not what an account holds today.
+This page lists what the repository declares, not what an account holds today: every AWS resource, what each IAM role may do, what lives outside Terraform and what is not deployed. Everything regional is in `eu-west-1` (`infra/variables.tf:10`, `infra/main.tf:29`, `infra/frontend.json:5`); CloudFront is global. Terraform in `infra/*.tf` declares the backend. `infra/frontend_stack.py` renders a separate CloudFormation stack for the site, and `infra/bootstrap.sh` creates the Terraform state bucket and the GitHub deploy role. Names below are patterns: a fresh apply gets new random suffixes (`infra/main.tf:49-51`).
 
 The diagram shows identities and the grants between them, not every resource; the tables after it list every resource. The request flow is in the [README overview](../README.md#architecture) and the [governed flow of one offer](architecture.md#governed-flow-of-one-offer).
 
 ```mermaid
 flowchart TB
     accTitle: Merismos infrastructure, which identity can touch which resource
-    accDescr: Anyone reaches CloudFront, which has no WAF, and can also call API Gateway directly; the API has no authorizer and invokes the reader. Anyone may also read published records under records/. The reader role, shared by the reader and runner Lambdas, may invoke the writer, the evaluator and Amazon Bedrock, write DynamoDB, read the corpus and create scheduler wakes, but holds no put on records and an explicit Deny on the canary secret. The writer role writes DynamoDB and spends approvals, files offers in the corpus, puts records and reads the canary. The evaluator role writes only the thread table and is denied the canary. The scheduler role invokes the runner. The GitHub deploy role manages the Terraform fleet: all S3 actions on merismos buckets, records included, all Secrets Manager actions on the canary, and invoke on every merismos function. The frontend release role puts site objects. The account has no VPC or NAT, its alarms have no actions and no data store uses a customer-managed key.
+    accDescr: Anyone reaches CloudFront, which has no WAF, and can also call API Gateway directly; the API has no authorizer and invokes the reader. Anyone may also read published records under records/. The reader role, shared by the reader and runner Lambdas, may invoke the writer, the evaluator and Amazon Bedrock, write DynamoDB, read the corpus and create scheduler wakes, but holds no put on records and an explicit Deny on the canary secret. The writer role writes DynamoDB and spends approvals, files offers in the corpus, puts records and reads the canary. The evaluator role writes only the thread table and is denied the canary. The scheduler role invokes the runner. The GitHub deploy role manages the Terraform fleet: all S3 actions on merismos buckets, records included, all Secrets Manager actions on the canary, and invoke on every merismos function. The frontend release role puts site objects. The functions are not attached to a VPC, the repository declares no NAT gateway, the alarms have no actions and no data store it declares uses a customer-managed key.
 
     Anyone("Anyone on the internet"):::browser
     subgraph Github["GitHub Actions, OIDC"]
@@ -71,7 +71,7 @@ flowchart TB
     classDef cicd fill:#7f6a03,stroke:#5b4c02,stroke-width:2px,color:#ffffff
 ```
 
-Each grey box is a boundary: the `merismos-reader role` box holds the two Lambdas that share that role, every other Lambda runs as the role of its own name, and the GitHub jobs assume their roles through OIDC. Blue rounded box: anyone. Teal parallelogram: an entry point or service. Orange rectangle: a Lambda function. Slate cylinder: a data store. Magenta box with double sides: the external model service. Olive trapezoid: a GitHub Actions job. A labelled solid arrow is the access its label names. An unlabelled solid arrow is a request or an invoke: CloudFront to its API origin, API Gateway to the reader, one Lambda to another or to Bedrock, and the release job's put named on its box. A dotted arrow ending in a cross is an explicit Deny or a missing Allow. A grant drawn from one reader-role Lambda holds for both. Not drawn, because none exists: a VPC, a NAT gateway, an alarm action or a customer-managed key.
+Each grey box is a boundary: the `merismos-reader role` box holds the two Lambdas that share that role, every other Lambda runs as the role of its own name, and the GitHub jobs assume their roles through OpenID Connect (OIDC). Blue rounded box: anyone. Teal parallelogram: an entry point or service. Orange rectangle: a Lambda function. Slate cylinder: a data store. Magenta box with double sides: the external model service. Olive trapezoid: a GitHub Actions job. A labelled solid arrow is the access its label names. An unlabelled solid arrow is a request or an invoke: CloudFront to its API origin, API Gateway to the reader, one Lambda to another or to Bedrock, and the release job's put named on its box. A dotted arrow ending in a cross is an explicit Deny or a missing Allow. A grant drawn from one reader-role Lambda holds for both. Not drawn, because the repository declares none: a VPC attachment, a NAT gateway, an alarm action or a customer-managed key.
 
 In words: anyone reaches CloudFront, which serves the site from a private bucket and passes API paths to API Gateway; anyone can also call API Gateway directly, and it has no authorizer. API Gateway invokes the reader. The reader and runner functions share the `merismos-reader` role, which may call Bedrock, create wakes and invoke the other functions, but may not put a record or read the canary. Among the three fleet roles only the writer puts records, and anyone may read a published record. The scheduler role may invoke only the runner and send to the wake dead-letter queue. Outside the fleet, the GitHub deploy role has all S3 actions on the Merismos buckets, all Secrets Manager actions on the canary and every Lambda action on the Merismos functions; the frontend release role only reads, lists and puts site objects, invalidates the distribution and describes its own stack.
 
@@ -88,7 +88,7 @@ CloudFormation stack `merismos-frontend`, parameters in `infra/frontend.json:2-6
 | Origin access control | `merismos-web-<account>` | Signs CloudFront requests to the site bucket | `infra/frontend_stack.py:75-82` |
 | CloudFront Function | `merismos-web-router-<account>` | Rewrites application paths to `/index.html`; API paths and missing assets stay errors | `infra/frontend_stack.py:15-23`, `:83-90` |
 | Response headers policy | `merismos-web-headers-<account>` | nosniff, frame DENY, no-referrer, HSTS, a same-origin content security policy | `infra/frontend_stack.py:91-109` |
-| CloudFront distribution | live host `d2qnkmlhs7y5fp.cloudfront.net` (`.github/workflows/aws-uat.yml:32`) | HTTPS only, default certificate; `/api/*`, `/api`, `/healthz`, `/offer/*`, `/config` and `/identity` go to the API Gateway origin uncached; `/assets/*` is cached; everything else comes from the site bucket uncached | `infra/frontend_stack.py:11-13`, `:43-56`, `:110-143` |
+| CloudFront distribution | live host `d2qnkmlhs7y5fp.cloudfront.net` (`.github/workflows/aws-uat.yml:32`) | HTTP redirected to HTTPS, default certificate; `/api/*`, `/api`, `/healthz`, `/offer/*`, `/config` and `/identity` go to the API Gateway origin uncached; `/assets/*` is cached; everything else comes from the site bucket uncached | `infra/frontend_stack.py:11-13`, `:43-56`, `:110-143` |
 | Release role | `merismos-frontend-release` | See [the release role](#merismos-frontend-release-cloudformation) | `infra/frontend_stack.py:159-187` |
 
 Objects written by CI, not by the stack: release files under `releases/<sha>/` plus root copies, `assets/*` cached for a year, everything else `no-store`, then an invalidation of `/`, `/index.html` and `/release.json` (`infra/frontend_publish.py:81-96`); acceptance receipts `acceptance/runs/<run>-<attempt>.json`, created only if absent, and `acceptance.json` (`infra/acceptance_receipt.py:177`, `:199-210`).
@@ -113,10 +113,10 @@ One `aws_lambda_function.fleet` resource with `for_each` over four deployments (
 
 | Function | IAM role | Timeout | Memory | Reserved concurrency | Function URL |
 | --- | --- | --- | --- | --- | --- |
-| `merismos-reader` | reader | 60 s | 1024 MB | 5 | NONE |
-| `merismos-runner` | reader | 900 s | 1024 MB | 4 | none |
-| `merismos-evaluator` | evaluator | 30 s | 512 MB | unreserved | AWS_IAM |
-| `merismos-writer` | writer | 30 s | 512 MB | unreserved | AWS_IAM |
+| `merismos-reader` | reader | 60 s | 1024 MB | 5 | yes, auth type NONE (public) |
+| `merismos-runner` | reader | 900 s | 1024 MB | 4 | no Function URL |
+| `merismos-evaluator` | evaluator | 30 s | 512 MB | unreserved | yes, auth type AWS_IAM |
+| `merismos-writer` | writer | 30 s | 512 MB | unreserved | yes, auth type AWS_IAM |
 
 Sources: timeout keys on the function name (`infra/main.tf:94`), memory on the role (`:95`, so the runner gets 1024 MB), reserved concurrency (`:108-111`; defaults `infra/variables.tf:95`, `:110`), Function URLs (`infra/main.tf:198-227`). The reader's asynchronous invokes are never retried (`infra/gateway.tf:113-116`). Environment: `MERISMOS_MODEL` is the model id for the two reader-role functions and `none` for the others (`infra/main.tf:152`); `MERISMOS_CRITIC_MODEL` is empty by default (`:153`; `infra/variables.tf:36`); the reader finds the writer and the runner by name (`infra/main.tf:128`, `:131`); the wake target, scheduler role, group and dead-letter queue are passed in (`:155-158`). The layer is built with `strands-agents>=1.53.0` and `boto3>=1.40`, then boto3 and botocore are removed so the runtime copy is used (`infra/build.sh:20-32`); the old layer address is forgotten with `destroy = false` and the new one is kept on destroy (`infra/main.tf:169-177`).
 
@@ -124,7 +124,7 @@ Sources: timeout keys on the function name (`infra/main.tf:94`), memory on the r
 
 | Terraform address | Name pattern | What it holds and how | Source |
 | --- | --- | --- | --- |
-| `aws_dynamodb_table.thread` | `merismos-thread` | Ledger events, custody heads (a two-item transaction) and workspace sessions, in separate partitions; on-demand; key `subject` and `entry_id`; indexes `by-run` and `by-kind`; point-in-time recovery; no TTL | `infra/main.tf:233-273`; `src/merismos/ledger.py:300-336`; `src/merismos/workspace_store.py:3-5` |
+| `aws_dynamodb_table.thread` | `merismos-thread` | Ledger events, custody heads (a two-item transaction) and workspace sessions, in separate partitions; on-demand; key `subject` and `entry_id`; indexes `by-run` and `by-kind`; point-in-time recovery; no time-to-live (TTL) | `infra/main.tf:233-273`; `src/merismos/ledger.py:300-336`; `src/merismos/workspace_store.py:3-5` |
 | `aws_dynamodb_table.approvals` | `merismos-approvals` | One-use approvals, with `ttl` one day after expiry, and same-category lanes; on-demand; key `nonce`; point-in-time recovery | `infra/main.tf:275-296`; `src/merismos/approval.py:227`, `:270-291` |
 | `aws_s3_bucket.corpus` with public access block and versioning | `merismos-corpus-<hex>` | The network's filing: private, versioned, emptied on destroy while `destroyable` is true; the writer files typed offers under `offers/` | `infra/main.tf:303-321`; `infra/variables.tf:59`; `src/merismos/handler.py:660-673` |
 | `aws_s3_object.corpus` | 14 objects | Seeds `corpus/**`: 3 offers, 3 manifests, 5 organisations, 3 registers | `infra/main.tf:382-389` |
@@ -203,7 +203,22 @@ Trusted by the Scheduler service for this account only (`infra/iam.tf:324-337`);
 
 ### `merismos-github-deploy`, outside Terraform
 
-Created by `infra/bootstrap.sh:30`, `:130-142`, and trusted by GitHub OIDC for the `aws` environment of this repository and owner (`:109-127`). Its inline policy `manage-the-fleet` (`:153-269`) has `KeepTheState` (`:158`), `TheFleetsOwnBuckets` with `s3:*` on `merismos-*` buckets, so it can also write records (`:164`), `ListBucketsToPlan` (`:170`), `TheFunctionsAndTheirLayer` with `lambda:*` (`:176`), `LambdaAccountReadsThatTakeNoResource` (`:186`), `TheBoundaryItself` for `merismos-*` roles and policies (`:192`), `TheThreadAndTheApprovals` (`:205`), `TheJudgesDoor` for API Gateway (`:211`), `TheWakes` (`:217`), `ListSchedulerToPlan` (`:226`), `TheDeadLetterQueue` (`:232`), `ListQueuesToProve` (`:238`), `TheBoundaryCanary` with `secretsmanager:*` (`:244`), `TheLogsAndTheAlarms` (`:250`) and `WhoAmI` (`:256`). It has no Bedrock, CloudFront or CloudFormation statement. `deploy.yml` assumes it (`.github/workflows/deploy.yml:37`, `:48-51`) and uses it to invoke the runner for the live proof (`:220-224`, `:307-311`).
+Created by `infra/bootstrap.sh:30`, `:130-142`, and trusted by GitHub OIDC for the `aws` environment of this repository and owner (`:109-127`). Its inline policy `manage-the-fleet` (`:153-269`) has:
+
+- `KeepTheState` (`:158`).
+- `TheFleetsOwnBuckets`: `s3:*` on `merismos-*` buckets, so it can also write records (`:164`).
+- `ListBucketsToPlan` (`:170`).
+- `TheFunctionsAndTheirLayer`: `lambda:*` (`:176`).
+- `LambdaAccountReadsThatTakeNoResource` (`:186`).
+- `TheBoundaryItself`: `merismos-*` roles and policies (`:192`).
+- `TheThreadAndTheApprovals` (`:205`).
+- `TheJudgesDoor`: API Gateway (`:211`).
+- `TheWakes` (`:217`) and `ListSchedulerToPlan` (`:226`).
+- `TheDeadLetterQueue` (`:232`) and `ListQueuesToProve` (`:238`).
+- `TheBoundaryCanary`: `secretsmanager:*` (`:244`).
+- `TheLogsAndTheAlarms` (`:250`) and `WhoAmI` (`:256`).
+
+It has no Bedrock, CloudFront or CloudFormation statement. `deploy.yml` assumes it (`.github/workflows/deploy.yml:37`, `:48-51`) and uses it to invoke the runner for the live proof (`:220-224`, `:307-311`).
 
 ### `merismos-frontend-release`, CloudFormation
 
@@ -219,7 +234,7 @@ Jobs with no AWS credentials: `still-up.yml` (`:27`, `:39-40`), the acceptance a
 4. The CloudFormation stack `merismos-frontend`: site bucket (retained on deletion), origin access control, router function, headers policy, distribution, bucket policy and release role (`infra/frontend_stack.py:57-188`). How the stack was first deployed is not in the repository.
 5. GitHub configuration: the `aws` environment with secret `AWS_DEPLOY_ROLE_ARN` (`infra/bootstrap.sh:276-281`; `.github/workflows/deploy.yml:37`, `:50`), the variable `FRONTEND_RELEASE_ROLE_ARN` (`.github/workflows/frontend-deploy.yml:43`, `:57`), and the variables `MERISMOS_EVAL_GRANT_JSON` and `MERISMOS_EVAL_GRANT_SHA256` (`.github/workflows/ci.yml:165`, `:177-178`).
 6. Objects created at runtime: EventBridge schedules (`src/merismos/deferral.py:196-213`), records and probe objects, filed offers, frontend releases and acceptance receipts.
-7. What survives a destroy: layer versions (`infra/main.tf:169-177`), the site bucket (`infra/frontend_stack.py:59-60`), the state bucket and the deploy role (`.github/workflows/deploy.yml:379-389`). The teardown's leftover check lists Lambda functions, DynamoDB tables, S3 buckets, IAM roles, SQS queues and Scheduler groups whose names start with `merismos` (`.github/workflows/deploy.yml:390-395`) and leaves out only the state bucket and the deploy role (`:385`). It does not list API Gateway, log groups, alarms, the Secrets Manager canary or layer versions. The frontend stack's site bucket (`merismos-web-<account>-<region>`, `infra/frontend_stack.py:62`) and release role (`merismos-frontend-release`, `:162`) are outside Terraform but match the listing, so while that stack exists a run with `keep=no` fails with "teardown left resources behind" (`.github/workflows/deploy.yml:404-409`).
+7. What survives a `terraform destroy`: layer versions (`infra/main.tf:169-177`), the whole CloudFormation frontend stack, whose site bucket is also retained if the stack itself is deleted (`infra/frontend_stack.py:59-60`), the state bucket and the deploy role (`.github/workflows/deploy.yml:379-389`). The teardown's leftover check lists Lambda functions, DynamoDB tables, S3 buckets, IAM roles, SQS queues and Scheduler groups whose names start with `merismos` (`.github/workflows/deploy.yml:390-395`) and leaves out only the state bucket and the deploy role (`:385`). It does not list API Gateway, log groups, alarms, the Secrets Manager canary or layer versions. The frontend stack's site bucket (`merismos-web-<account>-<region>`, `infra/frontend_stack.py:62`) and release role (`merismos-frontend-release`, `:162`) are outside Terraform but match the listing, so while that stack exists a run with `keep=no` fails with "teardown left resources behind" (`.github/workflows/deploy.yml:404-409`).
 
 ## What is not deployed
 

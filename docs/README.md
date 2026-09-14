@@ -13,7 +13,7 @@ Start with the [README](../README.md): what Merismos does, a short sandbox flow,
 
 ## Dated records
 
-These describe their own checkpoints. They are kept as historical evidence, not as current guidance.
+Each describes Merismos as it was on its date. They are kept as historical evidence, not as current guidance.
 
 - [The first deployment, 2026-09-02](deploy-2026-09-02.md): the first apply into AWS, what held and what broke, and the build identity section added on 2026-09-10.
 - [One live run, 2026-09-02](live-run-2026-09-02.md): one specialist reading the corpus with `eu.anthropic.claude-opus-5` on Amazon Bedrock.

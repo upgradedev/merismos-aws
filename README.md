@@ -3,6 +3,7 @@
 Merismos helps a volunteer food coordinator split donations across community organisations: rules and agents check every share before the coordinator approves the exact plan.
 
 [Open the coordinator workspace](https://d2qnkmlhs7y5fp.cloudfront.net/), with no account or installation for the synthetic sandbox.
+
 [CI](https://github.com/upgradedev/merismos-aws/actions/workflows/ci.yml) · [Frontend verification](https://github.com/upgradedev/merismos-aws/actions/workflows/frontend-ci.yml) · [MIT licence](LICENSE)
 
 ## Try one short flow
@@ -19,7 +20,7 @@ To try an invented donation, choose **+ Add offer → Try success**, edit the fi
 - **Try refusal** fills in a broken cold chain; after **Add to sandbox** and **Work out the split** it is refused in full and never offered for approval.
 - **Try correction** fills in a phone-shaped note: intake refuses it on **Add to sandbox**, keeps the fields and accepts a corrected note.
 - In **Evidence bundle and recovery**, **Copy evidence bundle** copies the decision, sources, run, revision, provider, mode, history and limits.
-- **Import a donor CSV instead** (under **+ Add offer**) files only the rows you select, **Rehearse a collection disruption** proposes a new plan after one recipient's capacity drops, and **Pickup manifest · copy or download** gives a plain-text handoff that sends no message.
+- **Import a donor CSV instead** (under **+ Add offer**) files only the rows you select. **Rehearse a collection disruption** proposes a new plan after one recipient's capacity drops. **Pickup manifest · copy or download** gives a plain-text handoff that sends no message.
 - **About this demo**, in the page footer, shows the provider, the snapshot time and the automated test reports.
 
 ## Contents
@@ -35,29 +36,31 @@ To try an invented donation, choose **+ Add offer → Try success**, edit the fi
 
 ## What is real and what is demonstrated
 
-The five community organisations are **synthetic**, and the donors, donations and example collection confirmations
+The five community organisations are synthetic, and the donors, donations and example collection confirmations
 are invented; none of it is evidence of food rescued. Merismos is a browser workspace: a coordinator can copy its
 summary into an existing channel, and there is no automatic chat delivery, email, telephony or payment.
 
 The public sandbox runs the real **Strands Agents SDK** agent loop and tool guard with `scripted-planner/1.0.0`, a
-scripted test model, so the sandbox makes no Bedrock call and no model network call. A sandbox handle stops working
-after 24 hours, but the stored session item is not deleted automatically.
+scripted test model, so the sandbox makes no Bedrock call and no model network call. A sandbox session stops working
+after 24 hours, but its stored item is not deleted automatically.
 
-**Live records are publicly read-only.** A live change needs an API Gateway Lambda authorizer that identifies a
-network coordinator with `merismos:coordinate`. None is deployed on the public API, so every public live change is
-refused with 403. A typed name, body identity or client-supplied header is not authentication.
+**Live records are publicly read-only.** Live mode is the private path in which an authenticated network
+coordinator's approval publishes a public record. A live change needs an API Gateway Lambda authorizer that
+identifies a network coordinator with `merismos:coordinate`. None is deployed on the public API, so every public
+live change is refused with 403. A typed name, body identity or client-supplied header is not authentication.
 
 Strands is load-bearing: removing the SDK stops the agent journey, and removing its `BeforeToolCallEvent` guard lets
-a denied tool call through in the negative-control test. A separate deterministic gate checks each draft; not every
-refusal is a Strands hook. Live runs use Amazon Bedrock with `eu.anthropic.claude-opus-5`, and a public request
-cannot start one; a configured model is not evidence that a run called it. The optional tool-less critic is off by
-default and is not a separate Lambda. Merismos does not run on AgentCore. The 40% ceiling is this network's policy,
-not a universal or certified definition of fairness.
+a denied tool call through in the negative-control test. A separate deterministic gate checks each draft, so not
+every refusal comes from the Strands guard. Live runs use Amazon Bedrock with `eu.anthropic.claude-opus-5`, and a
+public request cannot start one; a configured model is not evidence that a run called it. An optional critic, a
+second Bedrock call with no tools that reviews the prose about an allocation, is off by default and is not a
+separate Lambda. Merismos does not run on AgentCore. The 40% ceiling, under which no organisation receives more than
+40% of one offer, is this network's policy, not a universal or certified definition of fairness.
 
 Not measured: human active time, time saved, food rescued, beneficiary impact and adoption. Not run: human
 acceptance testing, the authenticated publication and recovery drill (ME18), real-device Safari testing and a timed
-first-use test. The original
-[offer-4471 publication](https://merismos-records-e6ac6047.s3.eu-west-1.amazonaws.com/records/offer-4471.md)
+first-use test. The first published
+[offer-4471 record](https://merismos-records-e6ac6047.s3.eu-west-1.amazonaws.com/records/offer-4471.md)
 contains a known contradictory allocation, preserved as historical evidence, not repaired automatically and not
 presented as a correct plan. [Evidence and honest limits](docs/evidence.md) has the evidence levels, retained
 artifact IDs and acceptance receipts.
@@ -119,14 +122,17 @@ flowchart TB
     classDef cicd fill:#7f6a03,stroke:#5b4c02,stroke-width:2px,color:#ffffff
 ```
 
-In the diagram, orange rectangles are Lambda functions, slate cylinders are data stores, the magenta double-sided
-box is Amazon Bedrock and the olive trapezoid is GitHub Actions. Dotted arrows are the live coordinator path, which
-the public API refuses.
+In the diagram, the blue rounded box is the coordinator's browser, teal parallelograms are AWS entry points and the
+scheduler, orange rectangles are Lambda functions, slate cylinders are data stores, the magenta double-sided box is
+Amazon Bedrock and the olive trapezoid is GitHub Actions. Dotted arrows are the live coordinator path, which the
+public API refuses.
 
 Three fleet IAM roles separate the reader, evaluator and writer; the runner runs under the reader role, and
-EventBridge Scheduler has its own role. Among the three fleet roles only the writer holds `s3:PutObject` on the
-records bucket; the GitHub deploy role, created outside Terraform, can also write to the Merismos buckets. The
-Secrets Manager value is a boundary canary that the publish path never reads. Read on in the
+EventBridge Scheduler has its own role. The evaluator Lambda, not in the diagram, only answers identity probes; the
+product's draft gate runs inside the reader-role functions. Among the three fleet roles only the writer holds
+`s3:PutObject` on the records bucket; the GitHub deploy role, created outside Terraform, can also write to the
+Merismos buckets. The Secrets Manager value is a boundary canary that the publish path never reads: the writer may
+read it, and the reader and evaluator are denied. Read on in the
 [governed flow of one offer](docs/architecture.md#governed-flow-of-one-offer), the
 [trust boundaries](docs/architecture.md#trust-boundaries) and the [infrastructure inventory](docs/infrastructure.md).
 
@@ -143,17 +149,19 @@ logs, data transfer and the actual invoice. How CloudTrail attributed the calls 
 [Cost and latency](docs/cost-and-latency.md#measured-cost-of-the-live-proof).
 
 **The public sandbox never calls a model.** Every sandbox run uses the scripted planner inside the reader Lambda
-(`bedrock.scripted_analyst()` in `src/merismos/api.py`), so a visitor costs API Gateway requests, Lambda time,
-on-demand DynamoDB reads and writes, and CloudFront and S3 requests. The functions are not attached to a VPC, so
-there is no hourly NAT or endpoint charge. In the product, Bedrock runs only in live runs, which start only through
-an IAM-authorised invocation of the runner.
+(`bedrock.scripted_analyst()` in `src/merismos/api.py`). A visitor therefore costs API Gateway requests, Lambda
+time, on-demand DynamoDB reads and writes, and CloudFront and S3 requests. The functions are not attached to a
+virtual private cloud (VPC), so there is no hourly NAT gateway or VPC endpoint charge. In the product, Bedrock runs
+only in live runs, which start only through an IAM-authorised invocation of the runner.
 
-Terraform defaults bound a problem: an API throttle of 10 requests per second with a burst of 20, at most 5 readers
-and 4 background runners at once, no automatic retry of the reader's asynchronous invokes, and two alarms that notify
-nobody ([what bounds a problem](docs/cost-and-latency.md#what-bounds-a-problem)). The rules require the entry to stay
-reachable until judging ends on 2026-10-08 17:00 PT; `still-up.yml` fetches the API Gateway URL and one published
-record anonymously every Monday and Thursday at 09:00 UTC. [Cost and latency](docs/cost-and-latency.md) also has the
-sandbox latency sample and how `deploy.yml` tears the deployment down.
+Terraform defaults limit how far a problem can spread
+([what bounds a problem](docs/cost-and-latency.md#what-bounds-a-problem)). The API is throttled to 10 requests per
+second with a burst of 20, and at most 5 readers and 4 background runners run at once. The reader's asynchronous
+invokes are never retried automatically (the runner keeps Lambda's default retries), and the two alarms notify
+nobody. The hackathon rules require the entry to stay reachable until judging ends on 2026-10-08 17:00 PT;
+`still-up.yml` fetches the API Gateway URL and one published record anonymously every Monday and Thursday at 09:00
+UTC. [Cost and latency](docs/cost-and-latency.md) also has the sandbox latency sample and how `deploy.yml` tears the
+deployment down.
 
 ## Run it locally
 
@@ -170,9 +178,8 @@ pip install -e ".[dev]"
 python -m merismos.demo
 ```
 
-Three offers run to an outcome; one run on 2026-09-14 took 2.3 seconds on one workstation. Under the `MERISMOS`
-banner, the first lines name the ledger, the model and the scheduler this run actually used, so a fallback to a stub
-would say so:
+Three offers run to an outcome. Under the `MERISMOS` banner, the first lines name the ledger, the model and the
+scheduler this run actually used, so a fallback to a stub would say so:
 
 ```text
   ledger      memory
@@ -206,10 +213,11 @@ cd frontend && npm ci && npm run dev
 ```
 
 Open the address Vite prints. `/api` is proxied to the harness on `127.0.0.1:8765`, which keeps sandbox state in
-SQLite and never supplies live coordinator authorisation. In `frontend/`, `npm test` runs the unit suite and
-`npx playwright install --with-deps chromium webkit && npm run test:e2e` runs the desktop, mobile and `mobile-webkit`
-journeys. `mobile-webkit` is Playwright's WebKit engine with the iPhone 13 preset, not real-device Safari. CI runs
-these commands, except `npm run dev`, and runs the suite as `pytest -q`.
+SQLite and never supplies live coordinator authorisation. In `frontend/`, `npm test` runs the unit suite. For the
+browser journeys, first stop the harness: Playwright starts its own on `127.0.0.1:8765`, plus a preview server of
+the built app. Then run `npm run build && npx playwright install --with-deps chromium webkit && npm run test:e2e`
+for the desktop, mobile and `mobile-webkit` journeys. `mobile-webkit` is Playwright's WebKit engine with the iPhone
+13 preset, not real-device Safari. CI runs these commands, except `npm run dev`, and runs the suite as `pytest -q`.
 
 ## Documentation
 
@@ -223,9 +231,10 @@ these commands, except `npm run dev`, and runs the suite as `pytest -q`.
 
 ## Validation and release
 
-- **CI** runs on every pull request: a full-history secret scan, Ruff, the offline suite with the 85% coverage floor
-  and no AWS credentials (it also checks every relative link, repository link and heading anchor in the README and
-  `docs/`), the guard and SDK-removal checks, and Terraform format and validation.
+- **CI** runs on every pull request: a full-history secret scan, Ruff (the Python linter), the offline suite with
+  the 85% coverage floor and no AWS credentials, the guard and SDK-removal checks, and Terraform format and
+  validation. The offline suite also checks every relative link, repository link and heading anchor in the README
+  and `docs/`.
 - **Frontend verification** runs on every pull request: dependency audits, the React build, unit tests with coverage
   floors, and Playwright journeys against the real Python HTTP API.
 - **Docs verification** runs when the README or `docs/` change: it lints the Markdown and renders every Mermaid
