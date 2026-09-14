@@ -357,6 +357,13 @@ def validate_alignment(
     characters = alignment.get("characters")
     starts = alignment.get("character_start_times_seconds")
     ends = alignment.get("character_end_times_seconds")
+    # Provider responses use the long field names; cache sidecars deliberately
+    # store the normalized names returned below.  Validation must be idempotent
+    # because main() validates the persisted sidecar before deriving captions.
+    if starts is None:
+        starts = alignment.get("startSeconds")
+    if ends is None:
+        ends = alignment.get("endSeconds")
     if not isinstance(characters, list) or not isinstance(starts, list) or not isinstance(ends, list):
         raise SystemExit("ElevenLabs character alignment arrays are missing")
     if not characters or not len(characters) == len(starts) == len(ends):

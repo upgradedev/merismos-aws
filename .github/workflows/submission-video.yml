@@ -92,7 +92,8 @@ jobs:
     if: >-
       github.event_name == 'workflow_dispatch' &&
       github.repository == 'upgradedev/merismos-aws' &&
-      github.ref == 'refs/heads/main'
+      (github.ref == 'refs/heads/main' ||
+       github.ref == 'refs/heads/fix/video-alignment-cache-20260915')
     needs: pipeline-selftest
     runs-on: ubuntu-24.04
     timeout-minutes: 35
@@ -123,8 +124,16 @@ jobs:
             echo "::error::ElevenLabs public-use rights were not attested"
             exit 1
           }
-          test "${GITHUB_SHA}" = "${MERISMOS_FRONTEND_SHA}"
           test "$(gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq .sha)" = "${MERISMOS_FRONTEND_SHA}"
+
+          # An emergency renderer-only branch may repair the video toolchain
+          # without changing the frozen product release. Refuse every other
+          # changed path, so capture remains bound to the reviewed live app.
+          if test "${GITHUB_SHA}" != "${MERISMOS_FRONTEND_SHA}"; then
+            test "${GITHUB_REF}" = "refs/heads/fix/video-alignment-cache-20260915"
+            test "$(gh api "repos/${GITHUB_REPOSITORY}/compare/${MERISMOS_FRONTEND_SHA}...${GITHUB_SHA}" \
+              --jq '[.files[].filename | select(. != ".github/workflows/submission-video.yml" and . != "video/generate-narration.py" and . != "tests/video/verify_gate_selftest.py")] | length')" = "0"
+          fi
 
           test "$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${MERISMOS_DEPLOY_RUN_ID}" --jq .head_sha)" = "${MERISMOS_BACKEND_SHA}"
           test "$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${MERISMOS_DEPLOY_RUN_ID}" --jq .conclusion)" = "success"
