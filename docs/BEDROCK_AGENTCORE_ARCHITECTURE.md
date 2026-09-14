@@ -99,5 +99,6 @@ NOT_RUN gaps, retained historical disclosures and dependency licences.
 
 The acceptance publisher is separate from both browser jobs and uses only the existing frontend
 release OIDC role. It writes sanitized receipts to the frontend bucket; it has no backend deploy,
-record publication or model authority. The receipt's backend SHA remains unavailable because the
-existing `/identity` endpoint attempts boundary probes. No frontend/backend parity is fabricated.
+record publication or model authority. The receipt takes the answering backend's commit from `GET /api/version`
+observations of CI-packaged metadata before and after the journeys, and refuses to build if the two
+differ. Without a known version it says unavailable. No frontend/backend parity is fabricated.

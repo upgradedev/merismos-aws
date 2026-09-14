@@ -12,7 +12,7 @@ interface ArchitectureNode {
   resilienceMechanism: string;
 }
 
-const NOT_MEASURED = 'Not measured per component. One live model run cost a median of $1.62 in total, almost all of it Bedrock; see Cost and sustainability in the README.';
+const NOT_MEASURED = 'Not measured per component. The live proof in one deploy apply cost a median of $1.62 in total, almost all of it Bedrock; see Cost and sustainability in the README.';
 
 const NODES: ArchitectureNode[] = [
   {
@@ -21,7 +21,7 @@ const NODES: ArchitectureNode[] = [
     category: 'Edge & delivery',
     awsService: 'Amazon CloudFront · Amazon S3',
     description: 'The React + Vite single-page application is served from an S3 bucket behind Amazon CloudFront. CI publishes it on push to main and writes the exact commit into release.json.',
-    securityControls: 'The SPA holds no publish credential. Live writes are decided on the API side by an authorizer grant that is not deployed on the public API; nothing the browser sends in a header or body can confer it.',
+    securityControls: 'The SPA holds no publishing authority. Live writes are decided on the API side by an authorizer grant that is not deployed on the public API; nothing the browser sends in a header or body can confer it.',
     costProfile: NOT_MEASURED,
     resilienceMechanism: 'The served build can be matched to a commit through release.json. No other mechanism is claimed for the frontend.',
   },
@@ -41,7 +41,7 @@ const NODES: ArchitectureNode[] = [
     category: 'Compute',
     awsService: 'AWS Lambda (Python 3.13)',
     description: 'Four functions (reader, evaluator, writer, runner) built from one package by for_each, with a shared dependency layer; the runner executes under the reader role. Reader: 1024 MB, 60 s. Runner: 1024 MB, 900 s. Evaluator and writer: 512 MB, 30 s.',
-    securityControls: 'Three IAM role policies (reader, evaluator, writer). Only the writer can publish; the others are denied the publish credential by policy.',
+    securityControls: 'Three IAM role policies (reader, evaluator, writer). Only the writer holds s3:PutObject on the records bucket, which is what publishing a record needs.',
     costProfile: NOT_MEASURED,
     resilienceMechanism: 'Reserved concurrency in separate pools: at most 5 readers and 4 background runners at once, so a busy run queues instead of taking the site down. No automatic retries on the reader. CloudWatch alarms at 5 reader errors in 5 minutes and 500 reader invocations in an hour; they notify nobody, because no notification target is configured. Logs are kept 14 days.',
   },
@@ -50,8 +50,8 @@ const NODES: ArchitectureNode[] = [
     name: 'Identity separation',
     category: 'API & identity',
     awsService: 'AWS IAM · AWS Secrets Manager',
-    description: 'Three IAM role policies: reader, evaluator, writer. Only the writer can publish a record.',
-    securityControls: 'The publish credential lives in AWS Secrets Manager. A never_the_publish_credential policy denies it to the reader and the evaluator. /identity?all=1 asks each identity what it can do and reports the answer.',
+    description: 'Three IAM role policies: reader, evaluator, writer. Of these three, only the writer can publish a record.',
+    securityControls: 'Publishing needs s3:PutObject on the records bucket, and of the three fleet roles only the writer holds it. The Secrets Manager value is a boundary canary that the publish path never reads: a never_the_publish_credential policy denies it to the reader and the evaluator, so each refusal can be observed. /identity?all=1 asks each identity what it can do and reports the answer.',
     costProfile: NOT_MEASURED,
     resilienceMechanism: 'None claimed. Separation is a control on who can write, not a failover mechanism.',
   },
@@ -71,7 +71,7 @@ const NODES: ArchitectureNode[] = [
     category: 'State & records',
     awsService: 'Amazon S3',
     description: 'The corpus bucket holds the network registers: public access blocked, versioned. The records bucket holds published Markdown records: versioned, public read via bucket policy, so a published record has a stable public address.',
-    securityControls: 'Corpus: public access blocked. Records: public read only, via bucket policy; only the writer identity can publish. Records carry SHA-256 digests, which bind bytes, not truth.',
+    securityControls: 'Corpus: public access blocked. Records: public read only, via bucket policy; of the three fleet roles only the writer can publish. Records carry SHA-256 digests, which bind bytes, not truth.',
     costProfile: NOT_MEASURED,
     resilienceMechanism: 'Both buckets are versioned. A correction is a new record at the next address that names what it replaced; the superseded record stays served with a notice.',
   },
@@ -92,7 +92,7 @@ const NODES: ArchitectureNode[] = [
     awsService: 'Strands Agents SDK · Amazon Bedrock (live)',
     description: 'Four specialists (food safety, capacity, equity, premises) built with Agent and @tool from strands-agents>=1.53.0. Live mode uses BedrockModel; the model id is a Terraform variable and a separate critic model variable exists. The sandbox and CI use ScriptedPlanner, a Model subclass with scripted responses: a real agent loop, no Bedrock call.',
     securityControls: 'Tools are bounded and read-only with a budget of distinct paths. A BeforeToolCallEvent hook cancels any tool call outside the allowed corpus. A deterministic gate checks the draft record for personal data before it can be approved.',
-    costProfile: 'About 99.6% of the $1.62 median cost of one live model run. The median of five applies was 43 calls, 170,499 input tokens and 23,712 output tokens. No Bedrock call happens in the sandbox.',
+    costProfile: 'About 99.6% of the $1.62 median cost of the live proof in one deploy apply, which runs offer-4471 and the refused offer-4477. Per-column medians over the five applies: 43 calls, 170,499 input tokens and 23,712 output tokens. No Bedrock call happens in the sandbox.',
     resilienceMechanism: 'The swap test proves the demo stops when the SDK is replaced. Food-safety refusals are final; the model cannot clear one.',
   },
 ];
