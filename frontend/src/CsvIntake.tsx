@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { previewCsv, type CsvPreview } from './api';
+import { describedBy } from './components';
 import type { Mutate } from './OfferDetail';
 import type { Workspace } from './types';
 
@@ -56,9 +57,9 @@ export function CsvIntake({ data, busy, mutate }: {data: Workspace; busy: boolea
     {!data.can_write && <p className="notice" id="csv-write-reason">{data.authorization_note} Switch to Sandbox to preview and file invented donations.</p>}
     {pending && <p role="status">Validating the CSV. No offers are being filed.</p>}
     {message && <p role="status">{message}</p>}
-    {stale && <p className="notice">Workspace changed since this preview. Choose the file again to recheck duplicates and clear the old selection.</p>}
+    {stale && <p className="notice" id="csv-stale-reason">Workspace changed since this preview. Choose the file again to recheck duplicates and clear the old selection.</p>}
     {review && <div className="csv-rows">{review.rows.map(row => <article key={row.number} className="csv-row" data-testid={`csv-row-${row.number}`}>
-      <label className="check-label"><input type="checkbox" aria-label={`Select CSV row ${row.number}`} disabled={busy || stale || row.status !== 'valid'} aria-describedby={busy || stale || row.status !== 'valid' ? `csv-row-${row.number}-detail` : undefined} checked={selected.includes(row.number)} onChange={e => setSelected(previous => e.target.checked ? [...previous, row.number] : previous.filter(number => number !== row.number))}/>Row {row.number} · {row.status}</label>
+      <label className="check-label"><input type="checkbox" aria-label={`Select CSV row ${row.number}`} disabled={busy || stale || row.status !== 'valid'} aria-describedby={describedBy(busy && 'csv-file-note', stale && 'csv-stale-reason', row.status !== 'valid' && `csv-row-${row.number}-detail`)} checked={selected.includes(row.number)} onChange={e => setSelected(previous => e.target.checked ? [...previous, row.number] : previous.filter(number => number !== row.number))}/>Row {row.number} · {row.status}</label>
       {row.offer && <><strong>{row.offer.title}</strong><p>{row.offer.donor} · {row.offer.quantity} {row.offer.unit} · {row.offer.category}</p><p>Collect {row.offer.collection_date} · use by {row.offer.use_by || 'unknown'} · allergens {row.offer.allergens?.join(', ') || 'unknown'}</p><details><summary>Review row {row.number} food constraints</summary><p>{row.offer.note || 'No donor note.'}</p><p>Hours unrefrigerated: {row.offer.hours_unrefrigerated ?? 'not applicable'}</p></details></>}
       <p id={`csv-row-${row.number}-detail`}>{row.detail}</p></article>)}</div>}
     <div className="form-actions"><button type="button" disabled={disabled} aria-describedby={disabled ? 'csv-file-reason' : undefined} onClick={() => {

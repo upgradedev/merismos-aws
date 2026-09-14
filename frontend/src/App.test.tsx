@@ -130,6 +130,25 @@ it('restarts only after explicit confirmation', async () => {
   await screen.findByText(/New isolated workspace ready/);
 });
 
+it('keeps Yes, start fresh disabled with a visible reason while the workspace loads, instead of closing and doing nothing', async () => {
+  render(<App/>); await screen.findByRole('heading',{name:'Dashboard'});
+  (screen.getByText('About this demo').closest('details') as HTMLDetailsElement).open = true;
+  fireEvent.click(screen.getByText('Start over in a new sandbox'));
+  let resolve!: (value: ReturnType<typeof workspace>) => void;
+  vi.mocked(api.loadWorkspace).mockReturnValueOnce(new Promise(done => { resolve = done; }));
+  fireEvent.click(screen.getByText('Refresh workspace'));
+  const confirm = screen.getByRole('button', {name: 'Yes, start fresh'});
+  const reason = screen.getByText('Starting a fresh sandbox is paused while the workspace loads or saves.');
+  expect(confirm).toBeDisabled(); expect(reason).toBeVisible(); expect(confirm).toHaveAttribute('aria-describedby', reason.id);
+  fireEvent.click(confirm);
+  expect(screen.getByRole('button', {name: 'No, keep this sandbox'})).toBeVisible(); expect(api.startIsolatedWorkspace).not.toHaveBeenCalled();
+  await act(async () => resolve(workspace()));
+  expect(confirm).toBeEnabled(); expect(confirm).not.toHaveAttribute('aria-describedby');
+  expect(screen.queryByText(/Starting a fresh sandbox is paused/)).not.toBeInTheDocument();
+  fireEvent.click(confirm); await waitFor(() => expect(api.startIsolatedWorkspace).toHaveBeenCalledTimes(1));
+  await screen.findByText(/New isolated workspace ready/);
+});
+
 it('a completed sandbox Dashboard opens the footer restart confirmation and restarts only after Yes', async () => {
   const done = workspace(); done.offers[0].plan!.recorded = true; done.offers[0].status = 'recorded';
   vi.mocked(api.loadWorkspace).mockResolvedValue(done); render(<App/>);

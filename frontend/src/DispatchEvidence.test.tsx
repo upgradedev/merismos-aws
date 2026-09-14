@@ -130,9 +130,12 @@ it('recovers clipboard denial with a selectable field and reports only server-re
   expect(screen.getByText(/Not a Merkle proof or independently verified custody/)).toBeVisible();
   rerender(<DigestCustody plan={{...row.plan!, recorded: true}} mode="live"/>);
   expect(screen.getByText('Published record · server reported')).toBeVisible();
+  expect(screen.getByRole('button', {name: 'Copy digest'})).not.toHaveAttribute('aria-describedby');
   rerender(<DigestCustody plan={{...row.plan!, digest: ''}} mode="live"/>);
   expect(screen.getByRole('button', {name: 'Copy digest'})).toBeDisabled();
   expect(screen.getByText(/has not supplied a digest/)).toBeVisible();
+  expect(screen.getByText(/has not supplied a digest/).id).not.toBe('');
+  expect(screen.getByRole('button', {name: 'Copy digest'})).toHaveAttribute('aria-describedby', screen.getByText(/has not supplied a digest/).id);
 });
 it('clears clipboard feedback when server plan state changes, without altering approval consent', async () => {
   const user = userEvent.setup();

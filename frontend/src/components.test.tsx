@@ -125,10 +125,12 @@ it('explains paused and unticked pickup actions beside their disabled buttons', 
   const {rerender}=render(<Pickups data={data} busy mutate={mutate}/>);
   const paused=()=>screen.getByText('Actions on this share are paused while the workspace loads, saves or needs a refresh.');
   expect(paused()).toBeVisible(); expect(screen.getByText('Claim this share')).toHaveAttribute('aria-describedby',paused().id);
+  expect(paused().nextElementSibling).toBe(screen.getByText('Claim this share').closest('form')); expect(screen.getByRole('heading',{name:'Kitchen'}).nextElementSibling).not.toBe(paused());
   data.pickups[0]={...data.pickups[0],state:'claimed',role:'kitchen lead'};
   rerender(<Pickups data={data} busy mutate={mutate}/>);
   const observe=screen.getByText('Available once you tick the observation box above.');
   expect(paused()).toBeVisible(); expect(observe).toBeVisible();
+  expect(paused().nextElementSibling).toBe(screen.getByText('Save collection time').closest('form'));
   expect(screen.getByText('Save handoff report')).toHaveAttribute('aria-describedby',`${paused().id} ${observe.id}`);
   expect(screen.getByText('Save collection time')).toHaveAttribute('aria-describedby',`${paused().id} ${screen.getByText('Choose a future time within the next 14 days.').id}`);
   expect(screen.getByText('Confirm collection')).toHaveAttribute('aria-describedby',`${paused().id} ${screen.getByText('Confirm arrival before marking this share collected.').id}`);
