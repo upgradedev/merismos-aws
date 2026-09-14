@@ -130,6 +130,17 @@ it('restarts only after explicit confirmation', async () => {
   await screen.findByText(/New isolated workspace ready/);
 });
 
+it('a completed sandbox Dashboard opens the footer restart confirmation and restarts only after Yes', async () => {
+  const done = workspace(); done.offers[0].plan!.recorded = true; done.offers[0].status = 'recorded';
+  vi.mocked(api.loadWorkspace).mockResolvedValue(done); render(<App/>);
+  await userEvent.click(await screen.findByRole('button', {name: 'Start over with a fresh sample'}));
+  const confirm = screen.getByRole('button', {name: 'Yes, start fresh'});
+  expect(confirm).toHaveFocus(); expect((confirm.closest('details') as HTMLDetailsElement).open).toBe(true);
+  expect(api.startIsolatedWorkspace).not.toHaveBeenCalled();
+  await userEvent.click(confirm); await waitFor(() => expect(api.startIsolatedWorkspace).toHaveBeenCalledTimes(1));
+  await screen.findByText(/New isolated workspace ready/);
+});
+
 it('shows why reconcile is paused while an error needs a refresh', async () => {
   const pending = {...workspace(), operations: [{id: 'reserved-attempt',
     offer_id: 'offer-4471', action: 'approve', status: 'pending'}]};

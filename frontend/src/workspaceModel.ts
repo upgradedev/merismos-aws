@@ -84,6 +84,23 @@ export function priorityOffers(data: Workspace, today: string) {
     .sort((a, b) => Number(isUrgent(b, today)) - Number(isUrgent(a, today)) ||
       (calendarDay(a.offer.collection_date) ?? Infinity) - (calendarDay(b.offer.collection_date) ?? Infinity) || a.offer.id.localeCompare(b.offer.id));
 }
+const stoppedOutcomes = new Set(['blocked', 'refused_by_gate', 'nothing_to_allocate']);
+export type StartState = { kind: 'empty' } | { kind: 'first' } | { kind: 'returning'; next: OfferRow; recorded: number; total: number } | { kind: 'completed'; stopped: number };
+// The Dashboard start state comes only from the loaded workspace: no stored flag, route or extra request decides it.
+export function startState(data: Workspace, today: string): StartState {
+  const source = projection(data);
+  if (!source.offers.length) return { kind: 'empty' };
+  const progressed = source.records.length > 0 || source.pickups.length > 0 || source.offers.some(row => row.status !== 'not_started' || !!row.result.run_id || !!row.plan);
+  if (!progressed) return { kind: 'first' };
+  // A run that stopped with a reason and produced no plan leaves nothing to approve.
+  const stopped = (row: OfferRow) => !row.plan && stoppedOutcomes.has(row.status);
+  const collecting = (row: OfferRow) => source.pickups.some(p => p.offer_id === row.offer.id && isPending(p));
+  const open = priorityOffers(data, today).filter(row => collecting(row) || (!row.plan?.recorded && !stopped(row)));
+  // Decisions still to approve come before collections still to close.
+  const next = open.find(row => !row.plan?.recorded) || open[0];
+  return next ? { kind: 'returning', next, recorded: source.offers.filter(row => row.plan?.recorded).length, total: source.offers.length }
+    : { kind: 'completed', stopped: source.offers.filter(stopped).length };
+}
 export interface Activity { id: string; offerId: string; title: string; detail: string; at: number | null }
 export function activity(data: Workspace): Activity[] {
   const source = projection(data);

@@ -62,7 +62,7 @@ export function DispatchJourney({row, data}: {row: OfferRow; data: Workspace}) {
   const currentPickups = projection(data).pickups.filter(p => row.plan?.recorded && p.offer_id === row.offer.id && p.plan_digest === row.plan.digest && p.run_id === row.plan.run_id && p.state !== 'invalidated');
   const received = currentPickups.filter(p => p.state === 'confirmed').length;
   const scheduled = currentPickups.filter(p => p.state === 'scheduled' || p.state === 'overdue' || (p.state === 'confirmed' && !!p.agreed_at)).length;
-  return <section className="panel padded journey" aria-label="Offer to pickup journey"><div className="section-heading"><h2>From offer to pickup</h2><button className="secondary" onClick={() => document.getElementById('next-decision')?.focus()}>Go to next decision ↓</button></div>
+  return <section className="panel padded journey" aria-label="Offer to pickup journey"><h2>From offer to pickup</h2>
     <p>{row.offer.quantity} {row.offer.unit} · Collect {row.offer.collection_date || 'date not provided'} · {row.offer.title}</p>
     <ol className="decision-stages" aria-label="Allocation and collection status">
       <li>Proposed<strong>{changed ? (replanned ? (row.plan?.recorded ? 'Approved in sandbox' : row.plan ? 'Fresh approval required' : 'No feasible allocation') : 'Capacity correction needs a new plan') : row.plan ? 'Allocation computed' : 'Needs review'}</strong></li>

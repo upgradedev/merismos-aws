@@ -34,6 +34,46 @@ it('renders unknown, empty, live and conflict scopes without invented recent act
   data.offers = []; rerender(<Dashboard data={data} selected="" today={today} unit=""/>);
   expect(screen.getByText('No priority offers')).toBeVisible(); expect(screen.getByText('No unit available')).toBeInTheDocument();
 });
+it('first visit keeps Start with this offer as the only primary action', () => {
+  const data = twoOffers(); data.offers[0] = { ...data.offers[0], status: 'not_started', result: {}, plan: null };
+  render(<Dashboard data={data} selected="" today={today} unit="kg"/>);
+  const start = within(screen.getByRole('region', { name: 'Your next donation' }));
+  expect(start.getByRole('heading', { name: 'Next offer: Bread and vegetables' })).toBeVisible();
+  expect(start.getAllByRole('link').map(link => link.textContent)).toEqual(['Start with this offer →']);
+  expect(start.getByRole('link', { name: 'Start with this offer →' })).toHaveAttribute('href', '#/workspace?offer=offer-4471');
+  expect(start.queryByRole('button')).not.toBeInTheDocument();
+});
+it('returning visitor gets one Continue my work action that targets the next open decision', () => {
+  const data = twoOffers(); data.offers[0].plan!.recorded = true; data.offers[0].status = 'recorded';
+  data.pickups = [{ offer_id: 'offer-4471', title: 'Bread', org: 'Kitchen', quantity: 96, unit: 'kg', role: '', state: 'unclaimed', agreed_at: '', plan_digest: 'digest', run_id: 'run' }];
+  const { rerender } = render(<Dashboard data={data} selected="offer-4471" today={today} unit="kg"/>);
+  const start = within(screen.getByRole('region', { name: 'Your next donation' }));
+  expect(start.getByRole('heading', { name: /^Next open decision: Gift hampers$/ })).toBeVisible();
+  expect(start.getAllByRole('link').map(link => link.textContent)).toEqual(['Continue my work →']);
+  expect(start.getByRole('link', { name: 'Continue my work →' })).toHaveAttribute('href', '#/workspace?offer=offer-4483');
+  expect(start.getByText('1 of 2 donations recorded so far.')).toBeVisible(); expect(start.getByText(/Start by calculating a proposed allocation/)).toBeVisible();
+  data.offers[1] = { ...data.offers[1], status: 'blocked' }; rerender(<Dashboard data={data} selected="" today={today} unit="kg"/>);
+  expect(start.getByRole('heading', { name: 'Next open decision: Bread and vegetables' })).toBeVisible();
+  expect(start.getByRole('link', { name: 'Continue my work →' })).toHaveAttribute('href', '#/workspace?offer=offer-4471'); expect(start.getByText(/The allocation is approved/)).toBeVisible();
+  data.offers[0].plan!.recorded = false; data.can_write = false; rerender(<Dashboard data={data} selected="" today={today} unit="kg"/>);
+  expect(start.getByRole('link', { name: 'Open the next decision →' })).toHaveAttribute('href', '#/workspace?offer=offer-4471'); expect(start.getByText(/A proposed allocation is ready/)).toBeVisible();
+  expect(start.queryByRole('link', { name: /Start with this offer/ })).not.toBeInTheDocument();
+});
+it('completed sandbox says every donation is recorded and only opens the confirmed restart', async () => {
+  const data = twoOffers(); const plan = { ...data.offers[0].plan!, recorded: true };
+  data.offers = data.offers.map(row => ({ ...row, plan, status: 'recorded' })); const onStartOver = vi.fn();
+  const { rerender } = render(<Dashboard data={data} selected="" today={today} unit="kg" onStartOver={onStartOver}/>);
+  const start = within(screen.getByRole('region', { name: 'Your next donation' }));
+  expect(start.getByRole('heading', { name: 'Every donation in this sandbox is recorded' })).toBeVisible();
+  expect(start.getAllByRole('button').map(button => button.textContent)).toEqual(['Start over with a fresh sample']);
+  expect(start.queryByRole('link', { name: /Start with this offer|Continue my work/ })).not.toBeInTheDocument();
+  expect(start.getByRole('link', { name: 'History' })).toHaveAttribute('href', '#/history');
+  await userEvent.click(start.getByRole('button', { name: 'Start over with a fresh sample' })); expect(onStartOver).toHaveBeenCalledTimes(1);
+  data.offers[1] = { ...data.offers[1], plan: null, status: 'blocked' }; data.mode = 'live';
+  rerender(<Dashboard data={data} selected="" today={today} unit="kg"/>);
+  expect(start.getByRole('heading', { name: 'Every donation in these shared records is recorded or stopped with a reason' })).toBeVisible();
+  expect(start.queryByRole('button')).not.toBeInTheDocument(); expect(start.getByRole('link', { name: 'Review the history →' })).toHaveAttribute('href', '#/history');
+});
 it('renders dated and undated activity and historical addresses without inventing dates', () => {
   const data = workspace(); data.records = [{ key: 'record', offer_id: 'offer-4471', run_id: 'run', content_digest: 'digest', published_at: 1, superseded_by: '', mode: 'sandbox' }];
   data.pickups = [{ offer_id: 'offer-4471', title: 'Bread', org: 'Kitchen', quantity: 96, unit: 'kg', role: 'duty manager', state: 'confirmed', agreed_at: '', plan_digest: 'digest', run_id: 'run', confirmed_at: null }];
@@ -76,6 +116,15 @@ it('hidden or conflicting selected evidence cannot expose actionable approval', 
 it('empty workspace and unknown allocation do not expose an approval path', () => {
   const data = workspace(); data.offers = []; render(<DispatchWorkspace data={data} selected="" filter="all" unit="" today={today} busy={false} mutate={vi.fn()}/>);
   expect(screen.getByText('No offers yet')).toBeVisible(); expect(screen.getByText('No offers match')).toBeVisible();
+});
+it('puts the skip button before the decision pane, the journey after it and the offer stream last', async () => {
+  render(<DispatchWorkspace data={workspace()} selected="offer-4471" filter="all" unit="" today={today} busy={false} mutate={vi.fn()}/>);
+  const pane = screen.getByRole('complementary', { name: 'Decision and dispatch' }); const skip = screen.getByRole('button', { name: 'Go to next decision ↓' });
+  const journey = screen.getByRole('region', { name: 'Offer to pickup journey' }); const stream = screen.getByRole('region', { name: 'Intake and allocation' });
+  const follows = (a: Element, b: Element) => !!(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+  expect(follows(skip, pane)).toBe(true); expect(follows(pane, journey)).toBe(true); expect(follows(journey, stream)).toBe(true);
+  expect(follows(within(pane).getByRole('button', { name: 'Recalculate the split' }), within(pane).getAllByText('The gate passed. Approval is required.')[0])).toBe(true);
+  await userEvent.click(skip); expect(pane).toHaveFocus();
 });
 it('integrates selected pickups and resets role, schedule and confirmation across offer changes', async () => {
   const data = twoOffers(); data.offers[0].plan!.recorded = true;
