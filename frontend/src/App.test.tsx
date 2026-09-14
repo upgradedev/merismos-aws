@@ -174,7 +174,7 @@ it('shows why reconcile is paused while an error needs a refresh', async () => {
 });
 
 it.each([
-  {path: '/landing', heading: /Fair food surplus allocation/},
+  {path: '/landing', heading: /Policy-bounded food surplus allocation/},
   {path: '/journeys', heading: /How a donation moves through Merismos/},
   {path: '/architecture', heading: /AWS architecture/},
   {path: '/impact', heading: /Impact and limits/},

@@ -48,7 +48,7 @@ export function LandingPage({ data, onLaunchCockpit, onNavigate }: LandingPagePr
           GOOD NEIGHBOR AGENTS · SURPLUS FOOD APPORTIONMENT
         </p>
         <h1 id="landing-hero-title" style={{ fontSize: 'clamp(2.1rem, 4.2vw, 3.4rem)', fontWeight: 800, lineHeight: 1.15, margin: '12px 0 18px', color: 'var(--text)' }}>
-          Fair food surplus allocation, <br />
+          Policy-bounded food surplus allocation, <br />
           <span style={{ color: 'var(--teal)', textShadow: '0 0 24px rgba(113,222,205,0.3)' }}>with the reasons kept.</span>
         </h1>
         <p style={{ fontSize: '1.2rem', lineHeight: 1.6, color: 'var(--text)', maxWidth: '820px', marginBottom: '32px' }}>
@@ -117,9 +117,9 @@ export function LandingPage({ data, onLaunchCockpit, onNavigate }: LandingPagePr
         </div>
         <div className="panel padded" style={{ margin: 0, background: 'rgba(20, 26, 46, 0.85)', border: '1px solid var(--border)', borderRadius: '14px', backdropFilter: 'blur(10px)' }}>
           <span className="eyebrow">THE RECORD</span>
-          <strong style={{ display: 'block', fontSize: '2.4rem', margin: '8px 0', color: 'var(--text)' }}>Append-only</strong>
+          <strong style={{ display: 'block', fontSize: '2.4rem', margin: '8px 0', color: 'var(--text)' }}>Versioned evidence</strong>
           <p style={{ color: 'var(--secondary)', fontSize: '0.95rem', margin: 0 }}>
-            Every ledger entry carries a body digest and a link to its parent. Corrections are new records that name what they replaced; the superseded record stays served with a notice. A digest binds bytes, not truth.
+            Live run-ledger entries carry a body digest and a parent link. The sandbox instead updates one versioned workspace snapshot. Published corrections use new addresses; history and index views mark supersession while the original raw object stays unchanged. A digest binds bytes, not truth.
           </p>
         </div>
       </section>
@@ -145,7 +145,7 @@ export function LandingPage({ data, onLaunchCockpit, onNavigate }: LandingPagePr
             <span style={{ fontSize: '1.8rem', fontWeight: 800, color: 'var(--amber)' }}>02</span>
             <h3 style={{ margin: '8px 0', fontSize: '1.15rem' }}>The checks</h3>
             <p style={{ color: 'var(--secondary)', fontSize: '0.92rem', lineHeight: 1.6 }}>
-              Four specialists (food safety, capacity, equity, premises) run as Strands agents and read the network’s registers through bounded read-only tools. A guard cancels any tool call outside the allowed corpus.
+              Up to four specialists (food safety, capacity, equity, premises) apply deterministic rules first. Where those rules do not already refuse, the specialist runs as a Strands agent and reads the network’s registers through bounded read-only tools. A guard cancels any tool call outside the allowed corpus.
               A bounded solver then proposes the split: storage is a veto, transport is a cap, the network’s 40% ceiling is its own policy, and the remainder is stated.
             </p>
           </div>
@@ -153,7 +153,7 @@ export function LandingPage({ data, onLaunchCockpit, onNavigate }: LandingPagePr
             <span style={{ fontSize: '1.8rem', fontWeight: 800, color: 'var(--text)' }}>03</span>
             <h3 style={{ margin: '8px 0', fontSize: '1.15rem' }}>Human approval and record</h3>
             <p style={{ color: 'var(--secondary)', fontSize: '0.92rem', lineHeight: 1.6 }}>
-              A person approves the exact plan: consent to the exact record digest and address. A claim, an agreed collection time and an explicit “collection confirmed” are three separate recorded facts.
+              A person approves the exact plan: consent to the exact record digest and address. A claim and explicit collection confirmation are stored separately; an optional agreed time is stored separately and can be changed before confirmation.
               No message is sent by Merismos.
             </p>
           </div>
@@ -182,7 +182,7 @@ export function LandingPage({ data, onLaunchCockpit, onNavigate }: LandingPagePr
             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '14px' }}>
               {sameDay && <span style={{ fontSize: '0.78rem', padding: '4px 10px', background: '#163239', color: 'var(--teal)', borderRadius: '999px', border: '1px solid #315853' }}>Same-day rule applies</span>}
               <span style={{ fontSize: '0.78rem', padding: '4px 10px', background: '#163239', color: 'var(--teal)', borderRadius: '999px', border: '1px solid #315853' }}>A reason on every line</span>
-              <span style={{ fontSize: '0.78rem', padding: '4px 10px', background: '#163239', color: 'var(--teal)', borderRadius: '999px', border: '1px solid #315853' }}>Strands agent loop</span>
+              <span style={{ fontSize: '0.78rem', padding: '4px 10px', background: '#163239', color: 'var(--teal)', borderRadius: '999px', border: '1px solid #315853' }}>Rules first · Strands when eligible</span>
               <span style={{ fontSize: '0.78rem', padding: '4px 10px', background: '#163239', color: 'var(--teal)', borderRadius: '999px', border: '1px solid #315853' }}>Sandbox · scripted planner</span>
             </div>
           </div>

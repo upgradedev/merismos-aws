@@ -15,7 +15,7 @@ export function evidenceBundle(row: OfferRow, data: Workspace): string {
     `Run: ${row.result.run_id || 'not started'}; observed outcome: ${row.status}`,
     `Progress: ${row.progress?.stage || 'no active progress reported'}`,
     `Decision: ${row.result.note || 'No decision reported.'}`,
-    `Source: offers/${row.offer.id}.json (public offer projection)`,
+    `Source reference in this API snapshot: offers/${row.offer.id}.json`,
     `Applied allocation policy: ${row.result.fairness_cap?.source || 'unknown in this result'}`,
     'Raw manifests, internal logs and personal identities are not included in this public export.',
     ...((row.result.envelopes || []).map(item => `${item.specialist}: ${item.status} · ${item.reason}`)),
@@ -35,6 +35,11 @@ export function evidenceBundle(row: OfferRow, data: Workspace): string {
     'Human active time, time saved, food rescued and beneficiary impact: unknown; not measured.',
     'No message is sent by this export. A recorded allocation is not a confirmed collection.',
   ].join('\n');
+}
+
+export function KnownHistoricalRecordWarning({ offerId, mode }: { offerId: string; mode: Mode }) {
+  if (mode !== 'live' || offerId !== 'offer-4471') return null;
+  return <p className="notice"><strong>Known historical contradiction.</strong> The published offer-4471 allocation is retained as evidence and is not a correct current plan. Do not use it for a collection. A history or index view can label supersession, but the original raw S3 object is unchanged.</p>;
 }
 
 export function EvidenceBundle({ row, data }: { row: OfferRow; data: Workspace }) {

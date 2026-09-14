@@ -28,10 +28,10 @@ Terraform sets the model `eu.anthropic.claude-opus-5` on the two functions that 
 reader and the runner, and the `model` input of `deploy.yml` defaults to it. A configured model is not evidence
 that a run called it; deploy applies supply that evidence. Each apply of `deploy.yml` that is not a dry run makes
 two IAM-authorised runner invocations, for offer-4471 and the refused offer-4477, and fails unless the offer-4471
-run records a specialist answer with source "model". The live proof in one deploy apply costs a median of $1.62
-(range $1.44 to $1.78), counting Bedrock tokens and Lambda only. How it was measured, the per-column medians and
-the CloudTrail attribution are in [Cost and latency](cost-and-latency.md#measured-cost-of-the-live-proof). The raw
-cost rows are not in this repository.
+run records a specialist answer with source "model". A historical ESTIMATE covered Bedrock tokens and Lambda only,
+not total AWS cost or an invoice. Its raw rows are not published, so no dollar amount is used as a current claim.
+The method and limitations are in
+[Cost and latency](cost-and-latency.md#historical-deploy-proof-pricing-estimate).
 
 The optional critic is a second Bedrock call with no tools, which reviews the prose about an allocation. The
 reader-role function that runs the specialists makes it in-process; it is not a separate Lambda. It is off by
@@ -289,7 +289,8 @@ for model execution; anonymous mutation probes assert 403 and public history sta
 authentication is simulated. The alarms and the scheduled reachability check, and what they do not watch, are in
 [Observability](infrastructure.md#observability).
 
-Evidence bundles show public sources, decisions, revision, run/provider/mode, failure/recovery and handoff.
+Evidence bundles show logical source references from the current API snapshot, decisions, revision,
+run/provider/mode, failure/recovery and handoff.
 Hashes do not prove food safety, delivery, compliance or savings. Time saved, human active time and impact are
 unmeasured; the costs, latency and tests that are not measured or not run are listed in
 [Not measured and not run](evidence.md#not-measured-and-not-run), and

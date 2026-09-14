@@ -12,7 +12,7 @@ interface ArchitectureNode {
   resilienceMechanism: string;
 }
 
-const NOT_MEASURED = 'Not measured per component. The live proof in one deploy apply cost a median of $1.62 in total, almost all of it Bedrock; see Cost and sustainability in the README.';
+const NOT_MEASURED = 'No per-component cost is measured. The historical deploy-proof pricing estimate covers Bedrock tokens and Lambda only, not the AWS bill; its raw cost rows are not published. See Cost and sustainability in the README.';
 
 const NODES: ArchitectureNode[] = [
   {
@@ -30,10 +30,10 @@ const NODES: ArchitectureNode[] = [
     name: 'HTTP API + function URLs',
     category: 'API & identity',
     awsService: 'Amazon API Gateway HTTP API',
-    description: 'An API Gateway HTTP API (v2) with a catch-all route to the reader Lambda. A Lambda function URL for the reader and a private function URL also exist.',
+    description: 'An API Gateway HTTP API (v2) with a catch-all route to the reader Lambda. A reader Function URL and two private AWS_IAM Function URLs, for the evaluator and writer, are also declared; the HTTP API is the public path.',
     securityControls: 'Live mutations require a network-coordinator grant (merismos:coordinate, network-scoped) in the API Gateway authorizer context. No authorizer is deployed on the public API, so every public mutation is refused with 403; no header or body value can confer the grant. The sandbox needs no grant and cannot publish.',
     costProfile: NOT_MEASURED,
-    resilienceMechanism: 'The stage throttles at 10 requests per second with a burst of 20, so an open endpoint cannot run up cost. The integration times out at 30 seconds, which is why a run is started in the background rather than awaited.',
+    resilienceMechanism: 'The shared stage throttle accepts at most 10 requests per second with a burst of 20. It bounds request rate but does not prevent anonymous callers from consuming the shared limit or creating cost. The integration times out at 30 seconds, which is why a live run starts in the background rather than being awaited.',
   },
   {
     id: 'lambda',
@@ -43,7 +43,7 @@ const NODES: ArchitectureNode[] = [
     description: 'Four functions (reader, evaluator, writer, runner) built from one package by for_each, with a shared dependency layer; the runner executes under the reader role. Reader: 1024 MB, 60 s. Runner: 1024 MB, 900 s. Evaluator and writer: 512 MB, 30 s.',
     securityControls: 'Three IAM role policies (reader, evaluator, writer). Of the three fleet roles, only the writer holds s3:PutObject on the records bucket, which is what publishing a record needs.',
     costProfile: NOT_MEASURED,
-    resilienceMechanism: 'Reserved concurrency in separate pools: at most 5 readers and 4 background runners at once, so a busy run queues instead of taking the site down. No automatic retries on the reader. CloudWatch alarms at 5 reader errors in 5 minutes and 500 reader invocations in an hour; they notify nobody, because no notification target is configured. Logs are kept 14 days.',
+    resilienceMechanism: 'Reserved concurrency in separate pools: at most 5 readers and 4 background runners at once. No automatic retries on the reader. CloudWatch alarms trigger at more than 5 reader errors in 5 minutes and more than 500 reader invocations in an hour; they notify nobody, because no notification target is configured. Logs are kept 14 days.',
   },
   {
     id: 'identity',
@@ -51,7 +51,7 @@ const NODES: ArchitectureNode[] = [
     category: 'API & identity',
     awsService: 'AWS IAM · AWS Secrets Manager',
     description: 'Three IAM role policies: reader, evaluator, writer. Of these three, only the writer can publish a record.',
-    securityControls: 'Publishing needs s3:PutObject on the records bucket, and of the three fleet roles only the writer holds it. The Secrets Manager value is a boundary canary that the publish path never reads: a never_the_publish_credential policy denies it to the reader and the evaluator, so each refusal can be observed. /identity?all=1 asks each identity what it can do and reports the answer.',
+    securityControls: 'Publishing needs s3:PutObject on the records bucket, and of the three fleet roles only the writer holds it. Anonymous /identity still attempts the Secrets Manager and conditional S3 capability probes; ?all=1 also invokes the evaluator and writer, so it causes throttled AWS work. Fixed private probe keys and If-None-Match bound durable version growth: an existing-key 412 proves write authority without adding a version. Public build identity comes from the read-only /api/version route.',
     costProfile: NOT_MEASURED,
     resilienceMechanism: 'None claimed. Separation is a control on who can write, not a failover mechanism.',
   },
@@ -60,8 +60,8 @@ const NODES: ArchitectureNode[] = [
     name: 'DynamoDB: thread + approvals',
     category: 'State & records',
     awsService: 'Amazon DynamoDB',
-    description: 'Two tables: thread, the append-only ledger, and approvals. Each thread entry carries a body digest (body_sha) and a parent link. Workspace sessions live in DynamoDB in AWS and in SQLite in the CI harness.',
-    securityControls: 'Append-only by interface: entries are added, never edited in place. The custody summary reports what it cannot see.',
+    description: 'Two tables hold different shapes: append-only run and custody entries share the thread table with a separate versioned workspace item, while the approvals table holds short-lived grants. The sandbox workspace item is replaced after a version check; it is not an append-only ledger.',
+    securityControls: 'Run and custody entries are appended by their ledger interface and carry a body digest and parent link. Workspace updates use optimistic version checks. The custody summary reports what it cannot see.',
     costProfile: NOT_MEASURED,
     resilienceMechanism: 'Point-in-time recovery is enabled on both tables.',
   },
@@ -73,14 +73,14 @@ const NODES: ArchitectureNode[] = [
     description: 'The corpus bucket holds the network registers: public access blocked, versioned. The records bucket holds published Markdown records: versioned, public read via bucket policy, so a published record has a stable public address.',
     securityControls: 'Corpus: public access blocked. Records: public read only, via bucket policy; of the three fleet roles only the writer can publish. Records carry SHA-256 digests, which bind bytes, not truth.',
     costProfile: NOT_MEASURED,
-    resilienceMechanism: 'Both buckets are versioned. A correction is a new record at the next address that names what it replaced; the superseded record stays served with a notice.',
+    resilienceMechanism: 'Both buckets are versioned. A correction is a new record at the next address that names what it replaced. History and index views can show the supersession; the original raw S3 object remains unchanged and gains no notice of its own.',
   },
   {
     id: 'scheduler',
     name: 'EventBridge Scheduler + SQS DLQ',
     category: 'Deferrals',
     awsService: 'Amazon EventBridge Scheduler · Amazon SQS',
-    description: 'A block that turns on something changeable is parked with a reason and a one-shot schedule in a schedule group. A scheduler role fires the wake; an SQS dead-letter queue catches wakes that fail.',
+    description: 'In live mode, a block that turns on something changeable is parked with a reason and a one-shot schedule in a schedule group. A scheduler role fires the wake; an SQS dead-letter queue catches wakes that fail. The public sandbox uses NullScheduler and creates no schedule.',
     securityControls: 'Wakes are fired by a dedicated scheduler role.',
     costProfile: NOT_MEASURED,
     resilienceMechanism: 'Failed wakes land in the SQS dead-letter queue. There is no dead-letter queue for HTTP requests.',
@@ -90,9 +90,9 @@ const NODES: ArchitectureNode[] = [
     name: 'Strands agents',
     category: 'Agents',
     awsService: 'Strands Agents SDK · Amazon Bedrock (live)',
-    description: 'Four specialists (food safety, capacity, equity, premises) built with Agent and @tool from strands-agents>=1.53.0. Live mode uses BedrockModel; the model id is a Terraform variable and a separate critic model variable exists. The sandbox and CI use ScriptedPlanner, a Model subclass with scripted responses: a real agent loop, no Bedrock call.',
+    description: 'Up to four specialists (food safety, capacity, equity, premises) apply deterministic rules first. A specialist whose rules refuse does not call a model; each remaining specialist runs an Agent with @tool from strands-agents>=1.53.0. Terraform configures BedrockModel for live runs. The sandbox and CI use ScriptedPlanner, a Model subclass with a fixed tool sequence and fixed closing answer: the real agent loop runs, with no Bedrock call.',
     securityControls: 'Tools are bounded and read-only with a budget of distinct paths. A BeforeToolCallEvent hook cancels any tool call outside the allowed corpus. A deterministic gate checks the draft record for personal data before it can be approved.',
-    costProfile: 'About 99.6% of the $1.62 median cost of the live proof in one deploy apply, which runs offer-4471 and the refused offer-4477. Per-column medians over the five applies: 43 calls, 170,499 input tokens and 23,712 output tokens. No Bedrock call happens in the sandbox.',
+    costProfile: 'No current frozen-release cost is measured here. A historical pricing estimate covers Bedrock tokens and Lambda only, excludes other AWS services and the invoice, and lacks published raw cost rows. No Bedrock call happens in the sandbox.',
     resilienceMechanism: 'The swap test proves the demo stops when the SDK is replaced. Food-safety refusals are final; the model cannot clear one.',
   },
 ];
@@ -107,7 +107,7 @@ export function ArchitectureView() {
         <div>
           <p className="eyebrow">WHAT ACTUALLY RUNS</p>
           <h1>AWS architecture</h1>
-          <p>Each component below is deployed by infra/main.tf; nothing is listed that is not.</p>
+          <p>This view combines Terraform from infra/main.tf, gateway.tf and iam.tf, the CloudFormation frontend stack, and packaged application code.</p>
         </div>
         <a className="button" href={routeLink('/dashboard')}>
           Back to the dashboard →

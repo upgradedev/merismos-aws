@@ -28,7 +28,8 @@ are distinguished. Unknown/inconsistent projection rows are excluded with a visi
 ## Evidence bundles and the pickup manifest
 
 On **Decide**, with an offer selected, expand **Evidence bundle and recovery** and choose
-**Copy evidence bundle** to copy the current decision, source references, run, workspace revision,
+**Copy evidence bundle** to copy the current decision, logical source references from the current API snapshot,
+run, workspace revision,
 provider/mode, record history, handoff and limits. Copying does not send a message, approve anything
 or change custody status.
 
@@ -52,7 +53,8 @@ result tags are rejected even when summary counters report zero failures.
 Proof-display fixtures have a separate source-only suite and `proof-junit.xml`; their counts never
 enter the AWS product totals. A separate read-only browser job checks the actual published page.
 The receipt says `workflow_status=NOT_ASSERTED`, because publication precedes workflow completion.
-Human acceptance testing (UAT) and the authenticated coordinator publication and recovery drill (ME18) remain **NOT_RUN**.
+Human acceptance testing (UAT), the deploy-time writer read-capability probe (ME18), and the separate authenticated
+coordinator publication and recovery drill remain **NOT_RUN**.
 
 Each immutable `/acceptance/runs/<run-id>-<attempt>.json` contains sanitized aggregate counts,
 statuses, timestamps, source and run references only. Publication creates it conditionally or
@@ -68,11 +70,14 @@ share one lock, and stale dispatches fail.
 
 ### Backend identity in the receipt
 
-The receipt takes the answering backend's commit from `GET /api/version` observations of CI-packaged metadata before and after the journeys, and refuses to build if the two differ.
+The receipt takes the answering backend's commit from `GET /api/version` observations of CI-packaged metadata
+before and after the journeys, and refuses to build if the two differ.
 Older deployments remain explicitly **unavailable**, and schema-1 receipts
-retain their original basis. `/identity` attempts Secrets Manager and S3 boundary probes and is
-never used for this version read. Runtime environment values and the frontend SHA cannot supply
-the backend identity. A known commit identifies the answering function, not fleet-wide parity.
+retain their original basis. Anonymous `/identity` attempts Secrets Manager and conditional S3 capability probes;
+`/identity?all=1` also invokes the evaluator and writer. It therefore causes throttled AWS work and is never used
+for this version read. Its fixed private probe keys bound durable version growth, but do not make the endpoint a
+free metadata read. Runtime environment values and the frontend SHA cannot supply the backend identity. A known
+commit identifies the answering function, not fleet-wide parity.
 A code-only integration procedure is recorded, as not executed, in [the dated deployment record](deploy-2026-09-02.md#backend-build-identity-pending-deployment-2026-09-10).
 This is scripted synthetic AWS software evidence, not a Bedrock model invocation, human acceptance or measured food rescue.
 
@@ -98,7 +103,8 @@ describe their original checkpoints, not the current release.
 
 - Human active time, time saved, food rescued, beneficiary impact and adoption: not measured.
 - Human acceptance testing: NOT_RUN until a person signs off.
-- The authenticated coordinator publication and recovery drill (ME18): NOT_RUN.
+- The deploy-time writer read-capability probe (ME18): NOT_RUN.
+- The separate authenticated coordinator publication and recovery drill: NOT_RUN.
 - Real-device Safari testing and a timed first-use test: not run.
 - Cost not measured: cache tokens, cold-start initialisation, DynamoDB, S3, CloudFront, EventBridge Scheduler, CloudWatch Logs, data transfer, GitHub Actions minutes, free tier and the actual invoice.
 - Latency of live runs on the current release: not measured.

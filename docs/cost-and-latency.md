@@ -3,21 +3,18 @@
 The headline figure and the sandbox claim are in [Cost and sustainability](../README.md#cost-and-sustainability).
 This page holds how the figures were measured, what bounds a problem, and how the deployment comes down.
 
-## Measured cost of the live proof
+## Historical deploy-proof pricing estimate
 
-**The live proof in one deploy apply costs a median of $1.62.** This was measured read-only over the five deploy
-applies between 2026-09-09 and 2026-09-13 that called the model. Each proof invokes the background runner twice: for
-offer-4471, which the model answers, and for the refused offer-4477. How the cost splits between those two
-invocations is not measured. At the AWS Pricing API's eu-west-1 on-demand prices the five proofs cost $1.44 to $1.78
-each, with a median of $1.62, and Bedrock is about 99.6% of it. Taken column by column, the medians were 43 Bedrock
-calls to `eu.anthropic.claude-opus-5`, 170,499 input and 23,712 output tokens, and 365.6 Lambda GB-seconds; no
-single proof had all four. Other applications share the AWS account and CloudWatch's Bedrock totals are
-account-wide, so CloudTrail was used to attribute every model call in those proof windows to the `merismos-reader`
-role, which the runner runs under. Not measured: cache tokens, cold-start initialisation time, DynamoDB, S3,
-CloudFront, Scheduler, logs, data transfer and the actual invoice. The functions are not attached to a virtual
-private cloud (VPC), so there is no hourly NAT gateway or VPC endpoint charge.
+Five deploy applies between 2026-09-09 and 2026-09-13 were used for a historical ESTIMATE based on AWS Pricing API
+rates. Each proof invoked the background runner twice, once for offer-4471 and once for the refused offer-4477.
+CloudTrail was used to attribute model calls in those windows to the `merismos-reader` role, which the runner uses.
+The estimate counted Bedrock tokens and Lambda only. It excluded cache tokens, cold-start initialisation, DynamoDB,
+S3, CloudFront, Scheduler, logs, data transfer and the actual invoice. Other applications share the account, and
+the raw calculation rows are not published in this repository. The result is therefore not a reproducible public
+cost measurement, and no dollar amount from it is used as a current claim.
 
-The figure counts Bedrock tokens and Lambda only. The raw cost rows are not in this repository.
+The functions are not attached to a virtual private cloud (VPC), so there is no hourly NAT gateway or VPC endpoint
+charge.
 
 ## What bounds a problem
 
@@ -105,10 +102,9 @@ protocol as it is.
 ## How long it stays up, and how it comes down
 
 The rules require the entry to stay reachable until judging ends on 2026-10-08 17:00 PT. Every Monday and
-Thursday at 09:00 UTC, `still-up.yml` fetches three server-rendered pages from the API Gateway endpoint
-(`/`, `/approve/offer-4471` and `/offers/new`), which are the internal compatibility view rather than the
-CloudFront app, and one published record from S3, all anonymously and with no credentials; nothing on a
-schedule checks the CloudFront URL. To take the deployment down, dispatch `deploy.yml` with `dry_run=no` and
+Thursday at 09:00 UTC, `still-up.yml` fetches the judge-facing CloudFront app, `release.json`, anonymous acceptance
+page and safe `/api/version` build-identity route, all without credentials. It does not use `/identity` or the known
+contradictory record as a health proxy. To take the deployment down, dispatch `deploy.yml` with `dry_run=no` and
 `keep=no`: it applies, runs the same proofs, then runs `terraform destroy` in the same job, whether or not
 the proofs passed. With `destroyable` at its default of true the buckets are emptied too. The job then lists
 every remaining `merismos` Lambda, table, bucket, role, queue and schedule group, and fails if any is left

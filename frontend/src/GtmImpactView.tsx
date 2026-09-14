@@ -2,20 +2,23 @@ import { routeLink } from './routes';
 
 const DEMONSTRATED: string[] = [
   'Intake that refuses personal data (phone numbers, email addresses, street addresses, IBANs, card numbers, national IDs, named households) and instruction-like text, names what it refused, and marks the field when it can match it.',
-  'Four Strands specialists (food safety, capacity, equity, premises) reading the network’s registers through bounded read-only tools, with a guard that cancels any tool call outside the corpus.',
+  'Up to four specialists apply deterministic rules first. Where those rules do not already refuse, the specialist runs as a Strands agent through bounded read-only tools, with a guard that cancels calls outside the corpus.',
   'A bounded solver: storage is a veto, transport is a cap, the network’s 40% ceiling is its own policy, and what nobody can take is stated as a remainder.',
-  'A broken cold chain refused in full, with the reason. Blocks that turn on something changeable are parked with a reason and a one-shot wake.',
+  'A broken cold chain refused in full, with the reason. A changeable block is parked with a reason; this sandbox uses no scheduler and creates no wake.',
   'A person approving the exact plan: consent to the exact record digest and address. In the sandbox, nothing is published.',
-  'An append-only ledger where each entry carries a body digest and a parent link, and where a correction is a new record that names what it replaced.',
-  'A claim, an agreed time and an explicit “collection confirmed” recorded as three separate facts. No message is sent; no vehicle is dispatched.',
+  'A versioned sandbox workspace snapshot. The separate live run ledger appends digest-linked entries, and published corrections use new record addresses.',
+  'A claim and explicit confirmation stored separately, with an optional agreed time that can be replaced before confirmation. No message is sent; no vehicle is dispatched.',
 ];
 
 const NOT_MEASURED: { label: string; note: string }[] = [
   { label: 'Human time saved', note: 'Unknown until measured.' },
   { label: 'Food rescued', note: 'Unknown until measured.' },
   { label: 'Beneficiaries reached', note: 'Unknown until measured.' },
-  { label: 'AWS cost of the live proof', note: 'The live proof in one deploy apply, which runs offer-4471 and the refused offer-4477: median $1.62 over five applies, almost all of it Bedrock. The sandbox makes no model call. See Cost and sustainability in the README.' },
-  { label: 'Latency on AWS', note: 'One 10-sample sandbox check on 2026-09-13: a run request took a median of 426 ms, at most 2,628 ms. Not a load test; live-mode latency is not measured.' },
+];
+
+const HISTORICAL_TECHNICAL = [
+  { label: 'Scripted sandbox request', note: 'At frontend and backend commit cb97c9e, one workstation sent 10 samples on 2026-09-13. The run request median was 426 ms and the maximum was 2,628 ms. This is historical, not a frozen-release measurement or a load test; live Bedrock latency is not measured.' },
+  { label: 'Deploy-proof pricing', note: 'The repository documents a historical ESTIMATE for Bedrock tokens and Lambda only. It is not total AWS cost or an invoice, and the raw cost rows are not published, so no dollar figure is shown here.' },
 ];
 
 export function GtmImpactView() {
@@ -36,8 +39,8 @@ export function GtmImpactView() {
       <section className="panel padded coordinator-start" style={{ marginBottom: '28px' }}>
         <h2 style={{ fontSize: '1.4rem', color: 'var(--text)', marginBottom: '16px' }}>The coordination and trust problem</h2>
         <p style={{ color: 'var(--text)', fontSize: '1.05rem', lineHeight: 1.6, maxWidth: '850px' }}>
-          A surplus-food offer arrives with a use-by date and a collection date, and a volunteer coordinator has to decide who can take it safely, who has the storage and the transport, and whether the split is fair under the network’s own policy.
-          Made in a group chat or by phone, that decision leaves no record of its reasons, and the coordinator alone answers for it.
+          A surplus-food offer arrives with a use-by date and a collection date, and a volunteer coordinator has to decide who can take it safely, who has the storage and transport, and whether the split follows the network’s own policy.
+          In an informal group chat or phone workflow, reasons may be scattered or omitted. Merismos keeps the computed reasons beside the coordinator’s decision; no comparative user study has been run.
         </p>
       </section>
 
@@ -60,9 +63,16 @@ export function GtmImpactView() {
             ))}
           </dl>
           <p className="small-note" style={{ marginTop: '12px' }}>
-            Any number for these would be invented. The sandbox uses synthetic offers and organisations.
+            No benefit number is inferred. The sandbox uses synthetic offers and organisations.
           </p>
         </div>
+      </section>
+
+      <section className="panel padded" style={{ marginBottom: '28px' }}>
+        <p className="eyebrow">HISTORICAL TECHNICAL OBSERVATIONS</p>
+        <dl className="facts" style={{ marginTop: '8px' }}>
+          {HISTORICAL_TECHNICAL.map(item => <div key={item.label}><dt>{item.label}</dt><dd>{item.note}</dd></div>)}
+        </dl>
       </section>
 
       {/* Coordination methods compared */}
@@ -87,9 +97,9 @@ export function GtmImpactView() {
             <tbody>
               <tr>
                 <td><strong>Group chat or phone tree</strong></td>
-                <td>The coordinator posts or calls; whoever answers first takes the food.</td>
-                <td>No record of why; a chilled offer is accepted or refused on the spot; the coordinator alone answers for the split.</td>
-                <td>A reason on every line, food-safety refusals that are final and explained, and an append-only record of the decision before anything is collected.</td>
+                <td>The coordinator posts or calls; some informal workflows may prioritize the first available reply.</td>
+                <td>Decision reasons can be scattered, omitted or hard to revisit. This is a general comparison, not a study of a named tool.</td>
+                <td>A reason on every line, food-safety refusals that are final and explained, and a versioned decision snapshot before anything is collected.</td>
               </tr>
               <tr>
                 <td><strong>A spreadsheet</strong></td>
@@ -99,8 +109,8 @@ export function GtmImpactView() {
               </tr>
               <tr>
                 <td><strong>Merismos</strong></td>
-                <td>Intake, four specialist checks, a bounded solver, human approval of the exact plan, and three separately recorded collection facts.</td>
-                <td>It is a sandbox with synthetic data. Time saved and food rescued are not measured; the live proof in one deploy apply costs a median of $1.62. It sends no messages, so the coordinator still has to talk to people.</td>
+                <td>Intake, up to four rule-first specialist checks, a bounded solver, human approval of the exact plan, separate claim and confirmation, and an optional agreed time.</td>
+                <td>It is a sandbox with synthetic data. Time saved, food rescued and total AWS cost are not measured. It sends no messages, so the coordinator still has to talk to people.</td>
                 <td>Nothing is automated past the record: no message, no dispatch. What it adds is the kept reason and the recorded decision.</td>
               </tr>
             </tbody>

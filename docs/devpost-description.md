@@ -1,6 +1,7 @@
 # Merismos
 
-Merismos helps a volunteer food coordinator split donations across community organisations: rules and agents check every share before the coordinator approves the exact plan.
+Maria, a fictional volunteer food coordinator, uses Merismos rules and Strands agents to check each share before
+approving an exact allocation.
 
 [Open Merismos](https://d2qnkmlhs7y5fp.cloudfront.net/). No account or installation is needed for
 the synthetic sandbox. On the **Dashboard** choose **Start with this offer →** (on a return visit
@@ -16,10 +17,10 @@ and, where those rules do not already refuse, run as agents on the Strands Agent
 network's files through read-only tools. A Merismos guard on the SDK's `BeforeToolCallEvent` hook
 cancels any tool call the role may not make. A deterministic solver proposes the split; a person
 approves the exact plan and separately confirms each collection. The public sandbox uses a scripted
-model and makes no Bedrock call. Live runs use Amazon Bedrock with `eu.anthropic.claude-opus-5`, and
-no public request can start one. Measured: the live proof in one deploy apply costs a median of
-$1.62 over five applies at eu-west-1 on-demand prices (Bedrock tokens and Lambda only), and a
-scripted sandbox run request took a median of 426 ms over 10 HTTP samples from one workstation.
+model with a fixed tool sequence and closing answer, and makes no Bedrock call. Terraform configures
+Amazon Bedrock for live runs, but the exact model must be confirmed by the frozen release's deploy
+proof, and no public request can start one. A historical scripted sandbox run request took a median
+of 426 ms over 10 HTTP samples from one workstation at frontend and backend commit `cb97c9e`.
 Not done: human acceptance testing, real-device Safari testing and a timed first-use test. Unlike a
 group chat, a shared spreadsheet or a general chat assistant, Merismos checks each share against
 storage, premises rules and the network's 40% ceiling before a person agrees to it.
@@ -67,21 +68,18 @@ Replacing Strands with a module that fails when used makes the offline demo jour
 coordinator screens fail at a named assertion. The public sandbox run builds a real Strands agent
 with the scripted model, and the API returns an error when that agent does not run.
 
-The public sandbox uses a scripted test model, `scripted-planner/1.0.0`, with no model network call.
-It is not Bedrock inference. Live runs use Amazon Bedrock with `eu.anthropic.claude-opus-5`. A
-public request cannot start one; the deploy proof starts them with IAM-authorised invocations of
+The public sandbox uses a scripted test model, `scripted-planner/1.0.0`, with a fixed tool sequence
+and closing answer and no model network call. It is not Bedrock inference. Terraform configures live
+runs for Amazon Bedrock with `eu.anthropic.claude-opus-5`; a configured model is not frozen-release
+runtime evidence. A public request cannot start one; the deploy proof starts them with IAM-authorised invocations of
 the internal runner. Each deploy apply invokes the runner for offer-4471, which should reach a
 plan, and for offer-4477, which should be refused, and the apply fails unless the offer-4471 run
 records a specialist answer that came from the model.
 
-The live proof in one deploy apply costs a median of $1.62. This was measured read-only over the
-five deploy applies between 2026-09-09 and 2026-09-13 that called the model, at the AWS Pricing
-API's eu-west-1 on-demand prices, counting Bedrock tokens and Lambda only. The five proofs cost
-$1.44 to $1.78 each, and Bedrock is about 99.6% of it. How the cost splits between the two runner
-invocations is not measured. Taken column by column, the medians were 43 Bedrock calls, 170,499
-input and 23,712 output tokens and 365.6 Lambda GB-seconds; no single proof had all four.
-CloudTrail attributes the Opus 5 calls in those proof windows to the `merismos-reader` role, which
-the runner runs under.
+A historical ESTIMATE combined Bedrock-token and Lambda pricing for five deploy proofs. It is not a
+total AWS cost or invoice measurement: other services and cache tokens were excluded, the raw cost
+rows are not published, and no dollar amount is used as a current claim. CloudTrail attributed the
+model calls in those historical proof windows to the `merismos-reader` role, which the runner uses.
 
 An optional critic, a second tool-less Bedrock read, is supported but off by default:
 `critic_model_id` defaults to empty and the deploy workflow does not set it. Merismos does not run
@@ -138,11 +136,12 @@ asynchronous invokes. Neither CloudWatch alarm has an alarm action, so an alarm 
 A sandbox session is one item in the DynamoDB thread table. Its handle stops working after 24
 hours, but the table has no TTL, so the item is not deleted automatically. Approval rows carry a
 DynamoDB TTL one day after their 15-minute expiry. Published live records are publicly readable in
-a versioned S3 bucket with no expiry rule. Logs are kept 14 days, and the API access log records
-caller IP addresses.
+a versioned S3 bucket; no lifecycle expires the `records/` prefix. A separate rule expires only
+noncurrent private `probes/` versions. Logs are kept 14 days, and the API access log records caller
+IP addresses.
 
-The human-readable evidence bundle includes public source references, decision reasons, run and
-workspace revision, provider/mode, record history, handoff and recovery limits. Hashes bind bytes,
+The human-readable evidence bundle includes logical source references from the current API snapshot, decision
+reasons, run and workspace revision, provider/mode, record history, handoff and recovery limits. Hashes bind bytes,
 not source truth or delivery. A coordinator may copy the bundle; Merismos sends no chat, email or
 phone message. A saved allocation is not proof of collection.
 
