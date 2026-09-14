@@ -19,23 +19,23 @@
     },
     {
       "id": "surface",
-      "captionText": "Open the Merismos coordinator workspace with no account. Choose Add an offer, then Try success. The fields remain editable. Submit an invented donation and work out its split. This uses a real HTTP API, persistent session and the Strands agent dispatcher, not a prerecorded answer.",
-      "speechText": "Open the Merismos coordinator workspace with no account. Choose Add an offer, then Try success. The fields remain editable. Submit an invented donation and work out its split. This uses a real HTTP API, persistent session and the Strands agent dispatcher, not a prerecorded answer."
+      "captionText": "Open the Merismos coordinator workspace with no account. On the Dashboard, choose + Add offer, then Try success. The fields remain editable. Choose Add to sandbox, and the invented donation opens on Decide. This uses a real HTTP API, a saved sandbox session and a real Strands agent loop, not a prerecorded answer.",
+      "speechText": "Open the Merismos coordinator workspace with no account. On the Dashboard, choose + Add offer, then Try success. The fields remain editable. Choose Add to sandbox, and the invented donation opens on Decide. This uses a real HTTP API, a saved sandbox session and a real Strands agent loop, not a prerecorded answer."
     },
     {
       "id": "trigger",
-      "captionText": "The coordinator starts the review. Separate scheduled deferrals can append an escalation, not approve a publication. There is no automatic chat intake or message delivery. The public sandbox uses a scripted model with no model network call. Live records are separately read-only.",
-      "speechText": "The coordinator starts the review. Separate scheduled deferrals can append an escalation, not approve a publication. There is no automatic chat intake or message delivery. The public sandbox uses a scripted model with no model network call. Live records are separately read-only."
+      "captionText": "The coordinator chooses Work out the split. Separate scheduled deferrals can append an escalation, not approve a publication. There is no automatic chat intake or message delivery. The public sandbox uses a scripted model with no model network call. Live records are separately read-only.",
+      "speechText": "The coordinator chooses Work out the split. Separate scheduled deferrals can append an escalation, not approve a publication. There is no automatic chat intake or message delivery. The public sandbox uses a scripted model with no model network call. Live records are separately read-only."
     },
     {
       "id": "live",
-      "captionText": "Try refusal submits a broken cold chain: the result must not offer approval. Try correction submits an invented phone-shaped note: intake is refused and the fields remain available to correct. On a passing plan, inspect the exact text and address before consenting. Collection needs a separate explicit confirmation.",
-      "speechText": "Try refusal submits a broken cold chain: the result must not offer approval. Try correction submits an invented phone-shaped note: intake is refused and the fields remain available to correct. On a passing plan, inspect the exact text and address before consenting. Collection needs a separate explicit confirmation."
+      "captionText": "Try refusal fills in a broken cold chain: after Add to sandbox and Work out the split, the result offers no approval. Try correction fills in an invented phone-shaped note: intake is refused and the fields remain available to correct. On a passing plan, read the exact record text and address, tick the consent box and choose Approve in sandbox. On Pickups, collection needs a claim and a separate explicit confirmation.",
+      "speechText": "Try refusal fills in a broken cold chain: after Add to sandbox and Work out the split, the result offers no approval. Try correction fills in an invented phone-shaped note: intake is refused and the fields remain available to correct. On a passing plan, read the exact record text and address, tick the consent box and choose Approve in sandbox. On Pickups, collection needs a claim and a separate explicit confirmation."
     },
     {
       "id": "sponsor",
-      "captionText": "Strands is load-bearing in tool dispatch. Its BeforeToolCallEvent guard cancels forbidden calls before invocation. CI tests remove that guard and then remove the SDK to demonstrate both boundaries. A separate deterministic gate checks the draft. The internal AWS runner retains configured Bedrock Opus 5, but configuration is not a model-call receipt.",
-      "speechText": "Strands is load-bearing in tool dispatch. Its BeforeToolCallEvent guard cancels forbidden calls before invocation. CI tests remove that guard and then remove the SDK to demonstrate both boundaries. A separate deterministic gate checks the draft. The internal AWS runner retains configured Bedrock Opus 5, but configuration is not a model-call receipt."
+      "captionText": "Strands runs each specialist's agent loop and dispatches its tool calls. A Merismos guard on the SDK's BeforeToolCallEvent hook cancels forbidden calls before they run. CI tests remove that guard and then remove the SDK to demonstrate both boundaries. A separate deterministic gate checks the draft. Live runs use Bedrock Opus 5. A public request cannot start one, and each deploy apply fails unless its proof run records a specialist answer from the model.",
+      "speechText": "Strands runs each specialist's agent loop and dispatches its tool calls. A Merismos guard on the SDK's BeforeToolCallEvent hook cancels forbidden calls before they run. CI tests remove that guard and then remove the SDK to demonstrate both boundaries. A separate deterministic gate checks the draft. Live runs use Bedrock Opus 5. A public request cannot start one, and each deploy apply fails unless its proof run records a specialist answer from the model."
     },
     {
       "id": "evidence",
@@ -44,8 +44,8 @@
     },
     {
       "id": "close",
-      "captionText": "Merismos keeps an allocation decision beside its collection handoff. Copy the evidence for your own review; nothing is sent automatically. Human active time, savings and food rescued remain unmeasured. Open the sandbox and try the three editable flows. Current CI, deployed release evidence and human acceptance are separate.",
-      "speechText": "Merismos keeps an allocation decision beside its collection handoff. Copy the evidence for your own review; nothing is sent automatically. Human active time, savings and food rescued remain unmeasured. Open the sandbox and try the three editable flows. Current CI, deployed release evidence and human acceptance are separate."
+      "captionText": "Merismos keeps an allocation decision beside its collection handoff. Copy the evidence for your own review; nothing is sent automatically. Human active time, savings and food rescued remain unmeasured. Open the sandbox and try the three editable flows. CI and the deployed release run automated checks; human acceptance testing has not been done.",
+      "speechText": "Merismos keeps an allocation decision beside its collection handoff. Copy the evidence for your own review; nothing is sent automatically. Human active time, savings and food rescued remain unmeasured. Open the sandbox and try the three editable flows. CI and the deployed release run automated checks; human acceptance testing has not been done."
     }
   ]
 }

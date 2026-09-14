@@ -2,16 +2,17 @@
 
 Merismos helps a community-food coordinator review a donation split and keep the reasons beside the collection handoff.
 
-[Open the coordinator workspace](https://d2qnkmlhs7y5fp.cloudfront.net/) — no account or installation for the synthetic sandbox.
+[Open the coordinator workspace](https://d2qnkmlhs7y5fp.cloudfront.net/), with no account or installation for the synthetic sandbox.
 [CI](https://github.com/upgradedev/merismos-aws/actions/workflows/ci.yml) · [Frontend verification](https://github.com/upgradedev/merismos-aws/actions/workflows/frontend-ci.yml) · [MIT licence](LICENSE)
 
 ## Try one short flow
 
-No typing needed: on the Dashboard choose **Start with this offer →**, then **Work out the split**,
+No typing needed: on the Dashboard choose **Start with this offer →** (**Continue my work →** on a
+return visit), then **Work out the split**,
 tick the consent box and **Approve in sandbox**. **Open collection tasks →** leads to
 **Claim this share**, a collection time and **Confirm collection**.
 
-Choose **Add an offer → Try success**, edit the invented fields, submit, and **Work out the split**.
+Choose **+ Add offer → Try success**, edit the invented fields, choose **Add to sandbox**, and **Work out the split**.
 Review recipients, exclusions, remaining food and the applied policy source. Consent to the exact
 record, then **Approve in sandbox**. Claim a collection, agree a time and explicitly confirm it.
 A recorded allocation is not a collected donation.
@@ -29,7 +30,7 @@ Provider, snapshot time and the automated test reports sit under **About this de
 
 **CSV and disruption flow:** [current AWS acceptance](https://d2qnkmlhs7y5fp.cloudfront.net/acceptance.html)
 reports the served release separately from the dated source checkpoints in the testbook.
-Open **Add an offer → Import a donor CSV instead**. The **CSV schema and sample** panel contains
+Open **+ Add offer → Import a donor CSV instead**. The **CSV schema and sample** panel contains
 a copyable UTF-8 sample. Required columns are `title,donor,quantity,unit,category,collection_date`;
 optional columns are `use_by,allergens,allergens_unknown,hours_unrefrigerated,note`. Headers are
 case-sensitive, with no extra or repeated columns. Files are limited to 65,536 bytes and 50 data
