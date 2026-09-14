@@ -146,14 +146,16 @@ time, on-demand DynamoDB reads and writes, and CloudFront and S3 requests. The f
 virtual private cloud (VPC), so there is no hourly NAT gateway or VPC endpoint charge. In the product, Bedrock runs
 only in live runs, which start only through an IAM-authorised invocation of the runner.
 
-Terraform defaults limit how far a problem can spread
-([what bounds a problem](docs/cost-and-latency.md#what-bounds-a-problem)). The API is throttled to 10 requests per
-second with a burst of 20, and at most 5 readers and 4 background runners run at once. The reader's asynchronous
-invokes are never retried automatically (the runner keeps Lambda's default retries), and the two alarms notify
-nobody. The hackathon rules require the entry to stay reachable until judging ends on 2026-10-08 17:00 PT;
-`still-up.yml` fetches the API Gateway URL and one published record anonymously every Monday and Thursday at 09:00
-UTC. [Cost and latency](docs/cost-and-latency.md) also has the sandbox latency sample and how `deploy.yml` tears the
-deployment down.
+Terraform defaults limit how far a problem can spread ([what bounds a
+problem](docs/cost-and-latency.md#what-bounds-a-problem)). The API is throttled to 10 requests per second with a
+burst of 20, and at most 5 readers and 4 background runners run at once. The reader's asynchronous invokes are
+never retried automatically (the runner keeps Lambda's default retries), and the two alarms notify nobody. The
+hackathon rules require the entry to stay reachable until judging ends on 2026-10-08 17:00 PT. Every Monday and
+Thursday at 09:00 UTC, `still-up.yml` fetches three server-rendered pages from the API Gateway endpoint (`/`,
+`/approve/offer-4471` and `/offers/new`), which are the internal compatibility view rather than the CloudFront app,
+and one published record from S3, all anonymously and with no credentials. [Cost and
+latency](docs/cost-and-latency.md) also has the sandbox latency sample and how `deploy.yml` tears the deployment
+down.
 
 ## Run it locally
 

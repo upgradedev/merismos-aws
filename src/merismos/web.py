@@ -1,11 +1,18 @@
-"""The screens a coordinator actually uses.
+"""The server-rendered screens, kept as an internal compatibility view.
+
+**These pages are not the product.** The Merismos app is the React workspace at
+``app_url()``. The reader still serves these pages because the deploy workflow's
+proof steps and the test suite fetch them and check their status codes and
+content, so they are kept rather than redirected. Every page built by ``page()``
+says at the top that it is an internal compatibility view, links to the app, and
+asks not to be indexed. Routes, form fields and status codes are unchanged.
 
 Server rendered, from the same Lambda that runs the fleet. No build step, no
 bundle, no CDN and no external request of any kind: a page that needs a font
 from somewhere else is a page that breaks when that somewhere else is down, and
 this one has to still be standing on 2026-10-08 for a judge who is not us.
 
-**Four screens, and the third is the product.**
+**Four screens, and the third is the one that matters.**
 
 ``/`` the offers waiting on somebody. This is the group chat, replaced.
 ``/offer/<id>`` what the fleet decided and why, including who was skipped.
@@ -22,8 +29,10 @@ and then the fleet has cost them time rather than saved it.
 from __future__ import annotations
 
 import html
+import os
 from collections.abc import Mapping, Sequence
 from typing import Any
+from urllib.parse import urlsplit, urlunsplit
 
 # --------------------------------------------------------------------------
 # One stylesheet, inlined. System fonts only.
@@ -86,6 +95,9 @@ code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:
 ul.reasons{margin:.4rem 0 0;padding-left:1.1rem}
 ul.reasons li{margin:.3rem 0;font-size:.92rem}
 footer{color:var(--dim);font-size:.82rem;border-top:1px solid var(--line);margin-top:2.5rem;padding:1.2rem 0}
+.internal{background:var(--warn-bg);color:var(--ink);border-bottom:1px solid var(--line);font-size:.9rem}
+.internal .wrap{padding:.55rem 1.25rem}
+.internal a{color:var(--accent)}
 .skip{position:absolute;left:-9999px}
 .skip:focus{left:.5rem;top:.5rem;background:var(--card);padding:.5rem;border-radius:6px;z-index:9}
 @media(max-width:480px){.wrap{padding:1rem}h1{font-size:1.28rem}}
@@ -94,6 +106,46 @@ footer{color:var(--dim);font-size:.82rem;border-top:1px solid var(--line);margin
 
 def _e(value: Any) -> str:
     return html.escape(str(value), quote=True)
+
+
+#: The public hackathon deployment of the Merismos React app on CloudFront.
+#: This Terraform stack has no CloudFront distribution to read the address from,
+#: so it comes from ``MERISMOS_APP_URL`` and this is the default.
+DEFAULT_APP_URL = "https://d2qnkmlhs7y5fp.cloudfront.net/"
+
+
+def app_url() -> str:
+    """Where the Merismos app is: ``MERISMOS_APP_URL``, or the public default.
+
+    Read on every call rather than at import, so the page names the address the
+    environment holds now. Only an absolute http or https address with a host is
+    accepted. Anything else falls back to the default rather than becoming a
+    link: a ``javascript:`` scheme, a missing host, a port that is not a number
+    from 0 to 65535, or a username or password, which every page would otherwise
+    show. The address is rebuilt from the scheme, host, port and path alone, so
+    the query and fragment are dropped. An empty path becomes ``/`` and a path
+    that is given is kept as it is, because a slash after ``/app/index.html``
+    names a different address. The caller still escapes it like every other
+    interpolated value.
+    """
+    candidate = os.environ.get("MERISMOS_APP_URL", "").strip()
+    if not candidate or any(ch.isspace() or not ch.isprintable() for ch in candidate):
+        return DEFAULT_APP_URL
+    try:
+        parts = urlsplit(candidate)
+        port = parts.port
+    except ValueError:
+        return DEFAULT_APP_URL
+    scheme = parts.scheme.lower()
+    host = parts.hostname
+    if scheme not in ("http", "https") or not host:
+        return DEFAULT_APP_URL
+    if parts.username is not None or parts.password is not None:
+        return DEFAULT_APP_URL
+    netloc = f"[{host}]" if ":" in host else host
+    if port is not None:
+        netloc = f"{netloc}:{port}"
+    return urlunsplit((scheme, netloc, parts.path or "/", "", ""))
 
 
 def _readable(slug: str) -> str:
@@ -115,20 +167,30 @@ def page(title: str, body: str, subtitle: str = "", refresh_seconds: int = 0) ->
     ``refresh_seconds`` is how a long run is polled. A meta refresh rather than
     a script, because every screen here loads no JavaScript and that is asserted
     per screen.
+
+    Every screen is an internal compatibility view of the API, and the shell is
+    where that is said, so no screen can leave it out: a notice at the top of
+    the body that links to the app, and a robots meta asking not to be indexed.
     """
     refresh = (
         f'<meta http-equiv="refresh" content="{refresh_seconds}">' if refresh_seconds else ""
     )
+    app = _e(app_url())
     return f"""<!doctype html>
 <html lang="en"><head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
 {refresh}
 <title>{_e(title)} · Merismos</title>
 <meta name="description" content="{_e(subtitle or 'Apportionment of donated food, and the record of how it was decided.')}">
 <style>{STYLE}</style>
 </head><body>
 <a class="skip" href="#main">Skip to content</a>
+<div class="internal" role="note"><div class="wrap">
+  Internal compatibility view of the Merismos API, kept for automated checks.
+  The Merismos app is at <a href="{app}">{app}</a>.
+</div></div>
 <header class="top"><div class="wrap">
   <a class="brand" href="/">Merismos <span>&nbsp;apportionment, and the record</span></a>
   <nav>
@@ -505,7 +567,7 @@ A typed name is not authentication. Publication requires an authenticated networ
 a fresh passing plan and explicit consent to its exact bytes in the coordinator API.
 A refused or stale draft remains readable here but cannot be published.</div>
 <input type="hidden" name="run" value="{_e(getattr(result, 'run_id', ''))}">
-<p><a class="btn secondary" href="https://d2qnkmlhs7y5fp.cloudfront.net/">Open coordinator workspace</a>
+<p><a class="btn secondary" href="{_e(app_url())}">Open coordinator workspace</a>
 <a href="/offer/{_e(offer.get('id'))}">Back to the saved run</a></p>"""
     return page("Approve", body, "The one moment a person is in the loop")
 
@@ -894,7 +956,7 @@ def new_offer_form(error: str = "", values: Mapping[str, Any] | None = None) -> 
 coordinator standing in a doorway will not fill in twenty fields.</p>
 <div class="note amber"><strong>Read-only legacy form.</strong> Live intake requires an
 authenticated coordinator using the current API contract. This form cannot file an offer.
-<a href="https://d2qnkmlhs7y5fp.cloudfront.net/#/offers/new">Try an editable isolated sandbox</a>.</div>
+<a href="{_e(app_url())}#/offers/new">Try an editable isolated sandbox</a>.</div>
 {warn}
 <form method="post" action="/offers/new">
   <div class="card">
