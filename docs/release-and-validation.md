@@ -72,8 +72,9 @@ verification when their files change. A push to `main` runs Frontend verificatio
 backend answering `/api/version` matches the runtime source, confirms that `main` has not moved,
 publishes the site, smoke tests it, runs the live Playwright testbook against AWS, publishes an
 acceptance receipt and reads the public proof page without credentials. The backend deploys only when
-someone dispatches `deploy.yml` by hand, and it defaults to a dry run. `still-up.yml` checks the API
-Gateway URL and one published record twice a week.
+someone dispatches `deploy.yml` by hand, and it defaults to a dry run. `still-up.yml` fetches three
+server-rendered pages from the API Gateway endpoint, which are the internal compatibility view rather
+than the CloudFront app, and one published record, anonymously and with no credentials, twice a week.
 
 ## What each workflow checks
 
@@ -86,7 +87,7 @@ Gateway URL and one published record twice a week.
 | `frontend-deploy.yml` (Deploy AWS frontend) | every push to `main`; manual dispatch | Frontend verification, the backend release preflight, the stale-dispatch guard, publication with HTML last, a smoke test, then `aws-uat.yml` |
 | `aws-uat.yml` (Live AWS acceptance) | called by `frontend-deploy.yml`; manual dispatch | the live desktop and mobile Playwright journeys against CloudFront, the acceptance receipt, and a read of the public proof page without credentials |
 | `deploy.yml` (Deploy, prove, tear down) | manual dispatch only, in the `aws` environment | a Terraform plan that fails above 12 additions, a dry run by default, apply, IAM and model proofs, an optional destroy, and a listing of what still stands |
-| `still-up.yml` (The judges can still reach it) | Mondays and Thursdays at 09:00 UTC; manual dispatch | anonymous fetches of the API Gateway URL and one published record |
+| `still-up.yml` (The judges can still reach it) | Mondays and Thursdays at 09:00 UTC; manual dispatch | anonymous fetches of three server-rendered pages on the API Gateway endpoint (`/`, `/approve/offer-4471`, `/offers/new`), which are the internal compatibility view rather than the CloudFront app, and of one published record |
 | `source-measurement.yml` (Source-only dispatch measurement) | pushes to `codex/dispatch-measurement-20260910`; manual dispatch | 20 preregistered Playwright attempts on the offline harness |
 
 ## Frontend release on a push to main

@@ -303,7 +303,8 @@ def test_the_app_address_is_escaped_like_every_other_value(monkeypatch):
 JSON_ROUTES = {
     "/config": [
         "analyst", "critic", "deferrals_wake_on_a_schedule", "ledger", "max_bytes_per_read",
-        "max_files_per_search", "network", "read_budget_per_specialist", "read_scope", "role",
+        "max_files_per_search", "max_request_body_bytes", "max_request_body_depth", "network",
+        "read_budget_per_specialist", "read_scope", "role",
     ],
     "/catalog": ["reads_is_expected_not_enforced", "specialists"],
     "/offers": ["offers"],

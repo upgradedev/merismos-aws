@@ -104,16 +104,18 @@ protocol as it is.
 
 ## How long it stays up, and how it comes down
 
-The rules require the entry to stay reachable until judging ends on 2026-10-08 17:00 PT. `still-up.yml`
-fetches the API Gateway URL and one published record anonymously every Monday and Thursday at 09:00 UTC;
-nothing on a schedule checks the CloudFront URL. To take the deployment down, dispatch `deploy.yml` with
-`dry_run=no` and `keep=no`: it applies, runs the same proofs, then runs `terraform destroy` in the same
-job, whether or not the proofs passed. With `destroyable` at its default of true the buckets are emptied
-too. The job then lists every remaining `merismos` Lambda, table, bucket, role, queue and schedule group,
-and fails if any is left apart from the bootstrap state bucket and deploy role. The frontend stack's site
-bucket (`merismos-web-<account>-<region>`) and release role (`merismos-frontend-release`) are outside
-Terraform but match the listing, so while that stack exists a run with `keep=no` fails with "teardown
-left resources behind". [What lives outside Terraform](infrastructure.md#what-lives-outside-terraform)
-has the full list. `deploy.yml` never deletes the CloudFormation stack `merismos-frontend`: after a
-teardown its CloudFront distribution still serves the static app from the site bucket, and no workflow or
-script in this repository deletes that stack.
+The rules require the entry to stay reachable until judging ends on 2026-10-08 17:00 PT. Every Monday and
+Thursday at 09:00 UTC, `still-up.yml` fetches three server-rendered pages from the API Gateway endpoint
+(`/`, `/approve/offer-4471` and `/offers/new`), which are the internal compatibility view rather than the
+CloudFront app, and one published record from S3, all anonymously and with no credentials; nothing on a
+schedule checks the CloudFront URL. To take the deployment down, dispatch `deploy.yml` with `dry_run=no` and
+`keep=no`: it applies, runs the same proofs, then runs `terraform destroy` in the same job, whether or not
+the proofs passed. With `destroyable` at its default of true the buckets are emptied too. The job then lists
+every remaining `merismos` Lambda, table, bucket, role, queue and schedule group, and fails if any is left
+apart from the bootstrap state bucket and deploy role. The frontend stack's site bucket
+(`merismos-web-<account>-<region>`) and release role (`merismos-frontend-release`) are outside Terraform but
+match the listing, so while that stack exists a run with `keep=no` fails with "teardown left resources
+behind". [What lives outside Terraform](infrastructure.md#what-lives-outside-terraform) has the full list.
+`deploy.yml` never deletes the CloudFormation stack `merismos-frontend`: after a teardown its CloudFront
+distribution still serves the static app from the site bucket, and no workflow or script in this repository
+deletes that stack.

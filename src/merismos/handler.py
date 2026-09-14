@@ -221,7 +221,7 @@ def _dispatch(event: Any, context: Any = None) -> dict[str, Any]:
     if isinstance(event, dict) and event.get("source") == "merismos.deferral":
         return _reply(200, _wake(event))
 
-    # So does a background chore, which the reader asked itself to run because
+    # So does a background chore, which the reader asked the runner to run because
     # it takes longer than a request is allowed to.
     from . import background
 
