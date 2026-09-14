@@ -110,12 +110,12 @@ also claims each share for an organisational role, may set a collection time, an
 the collection actually happened before **Confirm collection**. A refused offer is never offered for
 approval, and a recorded allocation is never counted as a collection.
 
-Live history is publicly read-only. Every live change needs a coordinator authorizer. Live
-publication also needs a current passing plan and explicit exact consent. No coordinator authorizer
-is deployed on the public API, so every public live change is refused with 403, and the public site
-supplies no coordinator sign-in. Typed names and client identity headers cannot authorize
-publication. A draft the gate refused is marked "Gate refused" on its offer and never becomes
-publishable.
+Live history is publicly read-only. Every live change through the API needs a coordinator
+authorizer. Live publication also needs a current passing plan and explicit exact consent. No
+coordinator authorizer is deployed on the public API, so every public live change is refused with
+403, and the public site supplies no coordinator sign-in. Typed names and client identity headers
+cannot authorize publication. A draft the gate refused is marked "Gate refused" on its offer and
+never becomes publishable.
 
 Publishing a record needs s3:PutObject on the records bucket, and of the three fleet roles only the
 writer holds it. The reader, and the runner under the reader role, cannot make that write, and the
