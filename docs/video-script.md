@@ -11,7 +11,7 @@ sent, and the video makes no claim about food rescued, time saved or beneficiary
 
 ## Production contract
 
-The target is 90 to 174 seconds, with seven measured beats of 3 to 40 seconds. ElevenLabs synthesises each beat
+The target is 90–174 seconds, with seven measured beats of 3 to 40 seconds. ElevenLabs synthesises each beat
 separately in CI, so one beat can be replaced without rebuilding the other six. The final gate checks the exact
 frontend and backend commits independently, one-frame audio and video duration, caption order, caption bounds and
 caption pixels in the encoded MP4.
