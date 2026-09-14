@@ -68,9 +68,9 @@ const JOURNEYS: JourneyStep[] = [
       'Sandbox approval records the decision inside the isolated session and publishes nothing',
       'Live approval needs the network-coordinator grant (merismos:coordinate) in the API Gateway authorizer context; no authorizer is deployed on the public API, so public writes are refused, and no header or body value can confer the grant',
     ],
-    awsServices: ['AWS Lambda', 'Amazon DynamoDB (thread, approvals)', 'Amazon S3 records bucket (live mode)', 'AWS Secrets Manager (boundary canary, writer only)'],
+    awsServices: ['AWS Lambda', 'Amazon DynamoDB (thread, approvals)', 'Amazon S3 records bucket (live mode)'],
     artifactProduced: 'An approval entry in the append-only ledger; in live mode, a Markdown record at a stable public address',
-    deepDive: 'The coordinator sees every line and its reason before approving. Approval names the record digest and address it applies to; if the plan has changed since, the approval is refused. In the public sandbox the decision is recorded inside the session and nothing is published. In live mode the writer Lambda, the only identity with s3:PutObject on the records bucket, publishes a Markdown record there. Corrections are new records at the next address that name what they replaced; the superseded record stays served with a notice.',
+    deepDive: 'The coordinator sees every line and its reason before approving. Approval names the record digest and address it applies to; if the plan has changed since, the approval is refused. In the public sandbox the decision is recorded inside the session and nothing is published. In live mode the writer Lambda, the only one of the three fleet roles with s3:PutObject on the records bucket, publishes a Markdown record there. Corrections are new records at the next address that name what they replaced; the superseded record stays served with a notice.',
   },
   {
     id: 'collection',

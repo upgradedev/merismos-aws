@@ -51,7 +51,7 @@ const NODES: ArchitectureNode[] = [
     category: 'API & identity',
     awsService: 'AWS IAM · AWS Secrets Manager',
     description: 'Three IAM role policies: reader, evaluator, writer. Only the writer can publish a record.',
-    securityControls: 'Publishing needs s3:PutObject on the records bucket, and only the writer holds it. The Secrets Manager value is a boundary canary that the publish path never reads: a never_the_publish_credential policy denies it to the reader and the evaluator, so each refusal can be observed. /identity?all=1 asks each identity what it can do and reports the answer.',
+    securityControls: 'Publishing needs s3:PutObject on the records bucket, and of the three fleet roles only the writer holds it. The Secrets Manager value is a boundary canary that the publish path never reads: a never_the_publish_credential policy denies it to the reader and the evaluator, so each refusal can be observed. /identity?all=1 asks each identity what it can do and reports the answer.',
     costProfile: NOT_MEASURED,
     resilienceMechanism: 'None claimed. Separation is a control on who can write, not a failover mechanism.',
   },
@@ -92,7 +92,7 @@ const NODES: ArchitectureNode[] = [
     awsService: 'Strands Agents SDK · Amazon Bedrock (live)',
     description: 'Four specialists (food safety, capacity, equity, premises) built with Agent and @tool from strands-agents>=1.53.0. Live mode uses BedrockModel; the model id is a Terraform variable and a separate critic model variable exists. The sandbox and CI use ScriptedPlanner, a Model subclass with scripted responses: a real agent loop, no Bedrock call.',
     securityControls: 'Tools are bounded and read-only with a budget of distinct paths. A BeforeToolCallEvent hook cancels any tool call outside the allowed corpus. A deterministic gate checks the draft record for personal data before it can be approved.',
-    costProfile: 'About 99.6% of the $1.62 median cost of the live proof in one deploy apply, which runs offer-4471 and the refused offer-4477. The median of five applies was 43 calls, 170,499 input tokens and 23,712 output tokens. No Bedrock call happens in the sandbox.',
+    costProfile: 'About 99.6% of the $1.62 median cost of the live proof in one deploy apply, which runs offer-4471 and the refused offer-4477. Per-column medians over the five applies: 43 calls, 170,499 input tokens and 23,712 output tokens. No Bedrock call happens in the sandbox.',
     resilienceMechanism: 'The swap test proves the demo stops when the SDK is replaced. Food-safety refusals are final; the model cannot clear one.',
   },
 ];
