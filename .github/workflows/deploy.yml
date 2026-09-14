@@ -81,7 +81,7 @@ jobs:
           echo '```' >> "$GITHUB_STEP_SUMMARY"
 
           # The discriminating check, stated rather than eyeballed. This stack
-          # is 51 resources; a plan proposing to add most of them means the
+          # is 52 resources; a plan proposing to add most of them means the
           # state is not the state of the running fleet.
           adds=$(sed -n 's/^Plan: \([0-9]*\) to add.*/\1/p' plan.txt)
           if [ "${adds:-0}" -gt 12 ]; then
