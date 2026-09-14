@@ -75,7 +75,9 @@ test('Imported offer → allocation → disruption → replan → fresh approval
   expect(next.pickups.some(p => p.state === 'invalidated')).toBe(true);
   await expect(page.getByLabel(/I have reviewed this exact allocation/)).not.toBeChecked();
   await expect(page.getByRole('button', {name: 'Approve in sandbox'})).toBeDisabled();
-  await expect(page.getByText(/The solver makes a bounded deterministic allocation/)).toContainText('not universal or certified fairness');
+  await expect(page.getByText(/is network policy, not universal or certified fairness/)).toBeVisible();
+  await page.getByText('Specialist findings and deterministic checks', {exact: true}).click();
+  await expect(page.getByText(/The solver makes a bounded deterministic allocation/)).toContainText('does not claim an optimal knapsack solution');
   await expect(page.getByLabel('Pickup manifest', {exact: true})).toHaveCount(1);
   await page.screenshot({path: info.outputPath('before-after-replan.png'), fullPage: true});
   await page.getByLabel(/I have reviewed this exact allocation/).check();

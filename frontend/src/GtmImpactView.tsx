@@ -1,7 +1,7 @@
 import { routeLink } from './routes';
 
 const DEMONSTRATED: string[] = [
-  'Intake that refuses personal data (phone numbers, IBANs, card numbers, national IDs, named households) and instruction-like text, and says which field was refused.',
+  'Intake that refuses personal data (phone numbers, email addresses, street addresses, IBANs, card numbers, national IDs, named households) and instruction-like text, names what it refused, and marks the field when it can match it.',
   'Four Strands specialists (food safety, capacity, equity, premises) reading the network’s registers through bounded read-only tools, with a guard that cancels any tool call outside the corpus.',
   'A bounded solver: storage is a veto, transport is a cap, the network’s 40% ceiling is its own policy, and what nobody can take is stated as a remainder.',
   'A broken cold chain refused in full, with the reason. Blocks that turn on something changeable are parked with a reason and a one-shot wake.',

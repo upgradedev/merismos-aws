@@ -1,6 +1,6 @@
 import { Empty, Status } from './components';
 import { DateCue } from './DispatchEvidence';
-import { activity, amount, metrics, priorityOffers, projection, type Filter } from './workspaceModel';
+import { activity, amount, metrics, priorityOffers, projection, startState, type Filter } from './workspaceModel';
 import { routeLink } from './routes';
 import type { Workspace } from './types';
 
@@ -8,7 +8,7 @@ export function ActivityList({ data, limit }: { data: Workspace; limit?: number 
   const events = activity(data).slice(0, limit);
   return events.length ? <ol className="activity-list">{events.map(event => <li key={event.id}><a href={routeLink('/workspace', { offer: event.offerId })}><strong>{event.title}</strong><span>{event.detail}</span><small>{event.at === null ? 'Event time unavailable' : <time dateTime={new Date(event.at * 1000).toISOString()}>{new Date(event.at * 1000).toLocaleString()}</time>}</small></a></li>)}</ol> : <p className="muted">No recorded activity yet. <a href="#/workspace">Open the workspace →</a></p>;
 }
-export function Dashboard({ data, today, unit, selected, pickup }: { data: Workspace; today: string; unit: string; selected: string; pickup?: string }) {
+export function Dashboard({ data, today, unit, selected, pickup, onStartOver }: { data: Workspace; today: string; unit: string; selected: string; pickup?: string; onStartOver?: () => void }) {
   const units = [...new Set(projection(data).offers.map(row => row.offer.unit).filter(Boolean))].sort();
   const currentUnit = unit || units[0] || '';
   const values = metrics(data, currentUnit, today);
@@ -23,13 +23,18 @@ export function Dashboard({ data, today, unit, selected, pickup }: { data: Works
   ];
   const priority = priorityOffers(data, today).slice(0, 5);
   const observed = projection(data);
-  const focus = observed.offers.find(row => row.offer.id === selected) || priority[0] || observed.offers[0];
+  const start = startState(data, today);
+  const focus = start.kind === 'returning' ? start.next : observed.offers.find(row => row.offer.id === selected) || priority[0] || observed.offers[0];
   return <>
     <div className="page-heading"><div><p className="eyebrow">FOR VOLUNTEER FOOD COORDINATORS</p><h1>Dashboard</h1></div><a className="button secondary" href="#/offers/new">+ Add offer</a></div>
     <section className="panel padded coordinator-start" aria-label="Your next donation"><p className="eyebrow">ONE OFFER → A CONSIDERED SPLIT → A COLLECTION HANDOFF</p>
-      <h2>{focus ? `Next offer: ${focus.offer.title}` : 'Have a donation to share?'}</h2>
-      {focus ? <><p className="offer-lead"><strong>{focus.offer.quantity} {focus.offer.unit}</strong> from {focus.offer.donor} · Collect {focus.offer.collection_date || 'date not provided'}</p><p>{focus.offer.note || 'Match this donation to the network’s food needs, safety rules and collection capacity.'}</p><p>{focus.plan?.recorded ? 'The allocation is approved. Arrange the collection tasks and record receipt separately.' : focus.plan ? 'A proposed allocation is ready with recipient reasons. Review it before approving any pickup.' : 'Start by calculating a proposed allocation. You can review every recipient and reason before approving.'}</p><a className="button" href={routeLink('/workspace', {offer: focus.offer.id})}>{focus.plan?.recorded ? 'Arrange this offer’s pickups' : focus.plan ? 'Review this offer’s allocation' : 'Start with this offer'} →</a></> : <><p>Add a named offer with quantity and collection date, then review who can use it and why.</p><a className="button" href="#/offers/new">Start a donation →</a></>}
-      <p className="small-note">Merismos checks the offer against the network’s food safety, capacity, equity and premises rules and, when food can be shared, proposes a split with a reason for every organisation for you to approve. Approval records your decision; collection is confirmed separately.</p>
+      {start.kind === 'completed' ? <><h2>{`Every donation in ${data.mode === 'sandbox' ? 'this sandbox' : 'these shared records'} is recorded${start.stopped ? ' or stopped with a reason' : ''}`}</h2>
+        {onStartOver ? <><p>Review what happened in <a href={routeLink('/history')}>History</a>. Starting over opens a new sandbox with the synthetic sample offers.</p><button onClick={onStartOver}>Start over with a fresh sample</button></> : <a className="button" href={routeLink('/history')}>Review the history →</a>}</>
+      : focus ? <><h2>{start.kind === 'returning' ? `Next open decision: ${focus.offer.title}` : `Next offer: ${focus.offer.title}`}</h2><p className="offer-lead"><strong>{focus.offer.quantity} {focus.offer.unit}</strong> from {focus.offer.donor} · Collect {focus.offer.collection_date || 'date not provided'}</p>
+        <a className="button" href={routeLink('/workspace', {offer: focus.offer.id})}>{start.kind !== 'returning' ? 'Start with this offer' : data.can_write ? 'Continue my work' : 'Open the next decision'} →</a>{start.kind === 'returning' && <p className="small-note">{start.recorded} of {start.total} donations recorded so far.</p>}
+        <p>{focus.offer.note || 'Match this donation to the network’s food needs, safety rules and collection capacity.'}</p><p>{focus.plan?.recorded ? 'The allocation is approved. Arrange the collection tasks and record receipt separately.' : focus.plan ? 'A proposed allocation is ready with recipient reasons. Review it before approving any pickup.' : 'Start by calculating a proposed allocation. You can review every recipient and reason before approving.'}</p></>
+      : <><h2>Have a donation to share?</h2><p>Add a named offer with quantity and collection date, then review who can use it and why.</p><a className="button" href="#/offers/new">Start a donation →</a></>}
+      {start.kind !== 'completed' && <p className="small-note">Merismos checks the offer against the network’s food safety, capacity, equity and premises rules and, when food can be shared, proposes a split with a reason for every organisation for you to approve. Approval records your decision; collection is confirmed separately.</p>}
     </section>
     <div className="scope-line"><span>{data.mode === 'sandbox' ? 'Isolated synthetic sandbox' : 'Live synthetic record view'} · {data.network} · All available records</span><label>Metric unit <select value={currentUnit} onChange={event => { location.hash = routeLink('/dashboard', { offer: selected, pickup, unit: event.target.value }).slice(1); }}>{units.length ? units.map(value => <option key={value}>{value}</option>) : <option value="">No unit available</option>}</select></label></div>
     {values.conflicts > 0 && <p className="notice">{values.conflicts} conflicting identities were withheld. Totals cover unambiguous rows only. Refresh and inspect the source before acting.</p>}

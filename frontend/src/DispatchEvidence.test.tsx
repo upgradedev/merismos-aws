@@ -118,6 +118,23 @@ it('copies the exact digest once while pending, without elevating draft custody'
   expect(screen.getByText('Draft · approval still required')).toBeVisible();
   expect(screen.queryByText('Sandbox record · server reported')).not.toBeInTheDocument();
 });
+it('gives the disabled Copy digest a visible reason beside it while a copy is in progress', async () => {
+  const user = userEvent.setup();
+  let resolve!: () => void;
+  Object.defineProperty(navigator, 'clipboard', {value: {writeText: vi.fn(() => new Promise<void>(done => { resolve = done; }))}, configurable: true});
+  render(<DigestCustody plan={row.plan!} mode="sandbox"/>);
+  expect(screen.queryByText(/finish copying the digest/)).not.toBeInTheDocument();
+  await user.click(screen.getByRole('button', {name: 'Copy digest'}));
+  const button = screen.getByRole('button', {name: 'Copying digest…'});
+  const reason = screen.getByText('Waiting for your browser to finish copying the digest.');
+  expect(button).toBeDisabled();
+  expect(reason).toBeVisible();
+  expect(reason.id).not.toBe('');
+  expect(button).toHaveAttribute('aria-describedby', reason.id);
+  await act(async () => resolve());
+  expect(screen.queryByText(/finish copying the digest/)).not.toBeInTheDocument();
+  expect(screen.getByRole('button', {name: 'Copy digest'})).not.toHaveAttribute('aria-describedby');
+});
 it('recovers clipboard denial with a selectable field and reports only server-recorded state', async () => {
   const user = userEvent.setup();
   Object.defineProperty(navigator, 'clipboard', {value: undefined, configurable: true});
@@ -128,11 +145,15 @@ it('recovers clipboard denial with a selectable field and reports only server-re
   expect(screen.getByRole('textbox')).toHaveAttribute('readonly');
   expect(screen.getByText('Sandbox record · server reported')).toBeVisible();
   expect(screen.getByText(/Not a Merkle proof or independently verified custody/)).toBeVisible();
+  expect(screen.queryByText(/Sandbox records are not public publications/)).not.toBeInTheDocument();
   rerender(<DigestCustody plan={{...row.plan!, recorded: true}} mode="live"/>);
   expect(screen.getByText('Published record · server reported')).toBeVisible();
+  expect(screen.getByRole('button', {name: 'Copy digest'})).not.toHaveAttribute('aria-describedby');
   rerender(<DigestCustody plan={{...row.plan!, digest: ''}} mode="live"/>);
   expect(screen.getByRole('button', {name: 'Copy digest'})).toBeDisabled();
   expect(screen.getByText(/has not supplied a digest/)).toBeVisible();
+  expect(screen.getByText(/has not supplied a digest/).id).not.toBe('');
+  expect(screen.getByRole('button', {name: 'Copy digest'})).toHaveAttribute('aria-describedby', screen.getByText(/has not supplied a digest/).id);
 });
 it('clears clipboard feedback when server plan state changes, without altering approval consent', async () => {
   const user = userEvent.setup();

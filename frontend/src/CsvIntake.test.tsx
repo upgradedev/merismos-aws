@@ -28,7 +28,9 @@ it('reviews without mutation and commits only deliberately selected valid rows',
   expect(mutate).not.toHaveBeenCalled();
   expect(screen.getByLabelText('Select CSV row 3')).toBeDisabled();
   expect(screen.getByLabelText('Select CSV row 4')).toBeDisabled();
+  expect(screen.getByLabelText('Select CSV row 3')).toHaveAttribute('aria-describedby', 'csv-row-3-detail');
   const select = screen.getByLabelText('Select CSV row 2');
+  expect(select).not.toHaveAttribute('aria-describedby');
   expect(select).not.toBeChecked(); await userEvent.click(select); await userEvent.click(select);
   expect(screen.getByText('File selected rows')).toBeDisabled();
   await userEvent.click(select); await userEvent.click(screen.getByText('File selected rows (1)'));
@@ -55,9 +57,16 @@ it('stale workspace, busy import and live authorization withhold commit', async 
   await userEvent.upload(screen.getByLabelText('Donor CSV file'), file());
   await userEvent.click(await screen.findByLabelText('Select CSV row 2'));
   rerender(<CsvIntake data={{...data, version: 2}} busy={false} mutate={mutate}/>);
-  expect(screen.getByText(/Workspace changed since this preview/)).toBeVisible();
+  const staleReason = screen.getByText(/Workspace changed since this preview/);
+  expect(staleReason).toBeVisible(); expect(staleReason).toHaveAttribute('id', 'csv-stale-reason');
   expect(screen.getByText('File selected rows (1)')).toBeDisabled();
+  expect(screen.getByLabelText('Select CSV row 2')).toHaveAttribute('aria-describedby', 'csv-stale-reason');
+  expect(screen.getByLabelText('Select CSV row 3')).toHaveAttribute('aria-describedby', 'csv-stale-reason csv-row-3-detail');
   rerender(<CsvIntake data={data} busy mutate={mutate}/>);
+  expect(screen.getByLabelText('Select CSV row 2')).toBeDisabled();
+  expect(screen.getByLabelText('Select CSV row 2')).toHaveAttribute('aria-describedby', 'csv-file-note');
+  expect(screen.getByLabelText('Select CSV row 4')).toHaveAttribute('aria-describedby', 'csv-file-note csv-row-4-detail');
+  expect(document.getElementById('csv-file-note')).toHaveTextContent(/CSV actions are paused/);
   expect(screen.getByText('Cancel CSV preview')).toBeDisabled();
   expect(screen.getByText('CSV filing is paused while the workspace saves, loads or needs a refresh.')).toBeVisible();
   expect(screen.getByText('Cancel CSV preview')).toHaveAttribute('aria-describedby', 'csv-file-note');
