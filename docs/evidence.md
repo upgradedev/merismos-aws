@@ -102,7 +102,7 @@ a correct plan. It is not repaired automatically.
 The [dated deployment](deploy-2026-09-02.md) and [dated model run](live-run-2026-09-02.md)
 describe their original checkpoints, not the current release.
 
-## Not measured and not run
+## Observed and still unverified
 
 - Human active time, time saved, food rescued, beneficiary impact and adoption: not measured.
 - Human acceptance testing: NOT_RUN until a person signs off.

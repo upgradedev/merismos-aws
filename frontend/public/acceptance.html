@@ -31,10 +31,11 @@
         <p><a id="receipt-link">Immutable run receipt</a> · <a id="run-link" rel="noreferrer">Workflow run and actual conclusion</a></p>
         <p id="limits"></p>
       </div>
+      <p>Separate backend evidence: ME18, the deploy-time writer read-capability probe, is <strong>PASS_AUTOMATED_AWS</strong> for backend <code>4bf2238</code> in <a href="https://github.com/upgradedev/merismos-aws/actions/runs/34894779949" rel="noreferrer">apply run 34894779949</a>. It checked read-only S3 corpus freshness and DynamoDB custody-head permissions; it was not a publication drill or human signoff.</p>
     </section>
     <section aria-labelledby="limits-heading">
       <h2 id="limits-heading">What remains unverified</h2>
-      <p>Human UAT: <strong>NOT_RUN</strong>. ME18, the deploy-time writer read-capability probe: <strong>PASS_AUTOMATED_AWS</strong> for backend <code>4bf2238</code> in <a href="https://github.com/upgradedev/merismos-aws/actions/runs/34894779949" rel="noreferrer">apply run 34894779949</a>. It checked read-only S3 corpus freshness and DynamoDB custody-head permissions; it was not a publication drill or human signoff. The separate authenticated coordinator publication and recovery drill is <strong>NOT_RUN</strong>. There is no measured adoption, time saved, beneficiary impact or food rescue.</p>
+      <p>Human UAT: <strong>NOT_RUN</strong>. The separate authenticated coordinator publication and recovery drill is <strong>NOT_RUN</strong>. There is no measured adoption, time saved, beneficiary impact or food rescue.</p>
       <p>A current pass requires the served root HTML, release manifest and receipt to agree, identical retained run bytes and an observation within 24 hours. An older or different-release receipt is historical. Missing, malformed or unreachable proof cannot authorize a changed frontend. This page does not assert overall workflow success; follow the run for its actual conclusion.</p>
       <p>Backend identity is recorded only when the read-only packaged version endpoint supplies it. Older deployments remain unavailable. Frontend and backend revisions need not match; a recorded backend revision identifies the answering function only. This proof neither establishes fleet parity nor runs AWS boundary probes.</p>
       <p>Historical testbook entries keep their original evidence and NOT_RUN gaps. Public receipts retain only aggregate counts, revisions, statuses and run references.</p>

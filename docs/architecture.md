@@ -293,7 +293,7 @@ Evidence bundles show logical source references from the current API snapshot, d
 run/provider/mode, failure/recovery and handoff.
 Hashes do not prove food safety, delivery, compliance or savings. Time saved, human active time and impact are
 unmeasured; the costs, latency and tests that are not measured or not run are listed in
-[Not measured and not run](evidence.md#not-measured-and-not-run), and
+[Observed and still unverified](evidence.md#observed-and-still-unverified), and
 [live-run-2026-09-02.md](live-run-2026-09-02.md) records one earlier specialist read at its own dated
 checkpoint. The only latency figure is a sandbox HTTP sample from 2026-09-13, taken when the deployed
 frontend and backend were both at commit `cb97c9e`; see
