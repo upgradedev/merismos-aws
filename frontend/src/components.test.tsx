@@ -53,8 +53,15 @@ it('renders missing, running, refused, ready and already-recorded states truthfu
   rerender(<OfferDetail row={ready} data={data} busy={false} mutate={mutate}/>); expect(screen.getByText('Unknown; needs checking')).toBeVisible(); expect(screen.getByText('Not provided')).toBeVisible();
   rerender(<OfferDetail row={{...ready,status:'running',progress:undefined}} data={data} busy={false} mutate={mutate}/>); expect(screen.getByRole('status')).toHaveTextContent('Starting the runner'); expect(screen.getByText('Specialists check food safety, capacity, equity and premises where each applies to this category')).toBeVisible(); expect(screen.getByText('A split is proposed for your approval, or the run stops with the reason')).toBeVisible();
   rerender(<OfferDetail row={{...ready,status:'running',progress:row.progress}} data={data} busy mutate={mutate}/>); expect(screen.getByText('Working…')).toBeDisabled();
-  rerender(<OfferDetail row={{...ready,result:{outcome:'blocked'},offer:{...row.offer,allergens:[]}}} data={data} busy={false} mutate={mutate}/>); expect(screen.getByText('Declared none')).toBeVisible(); expect(screen.getByText(/No allocation was approved/)).toBeVisible();
+  rerender(<OfferDetail row={{...ready,result:{run_id:'run-blocked',outcome:'blocked'},offer:{...row.offer,allergens:[]}}} data={data} busy={false} mutate={mutate}/>); expect(screen.getByText('Declared none')).toBeVisible(); expect(screen.getByText(/No allocation was approved/)).toBeVisible();
   rerender(<OfferDetail row={{...row,plan:{...row.plan!,recorded:true}}} data={data} busy={false} mutate={mutate}/>); expect(screen.getByText('The recorded plan')).toBeVisible(); expect(screen.getByText('Open collection tasks →')).toBeVisible();
+});
+it('says no split has been worked out for an offer that was never run, and keeps the gate sentence for a run', () => {
+  const data=workspace(); const unrun={...row,status:'not_started',result:{},plan:null};
+  const {rerender}=render(<OfferDetail row={unrun} data={data} busy={false} mutate={vi.fn()}/>);
+  expect(screen.getByText(/^No split has been worked out yet\./)).toBeVisible(); expect(screen.queryByText(/No allocation was approved/)).toBeNull();
+  rerender(<OfferDetail row={{...unrun,status:'refused_by_gate',result:{run_id:'run-refused',outcome:'refused_by_gate'}}} data={data} busy={false} mutate={vi.fn()}/>);
+  expect(screen.getByText(/^No allocation was approved by the deterministic gate\./)).toBeVisible(); expect(screen.queryByText(/No split has been worked out yet/)).toBeNull();
 });
 it('marks the run steps done, in progress and not started from the reported stage', () => {
   const data=workspace(); const mutate=vi.fn(); const running={...row,status:'running',result:{},plan:null};
