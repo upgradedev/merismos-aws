@@ -1,0 +1,16 @@
+{
+  "name": "merismos-docs-lint",
+  "private": true,
+  "description": "CI only, for .github/workflows/docs.yml. overrides.mermaid is the version pinned as GitHub's, read on 2026-09-14; before changing it, read GitHub's version again from a mermaid block whose only line is info.",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "devDependencies": {
+    "@mermaid-js/mermaid-cli": "11.17.0",
+    "markdownlint-cli2": "0.23.2",
+    "puppeteer": "25.10.0"
+  },
+  "overrides": {
+    "mermaid": "11.17.2"
+  }
+}

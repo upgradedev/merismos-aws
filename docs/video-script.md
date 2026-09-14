@@ -9,9 +9,10 @@ The sandbox uses the real HTTP API, a session saved in DynamoDB whose handle sto
 which makes no model network call. Live records are publicly read-only.
 
 Target **90–174 seconds**, with seven beats of **3–40 seconds** each. These are production
-bounds, not measured timing. The existing audio/video/caption gates remain authoritative.
-No recording or public upload is claimed by this draft. Capture the actual release after its
-exact-SHA acceptance; an edited wait must disclose the elapsed time removed.
+bounds, not measured timing. The audio, video and caption gates of the video pipeline, which is not
+in this repository, remain authoritative. No recording or public upload is claimed by this draft.
+Capture the actual release after its exact-SHA acceptance; an edited wait must disclose the elapsed
+time removed.
 
 | Beat | Actual product to capture |
 | --- | --- |
@@ -21,10 +22,11 @@ exact-SHA acceptance; an edited wait must disclose the elapsed time removed.
 | live | In the sandbox, not live mode. **Try refusal**, **Add to sandbox** and **Work out the split**: a refused cold chain and no **Approve in sandbox** button. **Try correction** and **Add to sandbox**: the phone-shaped note is refused and the fields are kept. Remove the phone-shaped number from the note, choose **Add to sandbox** again, then **Work out the split** on the corrected offer. On its passing plan: **Read the exact record text**, tick the consent box, **Approve in sandbox**; then on Pickups **Claim this share**, tick “This collection actually happened in the simulation.” and **Confirm collection**. |
 | sponsor | Open **About this demo** in the page footer: the provider line, then **Overview**, **How a donation moves** or **AWS architecture**, which describe the Strands guard. Show the CI guard and SDK-removal checks from the CI run, not as product footage. Distinguish the scripted sandbox from Bedrock Opus 5 live runs, which a public request cannot start; the deploy proof starts them with IAM-authorised invocations of the internal runner. |
 | evidence | On Decide with the offer selected, expand **Evidence bundle and recovery** under “Your decision”: sources, decision, run/revision, provider/mode, history, failure/recovery and limits. Hashes are not source truth. |
-| close | Observed outcomes; the measured median of $1.62 for the live proof in one deploy apply (five applies, two runner invocations each, Bedrock tokens and Lambda only; not the cost of one model run) and the 10-sample sandbox latency check (not a load test; live mode not measured); unmeasured human active time and benefits; then the workspace URL. |
+| close | On **Impact and limits** (page footer, **About this demo**): observed outcomes; the measured median of $1.62 for the live proof in one deploy apply (five applies, two runner invocations each, Bedrock tokens and Lambda only; not the cost of one model run) and the 10-sample sandbox latency check (not a load test; live mode not measured); unmeasured human active time and benefits; then the workspace URL. |
 
-`video/narration.json` contains the matching seven caption/speech beats. The existing video
-tool schema/provider settings are preserved as production contracts, not app runtime providers.
+`video/narration.json` holds the seven caption and speech beats under the same ids. Its close beat
+does not speak the cost or latency figures; they appear on screen only. The existing video tool
+schema/provider settings are preserved as production contracts, not app runtime providers.
 `docs/video/cards.html` is only a labelled recording aid, never a substitute for product footage.
 
 Do not claim a live critic Lambda, automatic sends, compliance, measured savings or real food
