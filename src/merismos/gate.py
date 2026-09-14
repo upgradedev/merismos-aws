@@ -13,10 +13,12 @@ you keep. So the poison is planted in the corpus instead, a faithful generator
 carries it forward, and this catches it every time with no credential.
 
 The order in ``judge`` is load bearing. The deterministic verdict runs **first,
-always**. A refusal returns without consulting the model at all, because asking
-and discarding the answer costs a request and invites a later edit that uses it.
-Where the rules pass, a model's opinion is unioned in and can only add. There is
-no branch here that clears a finding.
+always**. A refusal returns without calling the critic, because asking and
+discarding the answer costs a request and invites a later edit that uses it.
+That covers the critic alone: specialists in ``fleet.run_chore`` may already
+have consulted a model before a draft reaches this gate. Where the rules pass, a
+model's opinion is unioned in and can only add. There is no branch here that
+clears a finding.
 """
 
 from __future__ import annotations
