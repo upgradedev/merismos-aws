@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Prove the Merismos video gate passes good media and rejects four bad cases.
+"""Prove the Merismos video gate passes good media and rejects five bad cases.
 
 The fixtures are synthetic, contain no product capture or speech, use no network or
 credential, and are removed when the test exits.
@@ -67,7 +67,9 @@ def ffprobe(path: pathlib.Path) -> dict[str, object]:
     return json.loads(result.stdout)
 
 
-def write_srt(path: pathlib.Path, *, overlap: bool = False) -> None:
+def write_srt(
+    path: pathlib.Path, *, overlap: bool = False, omit: str | None = None
+) -> None:
     def stamp(value: float) -> str:
         millis = round(value * 1000)
         hours, millis = divmod(millis, 3_600_000)
@@ -77,13 +79,15 @@ def write_srt(path: pathlib.Path, *, overlap: bool = False) -> None:
 
     rows = []
     for index, identifier in enumerate(SCENE_IDS, start=1):
+        if identifier == omit:
+            continue
         start = (index - 1) * SCENE_SECONDS
         if overlap and index == 2:
             start -= 2
         end = (index - 1) * SCENE_SECONDS + 12
         rows.extend(
             [
-                str(index),
+                str(len(rows) // 4 + 1),
                 f"{stamp(start)} --> {stamp(end)}",
                 f"Synthetic {identifier} caption.",
                 "",
@@ -426,6 +430,26 @@ def main() -> int:
             )
         )
 
+        partial_dir = root / "bad-partial-burn-in"
+        partial_dir.mkdir()
+        partial_media = partial_dir / "merismos-submission.mp4"
+        partial_render_srt = root / "partial-render.srt"
+        write_srt(partial_render_srt, omit="live")
+        make_captioned_media(source, partial_media, partial_render_srt)
+        write_contracts(partial_dir, partial_media, source)
+        rc, failures, log = run_gate(partial_dir, partial_media, source)
+        results.append(
+            (
+                "BAD_PARTIAL_BURN_IN",
+                rc != 0
+                and "caption-pixels-bound" in failures
+                and "failing_cues=4" in log,
+                rc,
+                failures,
+                log,
+            )
+        )
+
         order_dir, order_media = copy_case(good, root, "bad-order")
         bad_order = ("surface", "hook", *SCENE_IDS[2:])
         write_contracts(order_dir, order_media, source, order=bad_order)
@@ -456,7 +480,12 @@ def main() -> int:
         )
 
     for name, ok, rc, failures, log in results:
-        print(f"[{'OK ' if ok else 'FAIL'}] {name:30s} rc={rc} failing={failures or '-'}")
+        pixel_match = re.search(r"caption-pixels-bound :: (.+)", log)
+        pixel_detail = f" pixels=({pixel_match.group(1)})" if pixel_match else ""
+        print(
+            f"[{'OK ' if ok else 'FAIL'}] {name:30s} rc={rc} "
+            f"failing={failures or '-'}{pixel_detail}"
+        )
         if not ok:
             print("---- gate output ----")
             print(log)
@@ -465,8 +494,8 @@ def main() -> int:
         print("::error::video gate self-test failed")
         return 1
     print(
-        "video gate self-test: captioned media passed; missing burn-in, order, caption, "
-        "and A/V defects failed closed"
+        "video gate self-test: captioned media passed; missing and partial burn-in, order, "
+        "caption, and A/V defects failed closed"
     )
     return 0
 

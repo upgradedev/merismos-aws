@@ -19,7 +19,7 @@ SRT_WINDOW = re.compile(
     r"(\d{2}:\d{2}:\d{2},\d{3})\r?\n(.+?)(?=\r?\n\r?\n|\Z)",
     re.DOTALL,
 )
-PSNR_AVERAGE = re.compile(r"PSNR .*?average:(inf|[0-9]+(?:\.[0-9]+)?)")
+PSNR_FRAME = re.compile(r"(?m)^n:(\d+)\s+mse_avg:([0-9]+(?:\.[0-9]+)?)")
 CAPTION_STYLE = (
     "FontName=DejaVu Sans,FontSize=14,PrimaryColour=&H00FFFFFF,"
     "BackColour=&HA0000000,BorderStyle=4,Outline=0,Shadow=0,MarginV=38,Alignment=2"
@@ -178,7 +178,7 @@ def escaped_filter_path(path: pathlib.Path) -> str:
     return str(path).replace("\\", "/").replace(":", "\\:").replace("'", "\\'")
 
 
-def reference_psnr(
+def reference_frame_mse(
     shipped: pathlib.Path,
     capture: pathlib.Path,
     captions: pathlib.Path,
@@ -186,7 +186,7 @@ def reference_psnr(
     total: float,
     *,
     burn_captions: bool,
-) -> float | None:
+) -> list[float] | None:
     """Compare decoded shipped caption pixels with an independent capture render."""
     ffmpeg = os.environ.get("FFMPEG", "ffmpeg")
     reference = (
@@ -203,7 +203,7 @@ def reference_psnr(
     filters = (
         f"[0:v]setpts=PTS-STARTPTS,fps=25,{CAPTION_CROP},format=yuv420p[actual];"
         f"[1:v]{reference},{CAPTION_CROP},format=yuv420p[reference];"
-        "[actual][reference]psnr=shortest=1"
+        "[actual][reference]psnr=shortest=1:stats_file=-:stats_version=2"
     )
     result = command(
         [
@@ -224,10 +224,29 @@ def reference_psnr(
     )
     if result.returncode != 0:
         return None
-    matches = PSNR_AVERAGE.findall(result.stderr)
+    matches = PSNR_FRAME.findall(result.stdout + "\n" + result.stderr)
     if not matches:
         return None
-    return math.inf if matches[-1] == "inf" else float(matches[-1])
+    numbers = [int(number) for number, _ in matches]
+    if numbers != list(range(1, len(matches) + 1)):
+        return None
+    return [float(mse) for _, mse in matches]
+
+
+def psnr_from_mse(values: list[float]) -> float | None:
+    if not values:
+        return None
+    mean_mse = sum(values) / len(values)
+    return math.inf if mean_mse == 0 else 10 * math.log10((255**2) / mean_mse)
+
+
+def cue_frame_mse(frames: list[float], start: float, end: float) -> list[float]:
+    margin = min(0.12, (end - start) / 4)
+    return [
+        mse
+        for index, mse in enumerate(frames)
+        if start + margin <= index / 25 < end - margin
+    ]
 
 
 def report_metric(value: float | None) -> float | str | None:
@@ -491,10 +510,12 @@ def main() -> int:
     gate.check(all(per_scene.values()), "captions-cover-scenes", str(per_scene))
 
     captioned_psnr = uncaptioned_psnr = None
+    caption_windows: list[dict[str, object]] = []
     if not gate.failures:
         trim_lead = float(capture.get("trimLeadSeconds", -1))
+        captioned_frames = uncaptioned_frames = None
         if 0 <= trim_lead <= 30:
-            captioned_psnr = reference_psnr(
+            captioned_frames = reference_frame_mse(
                 paths["mp4"],
                 paths["capture_media"],
                 paths["captions"],
@@ -502,7 +523,7 @@ def main() -> int:
                 total,
                 burn_captions=True,
             )
-            uncaptioned_psnr = reference_psnr(
+            uncaptioned_frames = reference_frame_mse(
                 paths["mp4"],
                 paths["capture_media"],
                 paths["captions"],
@@ -510,18 +531,49 @@ def main() -> int:
                 total,
                 burn_captions=False,
             )
+        expected_frames = round(total * 25)
+        complete_metrics = (
+            captioned_frames is not None
+            and uncaptioned_frames is not None
+            and len(captioned_frames) == expected_frames
+            and len(uncaptioned_frames) == expected_frames
+        )
+        if complete_metrics and captioned_frames is not None and uncaptioned_frames is not None:
+            captioned_psnr = psnr_from_mse(captioned_frames)
+            uncaptioned_psnr = psnr_from_mse(uncaptioned_frames)
+            for index, (start, end, _) in enumerate(captions, start=1):
+                captioned_window = psnr_from_mse(cue_frame_mse(captioned_frames, start, end))
+                uncaptioned_window = psnr_from_mse(
+                    cue_frame_mse(uncaptioned_frames, start, end)
+                )
+                passed = (
+                    captioned_window is not None
+                    and uncaptioned_window is not None
+                    and captioned_window >= 30
+                    and captioned_window > uncaptioned_window + 1
+                )
+                caption_windows.append(
+                    {
+                        "cue": index,
+                        "startSeconds": start,
+                        "endSeconds": end,
+                        "captionedReferencePsnrDb": report_metric(captioned_window),
+                        "uncaptionedReferencePsnrDb": report_metric(uncaptioned_window),
+                        "passed": passed,
+                    }
+                )
+        failed_cues = [str(item["cue"]) for item in caption_windows if not item["passed"]]
         pixels_bound = (
-            captioned_psnr is not None
-            and uncaptioned_psnr is not None
-            and captioned_psnr >= 30
-            and captioned_psnr > uncaptioned_psnr + 1
+            complete_metrics and len(caption_windows) == len(captions) and not failed_cues
         )
         gate.check(
             pixels_bound,
             "caption-pixels-bound",
             (
                 f"captioned_reference={report_metric(captioned_psnr)}dB "
-                f"uncaptioned_reference={report_metric(uncaptioned_psnr)}dB"
+                f"uncaptioned_reference={report_metric(uncaptioned_psnr)}dB "
+                f"windows={len(caption_windows)}/{len(captions)} "
+                f"failing_cues={','.join(failed_cues) or '-'}"
             ),
         )
     else:
@@ -543,6 +595,7 @@ def main() -> int:
         "captionCount": len(captions),
         "captionedReferencePsnrDb": report_metric(captioned_psnr),
         "uncaptionedReferencePsnrDb": report_metric(uncaptioned_psnr),
+        "captionPixelWindows": caption_windows,
         "sceneIds": scene_ids,
     }
     paths["report"].write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
