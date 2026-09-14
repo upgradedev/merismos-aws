@@ -17,7 +17,6 @@ import subprocess
 import sys
 import tempfile
 
-
 REPO = pathlib.Path(__file__).resolve().parents[2]
 GATE = REPO / "scripts" / "verify_video_sync.py"
 GENERATOR = REPO / "video" / "generate-narration.py"
@@ -276,12 +275,17 @@ def copy_case(
     return directory, media
 
 
-def prove_speaking_rate() -> None:
+def load_generator():
     spec = importlib.util.spec_from_file_location("merismos_video_generator", GENERATOR)
     if spec is None or spec.loader is None:
         raise SystemExit("could not load narration generator")
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
+    return module
+
+
+def prove_speaking_rate() -> None:
+    module = load_generator()
     narration = json.loads(NARRATION.read_text(encoding="utf-8"))
     module.validate_spec(narration)
     body = json.loads(
@@ -300,11 +304,49 @@ def prove_speaking_rate() -> None:
     print(f"[OK ] SPEAKING_RATE                  speed={observed}; invalid rate rejected")
 
 
+def prove_per_beat_cache() -> None:
+    module = load_generator()
+    narration = json.loads(NARRATION.read_text(encoding="utf-8"))
+    spec, segments = module.validate_spec(narration)
+    calls: list[str] = []
+
+    def synthesize(text: str, _spec: dict[str, object]) -> bytes:
+        calls.append(text)
+        return (f"synthetic-{len(calls)}".encode() * 400)[:4000]
+
+    module.synthesize_elevenlabs = synthesize
+    module.duration = lambda _path: 5.0
+    with tempfile.TemporaryDirectory(prefix="merismos-narration-cache-") as raw:
+        root = pathlib.Path(raw)
+        first = []
+        second = []
+        for index, segment in enumerate(segments, start=1):
+            audio = root / f"{index:02d}-{segment['id']}.mp3"
+            sidecar = root / f"{index:02d}-{segment['id']}.cache.json"
+            first.append(module.synthesize_scene(audio, sidecar, segment, spec, set()))
+            second.append(module.synthesize_scene(audio, sidecar, segment, spec, set()))
+
+        changed = dict(segments[3])
+        changed["speechText"] += " Corrected."
+        audio = root / f"04-{changed['id']}.mp3"
+        sidecar = root / f"04-{changed['id']}.cache.json"
+        changed_result = module.synthesize_scene(audio, sidecar, changed, spec, set())
+
+    if first != ["synthesized"] * len(SCENE_IDS):
+        raise SystemExit(f"cold narration cache did not synthesize all beats: {first}")
+    if second != ["reused"] * len(SCENE_IDS):
+        raise SystemExit(f"unchanged narration cache did not reuse all beats: {second}")
+    if changed_result != "synthesized" or len(calls) != len(SCENE_IDS) + 1:
+        raise SystemExit("one changed beat did not cause exactly one additional synthesis")
+    print("[OK ] PER_BEAT_CACHE                 cold=7; unchanged=0; one edit=1")
+
+
 def main() -> int:
     for executable in ("ffmpeg", "ffprobe"):
         if shutil.which(executable) is None:
             raise SystemExit(f"::error::{executable} is required")
     prove_speaking_rate()
+    prove_per_beat_cache()
     results = []
     with tempfile.TemporaryDirectory(prefix="merismos-video-selftest-") as raw:
         root = pathlib.Path(raw)

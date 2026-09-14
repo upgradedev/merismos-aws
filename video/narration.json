@@ -1,6 +1,6 @@
 {
-  "_comment": "Draft narration for the current synthetic coordinator flows. Capture actual product only after exact-release acceptance; captions do not establish deployment. Existing production-tool schema and provider contract preserved.",
-  "schemaVersion": "archon.submission-video/v1",
+  "_comment": "Draft narration for the current synthetic coordinator flows. Capture actual product only after exact-release acceptance; captions do not establish deployment. Merismos video schema and ElevenLabs provider contract.",
+  "schemaVersion": "merismos.submission-video/v1",
   "provider": "elevenlabs",
   "elevenLabs": {
     "voiceId": "pNInz6obpgDQGcFmaJgB",
@@ -8,9 +8,8 @@
     "outputFormat": "mp3_44100_128"
   },
   "languageCode": "en-GB",
-  "voice": "en-GB-Neural2-B",
   "speakingRate": 0.98,
-  "_comment_length": "Target 90–174 seconds, seven beats of 3–40 seconds. Draft timing only; measured audio/video and captions must pass existing gates before publication.",
+  "_comment_length": "Target 90–174 seconds, seven beats of 3–40 seconds. Draft timing only; measured audio/video and captions must pass the project gates before publication.",
   "segments": [
     {
       "id": "hook",

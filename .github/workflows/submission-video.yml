@@ -137,7 +137,7 @@ jobs:
 
       - name: Restore reusable per-beat narration cache
         id: narration-cache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: ${{ runner.temp }}/merismos-submission-video/narration
           key: merismos-video-narration-v1-${{ hashFiles('video/narration.json', 'video/generate-narration.py') }}-${{ github.run_id }}-${{ github.run_attempt }}
@@ -164,7 +164,7 @@ jobs:
         run: python3 video/generate-narration.py
 
       - name: Save reusable per-beat narration cache
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: ${{ runner.temp }}/merismos-submission-video/narration
           key: ${{ steps.narration-cache.outputs.cache-primary-key }}

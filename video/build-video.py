@@ -11,7 +11,6 @@ import re
 import shutil
 import subprocess
 
-
 FPS = 25
 FRAME_SECONDS = 1 / FPS
 SCENE_IDS = ("hook", "surface", "trigger", "live", "sponsor", "evidence", "close")
@@ -80,7 +79,9 @@ def main() -> None:
     timing = load_json(timing_path)
     capture_receipt = load_json(capture_receipt_path)
     scenes = timing.get("scenes")
-    if timing.get("schemaVersion") != "merismos.submission-video-timing/v1" or not isinstance(scenes, list):
+    if timing.get("schemaVersion") != "merismos.submission-video-timing/v1" or not isinstance(
+        scenes, list
+    ):
         raise SystemExit("timing contract is invalid")
     if tuple(scene.get("id") for scene in scenes if isinstance(scene, dict)) != SCENE_IDS:
         raise SystemExit("timing scene order is invalid")
