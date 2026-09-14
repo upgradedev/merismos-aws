@@ -25,6 +25,9 @@ CAPTION_STYLE = (
     "BackColour=&HA0000000,BorderStyle=4,Outline=0,Shadow=0,MarginV=38,Alignment=2"
 )
 CAPTION_CROP = "crop=1920:320:0:760"
+CAPTION_EDGE_SECONDS = 0.12
+MIN_CAPTIONED_PSNR_DB = 30
+MIN_CAPTION_ADVANTAGE_DB = 1
 
 
 class Gate:
@@ -240,19 +243,40 @@ def psnr_from_mse(values: list[float]) -> float | None:
     return math.inf if mean_mse == 0 else 10 * math.log10((255**2) / mean_mse)
 
 
-def cue_frame_mse(frames: list[float], start: float, end: float) -> list[float]:
-    margin = min(0.12, (end - start) / 4)
+def frame_psnr(mse: float) -> float:
+    return math.inf if mse == 0 else 10 * math.log10((255**2) / mse)
+
+
+def cue_frame_indices(frame_count: int, start: float, end: float) -> list[int]:
+    margin = min(CAPTION_EDGE_SECONDS, (end - start) / 4)
     return [
-        mse
-        for index, mse in enumerate(frames)
+        index
+        for index in range(frame_count)
         if start + margin <= index / 25 < end - margin
     ]
+
+
+def frame_matches_caption(captioned_mse: float, uncaptioned_mse: float) -> bool:
+    captioned = frame_psnr(captioned_mse)
+    uncaptioned = frame_psnr(uncaptioned_mse)
+    return (
+        captioned >= MIN_CAPTIONED_PSNR_DB
+        and captioned > uncaptioned + MIN_CAPTION_ADVANTAGE_DB
+    )
+
+
+def psnr_advantage(captioned: float, uncaptioned: float) -> float | None:
+    if math.isinf(captioned) and math.isinf(uncaptioned):
+        return None
+    return captioned - uncaptioned
 
 
 def report_metric(value: float | None) -> float | str | None:
     if value is None:
         return None
-    return "inf" if math.isinf(value) else round(value, 3)
+    if math.isinf(value):
+        return "inf" if value > 0 else "-inf"
+    return round(value, 3)
 
 
 def parse_args() -> argparse.Namespace:
@@ -542,16 +566,38 @@ def main() -> int:
             captioned_psnr = psnr_from_mse(captioned_frames)
             uncaptioned_psnr = psnr_from_mse(uncaptioned_frames)
             for index, (start, end, _) in enumerate(captions, start=1):
-                captioned_window = psnr_from_mse(cue_frame_mse(captioned_frames, start, end))
-                uncaptioned_window = psnr_from_mse(
-                    cue_frame_mse(uncaptioned_frames, start, end)
-                )
-                passed = (
-                    captioned_window is not None
-                    and uncaptioned_window is not None
-                    and captioned_window >= 30
-                    and captioned_window > uncaptioned_window + 1
-                )
+                frame_indices = cue_frame_indices(expected_frames, start, end)
+                captioned_window_mse = [captioned_frames[item] for item in frame_indices]
+                uncaptioned_window_mse = [uncaptioned_frames[item] for item in frame_indices]
+                captioned_window = psnr_from_mse(captioned_window_mse)
+                uncaptioned_window = psnr_from_mse(uncaptioned_window_mse)
+                failed_frames = [
+                    item
+                    for item in frame_indices
+                    if not frame_matches_caption(captioned_frames[item], uncaptioned_frames[item])
+                ]
+                frame_captioned = [frame_psnr(captioned_frames[item]) for item in frame_indices]
+                frame_advantages = [
+                    psnr_advantage(
+                        frame_psnr(captioned_frames[item]),
+                        frame_psnr(uncaptioned_frames[item]),
+                    )
+                    for item in frame_indices
+                ]
+                measured_advantages = [item for item in frame_advantages if item is not None]
+                first_failed = None
+                if failed_frames:
+                    frame = failed_frames[0]
+                    first_failed = {
+                        "number": frame + 1,
+                        "timeSeconds": round(frame / 25, 3),
+                        "captionedReferencePsnrDb": report_metric(
+                            frame_psnr(captioned_frames[frame])
+                        ),
+                        "uncaptionedReferencePsnrDb": report_metric(
+                            frame_psnr(uncaptioned_frames[frame])
+                        ),
+                    }
                 caption_windows.append(
                     {
                         "cue": index,
@@ -559,10 +605,28 @@ def main() -> int:
                         "endSeconds": end,
                         "captionedReferencePsnrDb": report_metric(captioned_window),
                         "uncaptionedReferencePsnrDb": report_metric(uncaptioned_window),
-                        "passed": passed,
+                        "interiorFrameCount": len(frame_indices),
+                        "failedFrameCount": len(failed_frames),
+                        "minimumFrameCaptionedReferencePsnrDb": report_metric(
+                            min(frame_captioned) if frame_captioned else None
+                        ),
+                        "minimumFrameAdvantageDb": report_metric(
+                            min(measured_advantages) if measured_advantages else None
+                        ),
+                        "firstFailedFrame": first_failed,
+                        "passed": bool(frame_indices) and not failed_frames,
                     }
                 )
         failed_cues = [str(item["cue"]) for item in caption_windows if not item["passed"]]
+        first_failed_detail = "-"
+        for window in caption_windows:
+            failed = window.get("firstFailedFrame")
+            if isinstance(failed, dict):
+                first_failed_detail = (
+                    f"cue{window['cue']}/frame{failed.get('number')}@"
+                    f"{failed.get('timeSeconds')}s"
+                )
+                break
         pixels_bound = (
             complete_metrics and len(caption_windows) == len(captions) and not failed_cues
         )
@@ -573,7 +637,8 @@ def main() -> int:
                 f"captioned_reference={report_metric(captioned_psnr)}dB "
                 f"uncaptioned_reference={report_metric(uncaptioned_psnr)}dB "
                 f"windows={len(caption_windows)}/{len(captions)} "
-                f"failing_cues={','.join(failed_cues) or '-'}"
+                f"failing_cues={','.join(failed_cues) or '-'} "
+                f"first_failed={first_failed_detail}"
             ),
         )
     else:
@@ -595,6 +660,12 @@ def main() -> int:
         "captionCount": len(captions),
         "captionedReferencePsnrDb": report_metric(captioned_psnr),
         "uncaptionedReferencePsnrDb": report_metric(uncaptioned_psnr),
+        "captionPixelPolicy": {
+            "edgeExclusionSeconds": CAPTION_EDGE_SECONDS,
+            "minimumCaptionedReferencePsnrDb": MIN_CAPTIONED_PSNR_DB,
+            "minimumAdvantageDb": MIN_CAPTION_ADVANTAGE_DB,
+            "scope": "every interior frame of every caption cue",
+        },
         "captionPixelWindows": caption_windows,
         "sceneIds": scene_ids,
     }

@@ -68,7 +68,7 @@ def ffprobe(path: pathlib.Path) -> dict[str, object]:
 
 
 def write_srt(
-    path: pathlib.Path, *, overlap: bool = False, omit: str | None = None
+    path: pathlib.Path, *, overlap: bool = False, truncate: str | None = None
 ) -> None:
     def stamp(value: float) -> str:
         millis = round(value * 1000)
@@ -79,12 +79,12 @@ def write_srt(
 
     rows = []
     for index, identifier in enumerate(SCENE_IDS, start=1):
-        if identifier == omit:
-            continue
         start = (index - 1) * SCENE_SECONDS
         if overlap and index == 2:
             start -= 2
         end = (index - 1) * SCENE_SECONDS + 12
+        if identifier == truncate:
+            end -= 2
         rows.extend(
             [
                 str(len(rows) // 4 + 1),
@@ -430,20 +430,21 @@ def main() -> int:
             )
         )
 
-        partial_dir = root / "bad-partial-burn-in"
+        partial_dir = root / "bad-within-cue-truncation"
         partial_dir.mkdir()
         partial_media = partial_dir / "merismos-submission.mp4"
         partial_render_srt = root / "partial-render.srt"
-        write_srt(partial_render_srt, omit="live")
+        write_srt(partial_render_srt, truncate="live")
         make_captioned_media(source, partial_media, partial_render_srt)
         write_contracts(partial_dir, partial_media, source)
         rc, failures, log = run_gate(partial_dir, partial_media, source)
         results.append(
             (
-                "BAD_PARTIAL_BURN_IN",
+                "BAD_WITHIN_CUE_TRUNCATION",
                 rc != 0
                 and "caption-pixels-bound" in failures
-                and "failing_cues=4" in log,
+                and "failing_cues=4" in log
+                and re.search(r"first_failed=cue4/frame\d+@[0-9.]+s", log) is not None,
                 rc,
                 failures,
                 log,
@@ -494,8 +495,8 @@ def main() -> int:
         print("::error::video gate self-test failed")
         return 1
     print(
-        "video gate self-test: captioned media passed; missing and partial burn-in, order, "
-        "caption, and A/V defects failed closed"
+        "video gate self-test: captioned media passed; missing and within-cue truncation, "
+        "order, caption, and A/V defects failed closed"
     )
     return 0
 
