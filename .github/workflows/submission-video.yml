@@ -1,0 +1,245 @@
+name: Submission video
+
+on:
+  pull_request:
+    paths:
+      - "video/**"
+      - "scripts/verify_video_sync.py"
+      - "tests/video/**"
+      - ".github/workflows/submission-video.yml"
+  push:
+    branches: [main]
+    paths:
+      - "video/**"
+      - "scripts/verify_video_sync.py"
+      - "tests/video/**"
+      - ".github/workflows/submission-video.yml"
+  workflow_dispatch:
+    inputs:
+      release_sha:
+        description: "Exact frozen SHA served by frontend and backend"
+        required: true
+        type: string
+      deploy_run_id:
+        description: "Successful deploy.yml apply run for this SHA with keep=yes"
+        required: true
+        type: string
+      frontend_run_id:
+        description: "Successful frontend-deploy.yml release and live acceptance run"
+        required: true
+        type: string
+      rerender_beat:
+        description: "Optional single beat to re-synthesize: hook, surface, trigger, live, sponsor, evidence, close"
+        required: false
+        type: string
+      voice_rights_attested:
+        description: "I confirm this ElevenLabs voice is authorized for public competition use"
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: merismos-submission-video-${{ github.event_name == 'workflow_dispatch' && inputs.release_sha || github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  pipeline-selftest:
+    name: Video gate negative self-test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Validate the seven-beat narration contract without TTS
+        run: |
+          set -euo pipefail
+          python3 video/generate-narration.py --validate
+          python3 -m py_compile \
+            video/generate-narration.py \
+            video/build-video.py \
+            scripts/verify_video_sync.py \
+            tests/video/verify_gate_selftest.py
+      - name: Ensure ffmpeg and ffprobe are available
+        run: |
+          set -euo pipefail
+          if ! command -v ffmpeg >/dev/null 2>&1 || ! command -v ffprobe >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install --yes --no-install-recommends ffmpeg
+          fi
+      - name: Prove good media passes and bad order, captions and A/V fail
+        run: python3 tests/video/verify_gate_selftest.py
+
+  video:
+    name: Capture, compose and verify the exact-release video
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      github.repository == 'upgradedev/merismos-aws' &&
+      github.ref == 'refs/heads/main'
+    needs: pipeline-selftest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    permissions:
+      actions: read
+      contents: read
+    env:
+      MERISMOS_RELEASE_SHA: ${{ inputs.release_sha }}
+      MERISMOS_DEPLOY_RUN_ID: ${{ inputs.deploy_run_id }}
+      MERISMOS_FRONTEND_RUN_ID: ${{ inputs.frontend_run_id }}
+      MERISMOS_VIDEO_URL: https://d2qnkmlhs7y5fp.cloudfront.net/
+      NARRATION_FORCE: ${{ inputs.rerender_beat }}
+    steps:
+      - name: Bind production to the frozen source and successful release runs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VOICE_RIGHTS_ATTESTED: ${{ inputs.voice_rights_attested }}
+        run: |
+          set -euo pipefail
+          [[ "${MERISMOS_RELEASE_SHA}" =~ ^[a-f0-9]{40}$ ]]
+          [[ "${MERISMOS_DEPLOY_RUN_ID}" =~ ^[1-9][0-9]*$ ]]
+          [[ "${MERISMOS_FRONTEND_RUN_ID}" =~ ^[1-9][0-9]*$ ]]
+          test "${VOICE_RIGHTS_ATTESTED}" = "true" || {
+            echo "::error::ElevenLabs public-use rights were not attested"
+            exit 1
+          }
+          test "${GITHUB_SHA}" = "${MERISMOS_RELEASE_SHA}"
+          test "$(gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq .sha)" = "${MERISMOS_RELEASE_SHA}"
+
+          test "$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${MERISMOS_DEPLOY_RUN_ID}" --jq .head_sha)" = "${MERISMOS_RELEASE_SHA}"
+          test "$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${MERISMOS_DEPLOY_RUN_ID}" --jq .conclusion)" = "success"
+          test "$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${MERISMOS_DEPLOY_RUN_ID}" --jq .path)" = ".github/workflows/deploy.yml"
+          test "$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${MERISMOS_DEPLOY_RUN_ID}/jobs" --jq '[.jobs[].steps[] | select(.name == "Apply") | .conclusion] | unique | join(",")')" = "success"
+          test "$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${MERISMOS_DEPLOY_RUN_ID}/jobs" --jq '[.jobs[].steps[] | select(.name == "Tear down") | .conclusion] | unique | join(",")')" = "skipped"
+
+          test "$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${MERISMOS_FRONTEND_RUN_ID}" --jq .head_sha)" = "${MERISMOS_RELEASE_SHA}"
+          test "$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${MERISMOS_FRONTEND_RUN_ID}" --jq .conclusion)" = "success"
+          test "$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${MERISMOS_FRONTEND_RUN_ID}" --jq .path)" = ".github/workflows/frontend-deploy.yml"
+
+          case "${NARRATION_FORCE}" in
+            ""|hook|surface|trigger|live|sponsor|evidence|close) ;;
+            *) echo "::error::rerender_beat is not one of the seven scene IDs"; exit 1 ;;
+          esac
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Create one runner-temp media root
+        run: |
+          set -euo pipefail
+          root="${RUNNER_TEMP}/merismos-submission-video"
+          test ! -e "${root}"
+          mkdir -m 0700 "${root}"
+          echo "MERISMOS_VIDEO_ROOT=${root}" >>"${GITHUB_ENV}"
+
+      - name: Restore reusable per-beat narration cache
+        id: narration-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ runner.temp }}/merismos-submission-video/narration
+          key: merismos-video-narration-v1-${{ hashFiles('video/narration.json', 'video/generate-narration.py') }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            merismos-video-narration-v1-${{ hashFiles('video/narration.json', 'video/generate-narration.py') }}-
+            merismos-video-narration-v1-
+
+      - name: Install ephemeral media tooling
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends ffmpeg
+          echo "FFMPEG=$(command -v ffmpeg)" >>"${GITHUB_ENV}"
+          echo "FFPROBE=$(command -v ffprobe)" >>"${GITHUB_ENV}"
+
+      - name: Refuse missing TTS authority without printing the secret
+        env:
+          ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+        run: test -n "${ELEVENLABS_API_KEY}"
+
+      - name: Generate measured per-beat narration and captions
+        env:
+          ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+        run: python3 video/generate-narration.py
+
+      - name: Save reusable per-beat narration cache
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ runner.temp }}/merismos-submission-video/narration
+          key: ${{ steps.narration-cache.outputs.cache-primary-key }}
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22.23.1
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install exact browser dependencies in CI only
+        run: |
+          set -euo pipefail
+          npm install --global npm@11.19.1 --ignore-scripts
+          npm ci --prefix frontend --ignore-scripts
+          npx --prefix frontend playwright install --with-deps chromium
+
+      - name: Record the seven-beat public product journey
+        run: node video/capture-production.mjs
+
+      - name: Compose the final video and evidence files
+        run: python3 video/build-video.py
+
+      - name: Enforce one-frame A/V and caption sync on the shipped pixels
+        run: |
+          set -euo pipefail
+          python3 scripts/verify_video_sync.py \
+            "${MERISMOS_VIDEO_ROOT}/output/merismos-submission.mp4" \
+            --release-sha "${MERISMOS_RELEASE_SHA}"
+
+      - name: Validate the upload package
+        run: |
+          set -euo pipefail
+          output="${MERISMOS_VIDEO_ROOT}/output"
+          for name in merismos-submission.mp4 captions.en.srt timing.json capture-receipt.json video-receipt.json ffprobe.json verification-report.json; do
+            test -s "${output}/${name}"
+          done
+          jq -e \
+            --arg sha "${MERISMOS_RELEASE_SHA}" \
+            --argjson deploy "${MERISMOS_DEPLOY_RUN_ID}" \
+            --argjson frontend "${MERISMOS_FRONTEND_RUN_ID}" \
+            '.schemaVersion == "merismos.submission-video-receipt/v1"
+             and .releaseSha == $sha
+             and .deployRunId == $deploy
+             and .frontendRunId == $frontend
+             and .durationSeconds >= 90
+             and .durationSeconds < 175
+             and .fps == 25
+             and .width == 1920
+             and .height == 1080
+             and .sceneCount == 7
+             and (.sha256 | test("^[a-f0-9]{64}$"))
+             and .bytes > 1000000' \
+            "${output}/video-receipt.json" >/dev/null
+          jq -e --arg sha "${MERISMOS_RELEASE_SHA}" \
+            '.passed == true and .releaseSha == $sha and .failures == []' \
+            "${output}/verification-report.json" >/dev/null
+          test "$(sha256sum "${output}/merismos-submission.mp4" | awk '{print $1}')" = \
+            "$(jq -er .sha256 "${output}/video-receipt.json")"
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: merismos-submission-video-${{ inputs.release_sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/merismos-submission-video/output/
+          if-no-files-found: error
+          retention-days: 90
+          compression-level: 0
+
+      - name: Remove runner-only media
+        if: always()
+        run: |
+          set -euo pipefail
+          test "${MERISMOS_VIDEO_ROOT:-}" = "${RUNNER_TEMP}/merismos-submission-video"
+          rm -rf -- "${MERISMOS_VIDEO_ROOT}"
+
+      - name: Require a clean source checkout
+        if: always()
+        run: test -z "$(git status --porcelain)"
