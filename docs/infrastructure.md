@@ -117,7 +117,9 @@ Objects written by CI, not by the stack: release files under `releases/<sha>/` p
 | `aws_lambda_function_url.reader`, `aws_lambda_permission.reader_answers_anyone` | reader Function URL | Auth type NONE with a public invoke permission. Public Function URLs were refused at account level at the 2026-09-02 checkpoint, which is why the HTTP API exists; not the public path | `infra/main.tf:201-224`; `infra/gateway.tf:4-12` |
 | `aws_lambda_function_url.private` (2) | evaluator and writer Function URLs | Auth type AWS_IAM | `infra/main.tf:226-230` |
 
-The live API host is `efnt6e0kv7.execute-api.eu-west-1.amazonaws.com` (`infra/frontend.json:6`, `.github/workflows/still-up.yml:37`). It answers directly as well as through CloudFront: nothing restricts it to CloudFront (`infra/frontend_stack.py:123-126`). The runner has no Function URL (`infra/main.tf:201-230`).
+The live API host is `efnt6e0kv7.execute-api.eu-west-1.amazonaws.com` (`infra/frontend.json:6`). It answers
+directly as well as through CloudFront: nothing restricts it to CloudFront
+(`infra/frontend_stack.py:123-126`). The runner has no Function URL (`infra/main.tf:201-230`).
 
 ### Compute
 
@@ -140,10 +142,15 @@ Sources: timeout keys on the function name (`infra/main.tf:94`), memory on the r
 | `aws_dynamodb_table.approvals` | `merismos-approvals` | One-use approvals, with `ttl` one day after expiry, and same-category lanes; on-demand; key `nonce`; point-in-time recovery | `infra/main.tf:278-299`; `src/merismos/approval.py:227`, `:270-291` |
 | `aws_s3_bucket.corpus` with public access block and versioning | `merismos-corpus-<hex>` | The network's filing: private, versioned, emptied on destroy while `destroyable` is true; the writer files typed offers under `offers/` | `infra/main.tf:308-326`; `infra/variables.tf:59`; `src/merismos/handler.py:726-739` |
 | `aws_s3_object.corpus` | 14 objects | Seeds `corpus/**`: 3 offers, 3 manifests, 5 organisations, 3 registers | `infra/main.tf:387-394` |
-| `aws_s3_bucket.records` with public access block, bucket policy and versioning | `merismos-records-<hex>` (live `merismos-records-e6ac6047`, `.github/workflows/still-up.yml:83`) | Published records `records/offer-<n>[-cN].md`, created only if absent; anyone may `s3:GetObject` on `records/*` and nothing else; versioned; no lifecycle rule | `infra/main.tf:330-382`; `src/merismos/handler.py:556`, `:609-614` |
+| `aws_s3_bucket.records` with public access block, bucket policy, versioning and a probe-only lifecycle | `merismos-records-<hex>` | Published records `records/offer-<n>[-cN].md`, created only if absent; anyone may `s3:GetObject` on `records/*` and nothing else. The bucket is versioned. A lifecycle rule scoped only to noncurrent `probes/` versions expires them after one day; it does not expire published `records/` objects | `infra/main.tf`; `src/merismos/handler.py` |
 | `aws_secretsmanager_secret.publish` with a version | `merismos/publish-<hex>` | A boundary canary that the publish path never reads; recovery window 0 days | `infra/main.tf:401-429`; `infra/iam.tf:11-15` |
 
-Sandbox runs keep their events inside the workspace item, not as ledger rows (`src/merismos/api.py:529-537`). `/identity` writes zero-byte `probes/identity-<role>` objects, outside the public prefix (`src/merismos/handler.py:372-374`).
+Sandbox runs keep their events inside the workspace item, not as ledger rows (`src/merismos/api.py:529-537`).
+`/identity` conditionally writes zero-byte objects at fixed `probes/identity-<role>` keys, outside the public
+prefix. `IfNoneMatch="*"` means the first successful write creates the marker; a later 412 response proves the
+same write authority without creating another version. Anonymous requests still cause S3 and Secrets Manager work,
+and `/identity?all=1` also invokes the evaluator and writer. The probe-only lifecycle bounds noncurrent-version
+retention; it does not make these endpoints cost-free (`src/merismos/handler.py`).
 
 ### Scheduling
 
@@ -165,11 +172,15 @@ Schedules are named `merismos-wake-<id>`, fire once, delete themselves, retry 3 
 | `aws_cloudwatch_metric_alarm.reader_errors` | `merismos-reader-errors` | More than 5 reader errors in 300 seconds; no alarm action | `infra/gateway.tf:123-135` |
 | `aws_cloudwatch_metric_alarm.reader_volume` | `merismos-reader-unexpected-volume` | More than 500 reader invocations in 3,600 seconds; no alarm action | `infra/gateway.tf:137-149`; `infra/variables.tf:85` |
 
-No alarm watches the runner, evaluator, writer, API stage or dead-letter queue (`infra/gateway.tf:123-149` are the only alarms). `still-up.yml` fetches three server-rendered pages from the API Gateway host (`/`, `/approve/offer-4471` and `/offers/new`), which are the internal compatibility view rather than the CloudFront app (`src/merismos/web.py:190-193`), and one record URL, anonymously on Mondays and Thursdays at 09:00 UTC (`.github/workflows/still-up.yml:23`, `:37`, `:44`, `:59`, `:75`, `:83`); nothing on a schedule checks the CloudFront URL.
+No alarm watches the runner, evaluator, writer, API stage or dead-letter queue
+(`infra/gateway.tf:123-149` are the only alarms). On Mondays and Thursdays at 09:00 UTC, `still-up.yml`
+anonymously checks the judge-facing CloudFront root, `release.json`, `acceptance.html` and the safe
+`/api/version` route. It does not invoke the active `/identity` probes or treat an internal compatibility page or
+the known contradictory offer-4471 record as a health proxy (`.github/workflows/still-up.yml`).
 
 ### Resource count
 
-Terraform declares 65 instances: 51 plus the 14 corpus objects. `deploy.yml` says "This stack is 51 resources" and fails any plan that adds more than 12 (`.github/workflows/deploy.yml:83-90`). The frontend stack adds 7 CloudFormation resources (`infra/frontend_stack.py:57-188`). The [dated deployment record](deploy-2026-09-02.md) counted 61 at its own checkpoint.
+Terraform declares 66 instances: 52 plus the 14 corpus objects. `deploy.yml` says "This stack is 52 resources" and fails any plan that adds more than 12 (`.github/workflows/deploy.yml:83-90`). The frontend stack adds 7 CloudFormation resources (`infra/frontend_stack.py:57-188`). The [dated deployment record](deploy-2026-09-02.md) counted 61 at its own checkpoint.
 
 ## IAM roles and what each may do
 
@@ -245,7 +256,8 @@ Jobs with no AWS credentials: `still-up.yml` (`:27`, `:39-40`), the acceptance a
 3. The GitHub OIDC provider, which already existed in the account; its creator is not in the repository (`infra/bootstrap.sh:68-69`).
 4. The CloudFormation stack `merismos-frontend`: site bucket (retained on deletion), origin access control, router function, headers policy, distribution, bucket policy and release role (`infra/frontend_stack.py:57-188`). How the stack was first deployed is not in the repository.
 5. GitHub configuration: the `aws` environment with secret `AWS_DEPLOY_ROLE_ARN` (`infra/bootstrap.sh:277-282`; `.github/workflows/deploy.yml:37`, `:50`), the variable `FRONTEND_RELEASE_ROLE_ARN` (`.github/workflows/frontend-deploy.yml:43`, `:57`), and the variables `MERISMOS_EVAL_GRANT_JSON` and `MERISMOS_EVAL_GRANT_SHA256` (`.github/workflows/ci.yml:165`, `:177-178`).
-6. Objects created at runtime: EventBridge schedules (`src/merismos/deferral.py:196-213`), records and probe objects, filed offers, frontend releases and acceptance receipts.
+6. Objects created at runtime: EventBridge schedules (`src/merismos/deferral.py:196-213`), published records,
+   fixed private probe markers, filed offers, frontend releases and acceptance receipts.
 7. What survives a `terraform destroy`: layer versions (`infra/main.tf:169-177`), the whole CloudFormation frontend stack, whose site bucket is also retained if the stack itself is deleted (`infra/frontend_stack.py:59-60`), the state bucket and the deploy role (`.github/workflows/deploy.yml:379-389`). The teardown's leftover check lists Lambda functions, DynamoDB tables, S3 buckets, IAM roles, SQS queues and Scheduler groups whose names start with `merismos` (`.github/workflows/deploy.yml:390-395`) and leaves out only the state bucket and the deploy role (`:385`). It does not list API Gateway, log groups, alarms, the Secrets Manager canary or layer versions. The frontend stack's site bucket (`merismos-web-<account>-<region>`, `infra/frontend_stack.py:62`) and release role (`merismos-frontend-release`, `:162`) are outside Terraform but match the listing, so while that stack exists a run with `keep=no` fails with "teardown left resources behind" (`.github/workflows/deploy.yml:404-409`).
 
 ## What is not deployed
@@ -263,7 +275,7 @@ Jobs with no AWS credentials: `still-up.yml` (`:27`, `:39-40`), the acceptance a
 | CPU architecture setting | No `architectures` argument, so the AWS default (x86_64) applies | `infra/main.tf:75-163` |
 | Custom domain | Default CloudFront certificate, no aliases | `infra/frontend_stack.py:118` |
 | CloudFront access logging | No logging configuration | `infra/frontend_stack.py:113-139` |
-| S3 lifecycle rules or write-once retention | None declared | `infra/main.tf:308-382` |
+| S3 write-once retention for published records | None declared. Versioning makes an overwrite recoverable, but there is no Object Lock or retention policy. The only lifecycle rule is scoped to noncurrent private `probes/` versions; it does not expire `records/` | `infra/main.tf` |
 | Thread table TTL | None, so sandbox session items are not deleted automatically | `infra/main.tf:236-276` |
 | CloudTrail trail | None declared | `infra/*.tf` |
 | AgentCore | Not deployed; nothing in `src/`, `infra/` or `.github/` names it | `git grep -i agentcore` |

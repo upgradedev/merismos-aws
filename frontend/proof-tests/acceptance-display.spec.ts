@@ -11,7 +11,7 @@ function receipt() {
     observed_at: new Date(Date.now() - 1000).toISOString().replace(/\.\d{3}Z$/, 'Z'),
     preflight: 'SUCCESS', journeys: 'SUCCESS', postflight: 'SUCCESS',
     junit: { total: 24, passed: 24, failed: 0, skipped: 0 }, human_uat: 'NOT_RUN', mode: 'synthetic_scripted',
-    limits: 'Synthetic scripted-planner/1.0.0 through real Strands and AWS HTTP persistence. Product journeys only; proof-display fixtures and post-publication proof checks are counted separately. No Bedrock model calls, real food rescue, authenticated live-coordinator publication (ME18), or human UAT.',
+    limits: 'Synthetic scripted-planner/1.0.0 through real Strands and AWS HTTP persistence. Product journeys only; proof-display fixtures and post-publication proof checks are counted separately. No Bedrock model calls, real food rescue, deploy-time writer read-capability probe (ME18), authenticated live-coordinator publication, or human UAT.',
     workflow_status: 'NOT_ASSERTED',
   };
 }

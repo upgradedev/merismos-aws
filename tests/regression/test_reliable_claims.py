@@ -18,7 +18,7 @@ def test_first_screen_names_persona_live_path_and_real_demo_limit(path):
     text = (ROOT / path).read_text(encoding="utf-8")
     assert LIVE in text[:1000]
     assert "coordinator" in text[:1000].lower()
-    assert "Try success" in text[:1100]
+    assert "Try success" in text[:1400]
     assert "Strands" in text
     assert "read-only" in text
     assert "no model network call" in text.replace("\n", " ")
@@ -27,6 +27,8 @@ def test_first_screen_names_persona_live_path_and_real_demo_limit(path):
 
 def test_narration_and_script_share_bounds_and_do_not_claim_automatic_delivery():
     data = json.loads((ROOT / "video/narration.json").read_text(encoding="utf-8"))
+    assert data["schemaVersion"] == "merismos.submission-video/v1"
+    assert "voice" not in data
     assert [entry["id"] for entry in data["segments"]] == [
         "hook", "surface", "trigger", "live", "sponsor", "evidence", "close"]
     text = " ".join(entry["captionText"] for entry in data["segments"])
@@ -71,3 +73,103 @@ def test_live_model_proof_uses_private_iam_not_fake_http_authority():
     assert '.checks.custody_head_read.allowed == true' in deploy
     assert '"authorizer":' not in deploy
     assert '"principalId":' not in deploy
+
+
+def _flat(path):
+    return " ".join((ROOT / path).read_text(encoding="utf-8").split())
+
+
+def test_current_public_surfaces_keep_rules_before_eligible_strands_loops():
+    rules_first = [
+        "README.md", "docs/devpost-description.md", "docs/architecture.md",
+        "docs/video-script.md", "frontend/src/ArchitectureView.tsx",
+        "frontend/src/UserJourneysView.tsx", "video/narration.json",
+    ]
+    for path in rules_first:
+        text = _flat(path).lower()
+        assert ("rules first" in text or "deterministic rules run first" in text
+                or "deterministic rules before" in text), path
+    for path in (
+        "README.md", "docs/devpost-description.md", "docs/video-script.md",
+        "frontend/src/ArchitectureView.tsx", "frontend/src/UserJourneysView.tsx",
+        "video/narration.json",
+    ):
+        text = _flat(path).lower()
+        assert "fixed" in text and "tool sequence" in text and "closing answer" in text, path
+
+
+def test_current_surfaces_scope_mutability_collection_and_source_references():
+    architecture = _flat("frontend/src/ArchitectureView.tsx")
+    journeys = _flat("frontend/src/UserJourneysView.tsx")
+    pickups = _flat("frontend/src/Pickups.tsx")
+    assert "separate versioned workspace item" in architecture
+    assert "not an append-only ledger" in architecture
+    assert "not pickup events in the append-only run ledger" in journeys
+    assert "agreed time is optional" in journeys
+    assert "Optional. If you set one" in pickups
+    for path in ("README.md", "docs/devpost-description.md", "docs/architecture.md",
+                 "docs/evidence.md", "video/narration.json"):
+        assert "logical source references from the current API snapshot" in _flat(path), path
+
+
+def test_me18_and_capture_preflight_remain_precisely_scoped():
+    for path in ("README.md", "docs/evidence.md", "frontend/UAT.testbook.html",
+                 "frontend/public/acceptance.html", "frontend/public/acceptance.js"):
+        text = _flat(path)
+        assert "writer read-capability probe" in text, path
+        assert "publication and recovery drill (ME18)" not in text, path
+    testbook = json.loads((ROOT / "frontend/UAT.testbook.json").read_text(encoding="utf-8"))
+    me18 = next(case for case in testbook["cases"] if case["id"] == "ME18")
+    assert me18["requirement"] == "Actual writer read capability"
+    assert me18["current_revision_status"] == "NOT_RUN"
+    script = _flat("docs/video-script.md")
+    for phrase in ("My sandbox", "Start over in a new sandbox", "Shared demo records",
+                   "known contradictory offer-4471 record"):
+        assert phrase in script
+    narration = _flat("video/narration.json")
+    assert "select My sandbox and start a fresh workspace" in narration
+
+
+def test_current_claims_drop_unreproducible_or_overbroad_language():
+    paths = [
+        "README.md", "docs/devpost-description.md", "docs/architecture.md",
+        "docs/cost-and-latency.md", "docs/evidence.md", "docs/video-script.md",
+        "docs/video/cards.html", "frontend/src/ArchitectureView.tsx",
+        "frontend/src/UserJourneysView.tsx", "frontend/src/OfferDetail.tsx",
+        "frontend/src/Pickups.tsx", "video/narration.json",
+    ]
+    forbidden = (
+        "$1.62", "Strands runs each specialist", "four specialists run as",
+        "three separate facts", "permanent public", "public sources",
+        "cannot run up cost", "at 5 reader errors",
+        "superseded record stays served with a notice",
+    )
+    for path in paths:
+        text = _flat(path)
+        for phrase in forbidden:
+            assert phrase not in text, f"{path}: {phrase}"
+
+
+def test_scheduled_reachability_checks_only_the_judge_facing_safe_surfaces():
+    workflow = _flat(".github/workflows/still-up.yml")
+    for literal in ("d2qnkmlhs7y5fp.cloudfront.net", "release.json", "acceptance.html",
+                    "api/version"):
+        assert literal in workflow
+    for stale_target in ("execute-api", "approve/offer-4471", "offers/new",
+                         "merismos-records-e6ac6047", "${ROOT_URL}identity"):
+        assert stale_target not in workflow
+
+
+def test_readme_uses_resolving_badges_and_release_diagram_stays_github_safe():
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    ci_badge = ("[![CI](https://github.com/upgradedev/merismos-aws/actions/workflows/"
+                "ci.yml/badge.svg?branch=main)]")
+    frontend_badge = ("[![Frontend verification](https://github.com/upgradedev/merismos-aws/"
+                      "actions/workflows/frontend-ci.yml/badge.svg?branch=main)]")
+    assert ci_badge in readme
+    assert frontend_badge in readme
+    diagram = (ROOT / "docs/release-and-validation.md").read_text(encoding="utf-8")
+    block = diagram.split("```mermaid", 1)[1].split("```", 1)[0]
+    assert "accTitle:" in block and "accDescr:" in block
+    for unsupported in ('[/"', '\\]:::', '>"', '{{"', '[("'):
+        assert unsupported not in block

@@ -7,30 +7,30 @@ nothing; a push to `main` publishes the frontend; the backend changes only when 
 ```mermaid
 flowchart TB
     accTitle: Merismos delivery pipeline
-    accDescr: A pull request runs CI and Frontend verification, and so does a push to main or a codex branch (CI also on feat branches); the AWS hosting contract and Docs verification run only when their files change. A merge to main runs Frontend verification again, checks that the deployed backend matches the runtime source, confirms main has not moved, publishes the site, smoke tests it, runs the live Playwright testbook, publishes an acceptance receipt and reads the public proof page without credentials. The backend changes only when someone dispatches deploy.yml: a plan that fails above 12 additions, a stop by default because dry run is the default, then apply and proofs. With keep set to no a destroy follows whether or not the proofs passed, and every apply ends by listing what still stands. A new backend at the version endpoint is what lets a frontend release that changed runtime paths pass its preflight.
+    accDescr: Pull requests run source checks. A push to main verifies and publishes the frontend, then runs live acceptance. A manual backend dispatch plans first, applies only when dry run is disabled, proves the deployment and can tear it down.
 
     subgraph Every["Pull request, or push to a CI branch"]
-        Pr(["Open a pull request or push"]):::human
-        Checks[/"CI and Frontend verification"\]:::cicd
+        Pr("Open a pull request or push"):::human
+        Checks["CI and Frontend verification"]:::cicd
     end
     subgraph Frontend["Merge to main: frontend"]
-        Merge(["Merge to main"]):::human
-        Verify{{"Frontend verification again"}}:::gate
-        Preflight{{"Backend preflight"}}:::gate
-        Guard{{"Main still at this commit"}}:::gate
-        Publish[("Publish: HTML last")]:::store
-        Smoke{{"Smoke test"}}:::gate
-        Testbook{{"Live Playwright testbook"}}:::gate
-        Receipt[("Acceptance receipt published")]:::store
-        ProofRead{{"Proof page read anonymously"}}:::gate
+        Merge("Merge to main"):::human
+        Verify{"Frontend verification again"}:::gate
+        Preflight{"Backend preflight"}:::gate
+        Guard{"Main still at this commit"}:::gate
+        Publish["Publish: HTML last"]:::store
+        Smoke{"Smoke test"}:::gate
+        Testbook{"Live Playwright testbook"}:::gate
+        Receipt["Acceptance receipt published"]:::store
+        ProofRead{"Proof page read anonymously"}:::gate
     end
     subgraph Backend["Manual dispatch: backend"]
-        Dispatch(["Dispatch deploy.yml"]):::human
-        Plan{{"Plan: at most 12 additions"}}:::gate
-        DryRun>"Stopped: dry run, plan kept"]:::refused
-        Apply[/"Terraform apply"\]:::cicd
-        Proofs{{"IAM and model proofs"}}:::gate
-        Teardown[/"Destroy, list leftovers"\]:::cicd
+        Dispatch("Dispatch deploy.yml"):::human
+        Plan{"Plan: at most 12 additions"}:::gate
+        DryRun["Stopped: dry run, plan kept"]:::refused
+        Apply["Terraform apply"]:::cicd
+        Proofs{"IAM and model proofs"}:::gate
+        Teardown["Destroy, list leftovers"]:::cicd
     end
 
     Pr --> Checks
@@ -45,7 +45,7 @@ flowchart TB
     Receipt --> ProofRead
     Dispatch --> Plan
     Plan -->|"dry run yes"| DryRun
-    Plan --->|"dry run no"| Apply
+    Plan -->|"dry run no"| Apply
     Apply --> Proofs
     Proofs -->|"keep no, pass or fail"| Teardown
     Apply -.->|"new backend at /api/version"| Preflight
@@ -58,12 +58,12 @@ flowchart TB
     classDef gate fill:#1d7c3c,stroke:#15592b,stroke-width:2px,color:#ffffff
     classDef store fill:#576f89,stroke:#3f5063,stroke-width:2px,color:#ffffff
     classDef cicd fill:#7f6a03,stroke:#5b4c02,stroke-width:2px,color:#ffffff
-    classDef refused fill:#d22231,stroke:#971823,stroke-width:2px,color:#ffffff,stroke-dasharray:5 5
+    classDef refused fill:#d22231,stroke:#971823,stroke-width:2px,color:#ffffff
 ```
 
-Purple stadium: a person's act. Olive trapezoid: a workflow step that runs. Green hexagon: a check that
-stops the pipeline when it fails. Slate cylinder: what gets published. Red flag with a dashed border: a
-stop. The dotted arrow couples the two pipelines: a new backend at `/api/version` is what lets a frontend
+Purple rounded node: a person's act. Olive rectangle: a workflow step that runs. Green diamond: a check that
+stops the pipeline when it fails. Slate rectangle: what gets published. Red rectangle: a stop. The dotted
+arrow couples the two pipelines: a new backend at `/api/version` is what lets a frontend
 release that changed runtime paths pass its preflight, on the next push to `main` or a manual dispatch of
 the frontend release.
 
@@ -72,9 +72,9 @@ verification when their files change. A push to `main` runs Frontend verificatio
 backend answering `/api/version` matches the runtime source, confirms that `main` has not moved,
 publishes the site, smoke tests it, runs the live Playwright testbook against AWS, publishes an
 acceptance receipt and reads the public proof page without credentials. The backend deploys only when
-someone dispatches `deploy.yml` by hand, and it defaults to a dry run. `still-up.yml` fetches three
-server-rendered pages from the API Gateway endpoint, which are the internal compatibility view rather
-than the CloudFront app, and one published record, anonymously and with no credentials, twice a week.
+someone dispatches `deploy.yml` by hand, and it defaults to a dry run. Twice a week, `still-up.yml`
+anonymously checks the judge-facing CloudFront root, release manifest, acceptance page and safe backend version
+route, with no credentials.
 
 ## What each workflow checks
 
@@ -87,7 +87,7 @@ than the CloudFront app, and one published record, anonymously and with no crede
 | `frontend-deploy.yml` (Deploy AWS frontend) | every push to `main`; manual dispatch | Frontend verification, the backend release preflight, the stale-dispatch guard, publication with HTML last, a smoke test, then `aws-uat.yml` |
 | `aws-uat.yml` (Live AWS acceptance) | called by `frontend-deploy.yml`; manual dispatch | the live desktop and mobile Playwright journeys against CloudFront, the acceptance receipt, and a read of the public proof page without credentials |
 | `deploy.yml` (Deploy, prove, tear down) | manual dispatch only, in the `aws` environment | a Terraform plan that fails above 12 additions, a dry run by default, apply, IAM and model proofs, an optional destroy, and a listing of what still stands |
-| `still-up.yml` (The judges can still reach it) | Mondays and Thursdays at 09:00 UTC; manual dispatch | anonymous fetches of three server-rendered pages on the API Gateway endpoint (`/`, `/approve/offer-4471`, `/offers/new`), which are the internal compatibility view rather than the CloudFront app, and of one published record |
+| `still-up.yml` (The judges can still reach it) | Mondays and Thursdays at 09:00 UTC; manual dispatch | anonymous checks of the CloudFront root, `release.json`, `acceptance.html` and the safe `/api/version` route; it does not invoke `/identity` or use the contradictory offer-4471 record as a health proxy |
 | `source-measurement.yml` (Source-only dispatch measurement) | pushes to `codex/dispatch-measurement-20260910`; manual dispatch | 20 preregistered Playwright attempts on the offline harness |
 
 ## Frontend release on a push to main

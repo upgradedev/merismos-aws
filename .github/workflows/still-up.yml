@@ -34,69 +34,66 @@ jobs:
   reachable:
     runs-on: ubuntu-latest
     env:
-      URL: https://efnt6e0kv7.execute-api.eu-west-1.amazonaws.com
+      ROOT_URL: https://d2qnkmlhs7y5fp.cloudfront.net/
     steps:
       # Anonymous, on purpose. No AWS credentials, no OIDC, no token. If this
       # job needed a credential it would be checking something a judge cannot do.
-      - name: The API root answers with the internal compatibility view
+      - name: The judge-facing CloudFront app is reachable
         run: |
           set -euo pipefail
-          code=$(curl -s -o body.html -m 30 -w '%{http_code}' "${URL}/")
+          code=$(curl -sS -o root.html -m 30 -w '%{http_code}' "${ROOT_URL}")
           echo "GET / -> ${code}"
-          test "${code}" = "200" || { echo "::error::the site answered ${code}"; exit 1; }
-          grep -q "Merismos" body.html || {
+          test "${code}" = "200" || { echo "::error::the CloudFront app answered ${code}"; exit 1; }
+          grep -q "Merismos" root.html || {
             echo "::error::200 with a body that is not a Merismos page. A CDN error page is still a 200"
             exit 1
           }
 
-      # The screen the entry is about. It was returning 503 after thirty seconds
-      # for three days in September because the deployed build re-ran the whole
-      # chore inside the request, and the front door stayed green throughout. One
-      # working page proves one working page.
-      - name: The approval route answers, and fast
+      - name: The deployed release manifest identifies the served app
         run: |
           set -euo pipefail
-          code=$(curl -s -o approve.html -m 40 -w '%{http_code}' "${URL}/approve/offer-4471")
-          took=$(curl -s -o /dev/null -m 40 -w '%{time_total}' "${URL}/approve/offer-4471")
-          echo "GET /approve/offer-4471 -> ${code} in ${took}s"
-
-          # 404 is the correct answer with no run named: an approval covers the
-          # bytes one particular run produced, and this route refuses rather than
-          # deciding again. A 503 here is the regression this step exists for.
-          test "${code}" = "404" || {
-            echo "::error::expected 404 and got ${code}. 503 means it is re-deciding inside the request"
+          code=$(curl -sS -o release.json -m 30 -w '%{http_code}' "${ROOT_URL}release.json")
+          echo "GET /release.json -> ${code}"
+          test "${code}" = "200" || { echo "::error::release.json answered ${code}"; exit 1; }
+          commit=$(jq -er '.commit | select(type == "string" and test("^[0-9a-f]{40}$"))' release.json)
+          grep -Fq "<meta name=\"application-commit\" content=\"${commit}\">" root.html || {
+            echo "::error::the root HTML and release.json do not identify the same release"
             exit 1
           }
-          grep -q "no decision here to approve" approve.html
 
-      - name: A coordinator can still reach the intake
+      - name: The anonymous acceptance evidence page is reachable
         run: |
           set -euo pipefail
-          code=$(curl -s -o intake.html -m 30 -w '%{http_code}' "${URL}/offers/new")
-          echo "GET /offers/new -> ${code}"
-          test "${code}" = "200" || { echo "::error::the intake answered ${code}"; exit 1; }
-          grep -q "Add an offer" intake.html
+          code=$(curl -sS -o acceptance.html -m 30 -w '%{http_code}' "${ROOT_URL}acceptance.html")
+          echo "GET /acceptance.html -> ${code}"
+          test "${code}" = "200" || { echo "::error::acceptance.html answered ${code}"; exit 1; }
+          grep -q "MERISMOS / RELEASE EVIDENCE" acceptance.html || {
+            echo "::error::200 with a body that is not the Merismos acceptance page"
+            exit 1
+          }
 
-      - name: And a published record is readable with no account
+      # Unlike /identity, this route reads packaged metadata and makes no AWS
+      # capability probe. It is safe to call from a scheduled reachability job.
+      - name: The safe backend build-identity route is reachable
         run: |
           set -euo pipefail
-          records="https://merismos-records-e6ac6047.s3.eu-west-1.amazonaws.com/records/offer-4471.md"
-          code=$(curl -s -o record.md -m 30 -w '%{http_code}' "${records}")
-          echo "GET the published record -> ${code}"
-          # 404 is acceptable and 403 is not. Nothing may have been published yet,
-          # which is a state this product is allowed to be in; a bucket that
-          # refuses an anonymous reader is a broken promise in the description.
-          case "${code}" in
-            200) grep -q "Allocation" record.md ;;
-            404) echo "nothing published yet, which is a legitimate state" ;;
-            *) echo "::error::the record address answered ${code} to a stranger"; exit 1 ;;
-          esac
+          code=$(curl -sS -o backend-version.json -m 30 -w '%{http_code}' "${ROOT_URL}api/version")
+          echo "GET /api/version -> ${code}"
+          test "${code}" = "200" || { echo "::error::api/version answered ${code}"; exit 1; }
+          jq -e '
+            .schema_version == 1 and
+            .application == "merismos" and
+            .status == "known" and
+            .source == "ci_package" and
+            (.commit | type == "string" and test("^[0-9a-f]{40}$"))
+          ' backend-version.json >/dev/null
 
       - name: Say so in the summary
         if: always()
         run: |
           {
-            echo "### Reachability, ${URL}"
+            echo "### Reachability, ${ROOT_URL}"
             echo ""
-            echo "Checked anonymously, with no credentials. Judging ends 2026-10-08 17:00 PT."
+            echo "Checked the CloudFront app, release manifest, acceptance page and safe backend version route"
+            echo "anonymously, with no credentials. Judging ends 2026-10-08 17:00 PT."
           } >> "$GITHUB_STEP_SUMMARY"

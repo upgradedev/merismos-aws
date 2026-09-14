@@ -1,10 +1,13 @@
 # Merismos
 
-Merismos helps a volunteer food coordinator split donations across community organisations: rules and agents check every share before the coordinator approves the exact plan.
+Maria, a fictional volunteer food coordinator, uses Merismos rules and Strands agents to check each share before
+approving an exact allocation.
 
 [Open the coordinator workspace](https://d2qnkmlhs7y5fp.cloudfront.net/), with no account or installation for the synthetic sandbox.
 
-[CI](https://github.com/upgradedev/merismos-aws/actions/workflows/ci.yml) · [Frontend verification](https://github.com/upgradedev/merismos-aws/actions/workflows/frontend-ci.yml) · [MIT licence](LICENSE)
+[![CI](https://github.com/upgradedev/merismos-aws/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/upgradedev/merismos-aws/actions/workflows/ci.yml)
+[![Frontend verification](https://github.com/upgradedev/merismos-aws/actions/workflows/frontend-ci.yml/badge.svg?branch=main)](https://github.com/upgradedev/merismos-aws/actions/workflows/frontend-ci.yml)
+[![Licence: MIT](https://img.shields.io/badge/licence-MIT-2ea44f.svg)](LICENSE)
 
 ## Try one short flow
 
@@ -19,7 +22,8 @@ To try an invented donation, choose **+ Add offer → Try success**, edit the fi
 
 - **Try refusal** fills in a broken cold chain; after **Add to sandbox** and **Work out the split** it is refused in full and never offered for approval.
 - **Try correction** fills in a phone-shaped note: intake refuses it on **Add to sandbox**, keeps the fields and accepts a corrected note.
-- In **Evidence bundle and recovery**, **Copy evidence bundle** copies the decision, sources, run, revision, provider, mode, history and limits.
+- In **Evidence bundle and recovery**, **Copy evidence bundle** copies the decision, logical source references from
+  the current API snapshot, run, revision, provider, mode, history and limits.
 - **Import a donor CSV instead** (under **+ Add offer**) files only the rows you select. **Rehearse a collection disruption** proposes a new plan after one recipient's capacity drops. **Pickup manifest · copy or download** gives a plain-text handoff that sends no message.
 - **About this demo**, in the page footer, shows the provider, the snapshot time and the automated test reports.
 
@@ -49,17 +53,18 @@ coordinator's approval publishes a public record. A live change needs an API Gat
 identifies a network coordinator with `merismos:coordinate`. None is deployed on the public API, so every public
 live change is refused with 403. A typed name, body identity or client-supplied header is not authentication.
 
-Strands is load-bearing: removing the SDK stops the agent journey, and removing its `BeforeToolCallEvent` guard lets
-a denied tool call through in the negative-control test. A separate deterministic gate checks each draft, so not
-every refusal comes from the Strands guard. Live runs use Amazon Bedrock with `eu.anthropic.claude-opus-5`, and a
-public request cannot start one; a configured model is not evidence that a run called it. An optional critic, a
-second Bedrock call with no tools that reviews the prose about an allocation, is off by default and is not a
-separate Lambda. Merismos does not run on AgentCore. The 40% ceiling, under which no organisation receives more than
-40% of one offer, is this network's policy, not a universal or certified definition of fairness.
+Strands is load-bearing: removing the SDK stops the eligible specialist agent journey, and removing its
+`BeforeToolCallEvent` guard lets a denied tool call through in the negative-control test. Deterministic rules run
+first, and a specialist they refuse never calls a model. Terraform currently configures Amazon Bedrock with
+`eu.anthropic.claude-opus-5`, but a configured model is not evidence that the frozen release called it; the exact
+runtime model must come from that release's deploy proof. A public request cannot start a live run. An optional
+critic, a second Bedrock call with no tools that reviews the prose about an allocation, is off by default and is
+not a separate Lambda. Merismos does not run on AgentCore. The 40% ceiling, under which no organisation receives
+more than 40% of one offer, is this network's policy, not a universal or certified definition of fairness.
 
 Not measured: human active time, time saved, food rescued, beneficiary impact and adoption. Not run: human
-acceptance testing, the authenticated publication and recovery drill (ME18), real-device Safari testing and a timed
-first-use test. The first published
+acceptance testing, the deploy-time writer read-capability probe (ME18), the separate authenticated publication
+and recovery drill, real-device Safari testing and a timed first-use test. The first published
 [offer-4471 record](https://merismos-records-e6ac6047.s3.eu-west-1.amazonaws.com/records/offer-4471.md)
 contains a known contradictory allocation, preserved as historical evidence, not repaired automatically and not
 presented as a correct plan. [Evidence and honest limits](docs/evidence.md) has the evidence levels, retained
@@ -130,18 +135,14 @@ read it, and the reader and evaluator are denied. Read on in the
 
 ## Cost and sustainability
 
-**The live proof in one deploy apply costs a median of $1.62.** This was measured read-only over the five deploy
-applies between 2026-09-09 and 2026-09-13 that called the model. Each proof invokes the background runner twice: for
-offer-4471, which the model answers, and for the refused offer-4477. How the cost splits between those two
-invocations is not measured. At the AWS Pricing API's eu-west-1 on-demand prices the five proofs cost $1.44 to $1.78
-each, with a median of $1.62, and Bedrock is about 99.6% of it. Taken column by column, the medians were 43 Bedrock
-calls to `eu.anthropic.claude-opus-5`, 170,499 input and 23,712 output tokens, and 365.6 Lambda GB-seconds; no single
-proof had all four. Not measured: cache tokens, cold-start initialisation time, DynamoDB, S3, CloudFront, Scheduler,
-logs, data transfer and the actual invoice. How CloudTrail attributed the calls is in
-[Cost and latency](docs/cost-and-latency.md#measured-cost-of-the-live-proof).
+**No total AWS cost or invoice measurement is claimed.** A historical ESTIMATE combined Bedrock-token and Lambda
+pricing for five deploy proofs, but its raw cost rows are not published, it excluded other AWS services, and no
+single-run amount is used as a current public claim. The limitations and CloudTrail attribution method are in
+[Cost and latency](docs/cost-and-latency.md#historical-deploy-proof-pricing-estimate).
 
-**The public sandbox never calls a model.** Every sandbox run uses the scripted planner inside the reader Lambda
-(`bedrock.scripted_analyst()` in `src/merismos/api.py`). A visitor therefore costs API Gateway requests, Lambda
+**The public sandbox makes no Bedrock or external model call.** Every sandbox run uses a fixed tool sequence and
+closing answer from the scripted planner inside the reader Lambda (`bedrock.scripted_analyst()` in
+`src/merismos/api.py`), while still executing the Strands loop. A visitor therefore costs API Gateway requests, Lambda
 time, on-demand DynamoDB reads and writes, and CloudFront and S3 requests. The functions are not attached to a
 virtual private cloud (VPC), so there is no hourly NAT gateway or VPC endpoint charge. In the product, Bedrock runs
 only in live runs, which start only through an IAM-authorised invocation of the runner.
@@ -151,9 +152,9 @@ problem](docs/cost-and-latency.md#what-bounds-a-problem)). The API is throttled 
 burst of 20, and at most 5 readers and 4 background runners run at once. The reader's asynchronous invokes are
 never retried automatically (the runner keeps Lambda's default retries), and the two alarms notify nobody. The
 hackathon rules require the entry to stay reachable until judging ends on 2026-10-08 17:00 PT. Every Monday and
-Thursday at 09:00 UTC, `still-up.yml` fetches three server-rendered pages from the API Gateway endpoint (`/`,
-`/approve/offer-4471` and `/offers/new`), which are the internal compatibility view rather than the CloudFront app,
-and one published record from S3, all anonymously and with no credentials. [Cost and
+Thursday at 09:00 UTC, `still-up.yml` fetches the judge-facing CloudFront app, its `release.json`, anonymous
+acceptance page and safe `/api/version` build-identity route, all without credentials. It does not use `/identity`
+or the known contradictory historical record as a health proxy. [Cost and
 latency](docs/cost-and-latency.md) also has the sandbox latency sample and how `deploy.yml` tears the deployment
 down.
 
@@ -163,6 +164,9 @@ No AWS account and no credentials, and once installed, no network. That last cla
 suite intercepts every socket and fails the run on any address but loopback. You need Python 3.10 or later (CI uses
 3.13) and the repository root as your working directory. This is a src-layout package, so nothing is importable
 until it is installed; install time depends on your network and was not measured.
+
+**Time to first local result: ESTIMATE unavailable.** No timed local quickstart has been recorded, so this README
+does not invent a duration.
 
 ```bash
 pip install -e ".[dev]"
