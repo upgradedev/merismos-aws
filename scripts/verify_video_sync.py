@@ -1,0 +1,354 @@
+#!/usr/bin/env python3
+"""Fail-closed post-build gate for the seven-beat continuous Merismos capture."""
+
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import os
+import pathlib
+import re
+import subprocess
+
+
+SCENE_IDS = ("hook", "surface", "trigger", "live", "sponsor", "evidence", "close")
+SHA = re.compile(r"[0-9a-f]{40}")
+SRT_WINDOW = re.compile(
+    r"(?m)^(\d+)\r?\n(\d{2}:\d{2}:\d{2},\d{3}) --> "
+    r"(\d{2}:\d{2}:\d{2},\d{3})\r?\n(.+?)(?=\r?\n\r?\n|\Z)",
+    re.DOTALL,
+)
+
+
+class Gate:
+    def __init__(self) -> None:
+        self.failures: list[str] = []
+
+    def check(self, ok: bool, label: str, detail: str) -> None:
+        print(f"  [{'PASS' if ok else 'FAIL'}] {label} :: {detail}")
+        if not ok:
+            self.failures.append(f"{label} :: {detail}")
+
+
+def sha256(path: pathlib.Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def load_json(path: pathlib.Path) -> dict[str, object]:
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as error:
+        raise SystemExit(f"::error::invalid JSON input {path}: {error}") from error
+    if not isinstance(value, dict):
+        raise SystemExit(f"::error::JSON input must be an object: {path}")
+    return value
+
+
+def command(args: list[str]) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(args, capture_output=True, text=True)
+
+
+def probe(path: pathlib.Path) -> dict[str, object]:
+    ffprobe = os.environ.get("FFPROBE", "ffprobe")
+    result = command(
+        [
+            ffprobe,
+            "-v",
+            "error",
+            "-count_frames",
+            "-show_streams",
+            "-show_format",
+            "-of",
+            "json",
+            str(path),
+        ]
+    )
+    if result.returncode != 0:
+        raise SystemExit(f"::error::ffprobe failed: {result.stderr[-1000:]}")
+    try:
+        value = json.loads(result.stdout)
+    except json.JSONDecodeError as error:
+        raise SystemExit("::error::ffprobe did not return JSON") from error
+    if not isinstance(value, dict):
+        raise SystemExit("::error::ffprobe JSON must be an object")
+    return value
+
+
+def rational(value: object) -> float:
+    text = str(value)
+    if "/" in text:
+        numerator, denominator = text.split("/", 1)
+        return float(numerator) / float(denominator)
+    return float(text)
+
+
+def stream_duration(stream: dict[str, object], media: dict[str, object]) -> float:
+    value = stream.get("duration")
+    if value not in (None, "N/A"):
+        return float(value)
+    return float(dict(media.get("format", {})).get("duration", 0))
+
+
+def parse_timestamp(value: str) -> float:
+    hours, minutes, rest = value.split(":")
+    seconds, millis = rest.split(",")
+    return int(hours) * 3600 + int(minutes) * 60 + int(seconds) + int(millis) / 1000
+
+
+def parse_srt(path: pathlib.Path) -> list[tuple[float, float, str]]:
+    text = path.read_text(encoding="utf-8")
+    matches = SRT_WINDOW.findall(text)
+    if not matches:
+        return []
+    numbers = [int(number) for number, _, _, _ in matches]
+    if numbers != list(range(1, len(matches) + 1)):
+        return []
+    return [
+        (parse_timestamp(start), parse_timestamp(end), caption.strip())
+        for _, start, end, caption in matches
+    ]
+
+
+def frame_hash(path: pathlib.Path, at: float) -> str | None:
+    ffmpeg = os.environ.get("FFMPEG", "ffmpeg")
+    result = command(
+        [
+            ffmpeg,
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-ss",
+            f"{at:.3f}",
+            "-i",
+            str(path),
+            "-frames:v",
+            "1",
+            "-f",
+            "framemd5",
+            "-",
+        ]
+    )
+    if result.returncode != 0:
+        return None
+    rows = [line for line in result.stdout.splitlines() if line and not line.startswith("#")]
+    if len(rows) != 1 or "," not in rows[0]:
+        return None
+    return rows[0].rsplit(",", 1)[-1].strip()
+
+
+def max_volume(path: pathlib.Path, start: float, duration: float) -> float | None:
+    ffmpeg = os.environ.get("FFMPEG", "ffmpeg")
+    result = command(
+        [
+            ffmpeg,
+            "-hide_banner",
+            "-nostats",
+            "-ss",
+            f"{start:.3f}",
+            "-t",
+            f"{duration:.3f}",
+            "-i",
+            str(path),
+            "-af",
+            "volumedetect",
+            "-f",
+            "null",
+            "-",
+        ]
+    )
+    match = re.search(r"max_volume:\s*(-?[0-9.]+)\s*dB", result.stderr)
+    return float(match.group(1)) if match else None
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("mp4", type=pathlib.Path)
+    parser.add_argument("--release-sha", required=True)
+    parser.add_argument("--timing", type=pathlib.Path)
+    parser.add_argument("--captions", type=pathlib.Path)
+    parser.add_argument("--receipt", type=pathlib.Path)
+    parser.add_argument("--capture-receipt", type=pathlib.Path)
+    parser.add_argument("--ffprobe-evidence", type=pathlib.Path)
+    parser.add_argument("--report", type=pathlib.Path)
+    return parser.parse_args()
+
+
+def main() -> int:
+    args = parse_args()
+    if not SHA.fullmatch(args.release_sha):
+        raise SystemExit("::error::--release-sha must be a full lowercase commit SHA")
+    base = args.mp4.parent
+    paths = {
+        "mp4": args.mp4,
+        "timing": args.timing or base / "timing.json",
+        "captions": args.captions or base / "captions.en.srt",
+        "receipt": args.receipt or base / "video-receipt.json",
+        "capture": args.capture_receipt or base / "capture-receipt.json",
+        "ffprobe": args.ffprobe_evidence or base / "ffprobe.json",
+        "report": args.report or base / "verification-report.json",
+    }
+    for name, path in paths.items():
+        if name != "report" and (not path.is_file() or path.stat().st_size == 0):
+            raise SystemExit(f"::error::required verification input is missing: {path}")
+
+    timing = load_json(paths["timing"])
+    receipt = load_json(paths["receipt"])
+    capture = load_json(paths["capture"])
+    ffprobe_evidence = load_json(paths["ffprobe"])
+    media = probe(paths["mp4"])
+    streams = media.get("streams", [])
+    videos = [item for item in streams if item.get("codec_type") == "video"]
+    audios = [item for item in streams if item.get("codec_type") == "audio"]
+    gate = Gate()
+
+    print("== exact-release and artifact chain ==")
+    gate.check(receipt.get("releaseSha") == args.release_sha, "release-receipt", str(receipt.get("releaseSha")))
+    gate.check(capture.get("releaseSha") == args.release_sha, "release-capture", str(capture.get("releaseSha")))
+    gate.check(ffprobe_evidence.get("releaseSha") == args.release_sha, "release-ffprobe", str(ffprobe_evidence.get("releaseSha")))
+    video_sha = sha256(paths["mp4"])
+    gate.check(receipt.get("sha256") == video_sha, "receipt-video-sha", video_sha)
+    gate.check(ffprobe_evidence.get("sha256") == video_sha, "ffprobe-video-sha", video_sha)
+    gate.check(receipt.get("timingSha256") == sha256(paths["timing"]), "receipt-timing-sha", sha256(paths["timing"]))
+    gate.check(receipt.get("captionsSha256") == sha256(paths["captions"]), "receipt-caption-sha", sha256(paths["captions"]))
+    gate.check(receipt.get("captureReceiptSha256") == sha256(paths["capture"]), "receipt-capture-sha", sha256(paths["capture"]))
+    gate.check(receipt.get("ffprobeSha256") == sha256(paths["ffprobe"]), "receipt-ffprobe-sha", sha256(paths["ffprobe"]))
+
+    print("== seven-beat continuous timeline ==")
+    scenes = timing.get("scenes") if isinstance(timing.get("scenes"), list) else []
+    scene_ids = [scene.get("id") for scene in scenes if isinstance(scene, dict)]
+    gate.check(tuple(scene_ids) == SCENE_IDS, "scene-order", f"observed={scene_ids}")
+    fps = float(timing.get("fps", 0))
+    gate.check(abs(fps - 25) < 0.001, "timeline-fps", f"fps={fps}")
+    total = float(timing.get("totalSeconds", 0))
+    gate.check(90 <= total < 175, "publication-budget", f"total={total:.3f}s")
+    expected_start = 0.0
+    timeline_ok = len(scenes) == len(SCENE_IDS)
+    for scene in scenes:
+        if not isinstance(scene, dict):
+            timeline_ok = False
+            continue
+        start = float(scene.get("startSeconds", -1))
+        hold = float(scene.get("holdSeconds", 0))
+        spoken = float(scene.get("durationSeconds", 0))
+        frames = int(scene.get("holdFrames", 0))
+        timeline_ok = timeline_ok and abs(start - expected_start) <= 0.002
+        timeline_ok = timeline_ok and 3 <= spoken <= 40 and hold >= spoken
+        timeline_ok = timeline_ok and abs(hold - frames / 25) <= 0.002
+        expected_start += hold
+    timeline_ok = timeline_ok and abs(expected_start - total) <= 0.002
+    gate.check(timeline_ok, "timeline-contiguous", f"reconstructed={expected_start:.3f}s total={total:.3f}s")
+
+    capture_scenes = capture.get("scenes") if isinstance(capture.get("scenes"), list) else []
+    capture_ids = [scene.get("id") for scene in capture_scenes if isinstance(scene, dict)]
+    gate.check(tuple(capture_ids) == SCENE_IDS, "capture-scene-order", f"observed={capture_ids}")
+    capture_alignment = len(capture_scenes) == len(scenes)
+    for planned, observed in zip(scenes, capture_scenes):
+        if not isinstance(planned, dict) or not isinstance(observed, dict):
+            capture_alignment = False
+            continue
+        start = float(planned.get("startSeconds", 0))
+        hold = float(planned.get("holdSeconds", 0))
+        observed_start = float(observed.get("observedStartSeconds", -99))
+        observed_end = float(observed.get("observedEndSeconds", -99))
+        action = float(observed.get("actionSeconds", -1))
+        capture_alignment = capture_alignment and abs(start - observed_start) <= 0.75
+        capture_alignment = capture_alignment and abs(hold - (observed_end - observed_start)) <= 0.75
+        capture_alignment = capture_alignment and 0 <= action <= hold
+    capture_total = float(capture.get("timelineSeconds", 0))
+    capture_alignment = capture_alignment and total <= capture_total <= total + 2
+    gate.check(capture_alignment, "capture-timeline", f"observed={capture_total:.3f}s planned={total:.3f}s")
+    gate.check(capture.get("pageErrors") == [] and capture.get("requestFailures") == [], "capture-browser-errors", f"page={capture.get('pageErrors')} requests={capture.get('requestFailures')}")
+
+    print("== shipped frames and audio ==")
+    gate.check(len(videos) == 1 and len(audios) == 1, "stream-count", f"video={len(videos)} audio={len(audios)}")
+    video_duration = audio_duration = 0.0
+    frame_tolerance = 1 / 25
+    if len(videos) == 1 and len(audios) == 1:
+        video = videos[0]
+        audio = audios[0]
+        measured_fps = rational(video.get("avg_frame_rate", "0/1"))
+        frame_count = int(video.get("nb_read_frames") or video.get("nb_frames") or 0)
+        video_duration = frame_count / measured_fps if measured_fps > 0 else 0
+        audio_duration = stream_duration(audio, media)
+        gate.check(abs(measured_fps - 25) < 0.001, "video-fps", f"fps={measured_fps:.3f}")
+        gate.check(frame_count > 0, "frame-count", f"frames={frame_count}")
+        gate.check(video.get("width") == 1920 and video.get("height") == 1080, "video-size", f"{video.get('width')}x{video.get('height')}")
+        gate.check(video.get("codec_name") == "h264" and video.get("pix_fmt") == "yuv420p", "video-codec", f"{video.get('codec_name')}/{video.get('pix_fmt')}")
+        gate.check(audio.get("codec_name") == "aac", "audio-codec", str(audio.get("codec_name")))
+        gate.check(abs(video_duration - total) <= frame_tolerance, "video-timeline", f"frames/fps={video_duration:.3f}s expected={total:.3f}s tol={frame_tolerance:.3f}s")
+        gate.check(abs(audio_duration - video_duration) <= frame_tolerance, "av-duration", f"audio={audio_duration:.3f}s video={video_duration:.3f}s delta={abs(audio_duration-video_duration):.3f}s tol={frame_tolerance:.3f}s")
+        gate.check(receipt.get("frameCount") == frame_count, "receipt-frame-count", f"receipt={receipt.get('frameCount')} measured={frame_count}")
+
+    frame_hashes = []
+    audible = True
+    for scene in scenes:
+        if not isinstance(scene, dict):
+            continue
+        start = float(scene.get("startSeconds", 0))
+        hold = float(scene.get("holdSeconds", 0))
+        spoken = float(scene.get("durationSeconds", 0))
+        frame_hashes.append(frame_hash(paths["mp4"], start + hold / 2))
+        volume = max_volume(paths["mp4"], start + 0.2, max(0.5, spoken - 0.4))
+        audible = audible and volume is not None and volume > -50
+    gate.check(all(frame_hashes), "scene-frames-present", f"sampled={sum(bool(value) for value in frame_hashes)}/{len(SCENE_IDS)}")
+    gate.check(len(set(frame_hashes)) >= 4, "scene-pixels-vary", f"unique_midpoint_frames={len(set(frame_hashes))}")
+    gate.check(audible, "every-beat-audible", "max volume above -50 dB in every spoken window")
+
+    print("== captions ==")
+    captions = parse_srt(paths["captions"])
+    expected_captions = sum(int(scene.get("captionCount", 0)) for scene in scenes if isinstance(scene, dict))
+    gate.check(len(captions) == expected_captions and len(captions) > 0, "caption-count", f"observed={len(captions)} expected={expected_captions}")
+    monotonic = True
+    in_bounds = True
+    per_scene = {identifier: 0 for identifier in SCENE_IDS}
+    previous_end = -1.0
+    for start, end, text in captions:
+        monotonic = monotonic and start + 0.001 >= previous_end and bool(text)
+        in_bounds = in_bounds and 0 <= start < end <= video_duration + 0.001
+        owners = []
+        for scene in scenes:
+            if not isinstance(scene, dict):
+                continue
+            scene_start = float(scene.get("startSeconds", 0))
+            speech_end = scene_start + float(scene.get("durationSeconds", 0))
+            if start + frame_tolerance >= scene_start and end <= speech_end + frame_tolerance:
+                owners.append(str(scene.get("id")))
+        if len(owners) == 1 and owners[0] in per_scene:
+            per_scene[owners[0]] += 1
+        else:
+            in_bounds = False
+        previous_end = end
+    gate.check(monotonic, "captions-monotonic-nonoverlap", f"count={len(captions)}")
+    gate.check(in_bounds, "captions-in-bounds", f"video={video_duration:.3f}s")
+    gate.check(all(per_scene.values()), "captions-cover-scenes", str(per_scene))
+
+    report = {
+        "schemaVersion": "merismos.submission-video-verification/v1",
+        "releaseSha": args.release_sha,
+        "passed": not gate.failures,
+        "failures": gate.failures,
+        "videoSha256": video_sha,
+        "videoDurationSecondsFromFrames": round(video_duration, 3),
+        "audioDurationSeconds": round(audio_duration, 3),
+        "frameToleranceSeconds": frame_tolerance,
+        "captionCount": len(captions),
+        "sceneIds": scene_ids,
+    }
+    paths["report"].write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+    print()
+    if gate.failures:
+        print("::error::verify_video_sync FAILED:")
+        for failure in gate.failures:
+            print(f"::error::  - {failure}")
+        return 1
+    print("verify_video_sync: ALL MERISMOS VIDEO GATES PASSED")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
