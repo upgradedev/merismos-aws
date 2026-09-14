@@ -2,67 +2,44 @@
 
 This page lists what the repository declares, not what an account holds today: every AWS resource, what each IAM role may do, what lives outside Terraform and what is not deployed. Everything regional is in `eu-west-1` (`infra/variables.tf:10`, `infra/main.tf:29`, `infra/frontend.json:5`); CloudFront is global. Terraform in `infra/*.tf` declares the backend. `infra/frontend_stack.py` renders a separate CloudFormation stack for the site, and `infra/bootstrap.sh` creates the Terraform state bucket and the GitHub deploy role. Names below are patterns: a fresh apply gets new random suffixes (`infra/main.tf:49-51`).
 
-The diagram shows identities and the grants between them, not every resource; the tables after it list every resource. The request flow is in the [README overview](../README.md#architecture) and the [governed flow of one offer](architecture.md#governed-flow-of-one-offer).
+The two diagrams below show identities and the grants between them, not every resource: the first shows who can call what, the second who can touch which data. The tables after them list every resource. The request flow is in the [README overview](../README.md#architecture) and the [governed flow of one offer](architecture.md#governed-flow-of-one-offer).
+
+How to read them: a blue rounded box is anyone; a teal parallelogram is an entry point or service; an orange rectangle is a Lambda function or the IAM role it runs as; a slate cylinder is a data store; the magenta box with double sides is the external model service; an olive trapezoid is a GitHub Actions role, assumed through OpenID Connect (OIDC). A labelled arrow is the access its label names, and an unlabelled solid arrow is a request: CloudFront to its API origin, and API Gateway to the reader. A dotted arrow ending in a cross is an explicit Deny or a missing Allow. The reader and runner functions run as one reader role, so a grant shown for the reader role holds for both. Not drawn, because the repository declares none: a VPC attachment, a NAT gateway, an alarm action or a customer-managed key.
+
+## Who can call what
 
 ```mermaid
 flowchart TB
-    accTitle: Merismos infrastructure, which identity can touch which resource
-    accDescr: Anyone reaches CloudFront, which has no WAF, and can also call API Gateway directly; the API has no authorizer and invokes the reader. Anyone may also read published records under records/. The reader role, shared by the reader and runner Lambdas, may invoke the writer, the evaluator and Amazon Bedrock, write DynamoDB, read the corpus and create scheduler wakes, but holds no put on records and an explicit Deny on the canary secret. The writer role writes DynamoDB and spends approvals, files offers in the corpus, puts records and reads the canary. The evaluator role writes only the thread table and is denied the canary. The scheduler role invokes the runner. The GitHub deploy role manages the Terraform fleet: all S3 actions on merismos buckets, records included, all Secrets Manager actions on the canary, and invoke on every merismos function. The frontend release role puts site objects. The functions are not attached to a VPC, the repository declares no NAT gateway, the alarms have no actions and no data store it declares uses a customer-managed key.
+    accTitle: Merismos infrastructure, part 1: who can call what
+    accDescr: Anyone reaches CloudFront, which has no WAF, reads the site from a private S3 bucket through origin access control and forwards API paths to API Gateway, which has no authorizer and invokes the reader Lambda. The reader and runner Lambdas run as the reader role, which may invoke the runner, the writer and the evaluator. The runner creates EventBridge Scheduler wakes, the scheduler role may invoke only the runner, and in a live run the runner calls Amazon Bedrock. The GitHub frontend release role puts site objects, and the GitHub deploy role may invoke any Merismos function.
 
     Anyone("Anyone on the internet"):::browser
-    subgraph Github["GitHub Actions, OIDC"]
-        Deploy[/"deploy.yml as merismos-github-deploy, manages the Terraform fleet"\]:::cicd
-        Release[/"Frontend release as merismos-frontend-release, puts site objects"\]:::cicd
-    end
-    subgraph Aws["AWS account, eu-west-1"]
-        Cdn[/"CloudFront, no WAF"/]:::edge
-        Api[/"API Gateway, no authorizer, also reachable directly"/]:::edge
-        Site[("S3 site bucket, private")]:::store
-        subgraph ReaderRole["merismos-reader role"]
-            Reader["reader Lambda"]:::agent
-            Runner["runner Lambda"]:::agent
-        end
-        Writer["writer Lambda and role"]:::agent
-        Evaluator["evaluator Lambda and role"]:::agent
-        Scheduler[/"EventBridge Scheduler, own role"/]:::edge
-        subgraph Data["Data stores"]
-            Tables[("DynamoDB thread and approvals")]:::store
-            Corpus[("S3 corpus, private")]:::store
-            Records[("S3 records, public read")]:::store
-            Canary[("Secrets Manager canary")]:::store
-        end
-    end
+    Release[/"GitHub frontend release role"\]:::cicd
+    Deploy[/"GitHub deploy role"\]:::cicd
+    Cdn[/"CloudFront, no WAF"/]:::edge
+    Site[("S3 site bucket")]:::store
+    Api[/"API Gateway, no authorizer"/]:::edge
+    Reader["reader Lambda, reader role"]:::agent
+    Runner["runner Lambda, reader role"]:::agent
+    Writer["writer Lambda, own role"]:::agent
+    Evaluator["evaluator Lambda, own role"]:::agent
+    Scheduler[/"EventBridge Scheduler, own role"/]:::edge
     Bedrock[["Amazon Bedrock"]]:::model
 
+    Writer ~~~ Evaluator
     Anyone -->|"HTTPS"| Cdn
-    Cdn --> Api
     Cdn -->|"read via OAC"| Site
-    Release --> Site
+    Cdn --> Api
+    Release -->|"put site objects"| Site
     Api --> Reader
-    Deploy ---->|"invoke any merismos function"| Runner
-    Deploy -->|"all S3 actions"| Records
-    Deploy -->|"all actions"| Canary
-    Reader ---> Writer
-    Reader ---> Evaluator
+    Reader -->|"invoke"| Runner
+    Reader -->|"invoke"| Writer
+    Reader -->|"invoke"| Evaluator
     Runner -->|"create wake"| Scheduler
-    Scheduler --> Runner
-    Runner --> Bedrock
-    Reader -->|"write"| Tables
-    Evaluator -->|"thread only"| Tables
-    Writer -->|"write, spend"| Tables
-    Runner -->|"read"| Corpus
-    Writer ---->|"put offers/"| Corpus
-    Writer ----->|"put"| Records
-    Reader -.-x|"no put"| Records
-    Anyone -->|"read records/"| Records
-    Writer -->|"read"| Canary
-    Reader -.-x|"Deny"| Canary
-    Evaluator -.-x|"Deny"| Canary
+    Scheduler -->|"invoke"| Runner
+    Runner -->|"model calls"| Bedrock
+    Deploy -->|"invoke any function"| Runner
 
-    style Github fill:none,stroke:#6e7781,stroke-width:1px
-    style Aws fill:none,stroke:#6e7781,stroke-width:1px
-    style ReaderRole fill:none,stroke:#6e7781,stroke-width:1px
-    style Data fill:none,stroke:#6e7781,stroke-width:1px
     classDef browser fill:#116ad1,stroke:#0c4c96,stroke-width:2px,color:#ffffff
     classDef edge fill:#16787e,stroke:#10565b,stroke-width:2px,color:#ffffff
     classDef agent fill:#b64c05,stroke:#833704,stroke-width:2px,color:#ffffff
@@ -71,7 +48,42 @@ flowchart TB
     classDef cicd fill:#7f6a03,stroke:#5b4c02,stroke-width:2px,color:#ffffff
 ```
 
-Each grey box is a boundary: the `merismos-reader role` box holds the two Lambdas that share that role, every other Lambda runs as the role of its own name, and the GitHub jobs assume their roles through OpenID Connect (OIDC). Blue rounded box: anyone. Teal parallelogram: an entry point or service. Orange rectangle: a Lambda function. Slate cylinder: a data store. Magenta box with double sides: the external model service. Olive trapezoid: a GitHub Actions job. A labelled solid arrow is the access its label names. An unlabelled solid arrow is a request or an invoke: CloudFront to its API origin, API Gateway to the reader, one Lambda to another or to Bedrock, and the release job's put named on its box. A dotted arrow ending in a cross is an explicit Deny or a missing Allow. A grant drawn from one reader-role Lambda holds for both. Not drawn, because the repository declares none: a VPC attachment, a NAT gateway, an alarm action or a customer-managed key.
+## Who can touch which data
+
+```mermaid
+flowchart LR
+    accTitle: Merismos infrastructure, part 2: who can touch which data
+    accDescr: The reader role, used by the reader and runner Lambdas, writes the DynamoDB thread table and mints approvals, reads the S3 corpus, has no put on records and is explicitly denied the Secrets Manager canary. The evaluator role writes only the thread table and is denied the canary. The writer role writes the thread table, spends approvals, files offers in the corpus, puts records and reads the canary. The GitHub deploy role has all S3 actions on the Merismos buckets, records included, and all Secrets Manager actions on the canary. Anyone may read published records under records/.
+
+    Anyone("Anyone on the internet"):::browser
+    ReaderRole["reader role: reader and runner"]:::agent
+    EvaluatorRole["evaluator role"]:::agent
+    WriterRole["writer role"]:::agent
+    Deploy[/"GitHub deploy role"\]:::cicd
+    Tables[("DynamoDB thread and approvals")]:::store
+    Corpus[("S3 corpus")]:::store
+    Records[("S3 records")]:::store
+    Canary[("Secrets Manager canary")]:::store
+
+    ReaderRole -->|"write, mint approvals"| Tables
+    ReaderRole -->|"read"| Corpus
+    ReaderRole -.-x|"no put"| Records
+    ReaderRole -.-x|"Deny"| Canary
+    EvaluatorRole -->|"thread only"| Tables
+    EvaluatorRole -.-x|"Deny"| Canary
+    WriterRole -->|"write, spend approvals"| Tables
+    WriterRole -->|"put offers/"| Corpus
+    WriterRole -->|"put records/"| Records
+    WriterRole -->|"read"| Canary
+    Deploy -->|"all S3 actions"| Records
+    Deploy -->|"all actions"| Canary
+    Anyone -->|"read records/"| Records
+
+    classDef browser fill:#116ad1,stroke:#0c4c96,stroke-width:2px,color:#ffffff
+    classDef agent fill:#b64c05,stroke:#833704,stroke-width:2px,color:#ffffff
+    classDef store fill:#576f89,stroke:#3f5063,stroke-width:2px,color:#ffffff
+    classDef cicd fill:#7f6a03,stroke:#5b4c02,stroke-width:2px,color:#ffffff
+```
 
 In words: anyone reaches CloudFront, which serves the site from a private bucket and passes API paths to API Gateway; anyone can also call API Gateway directly, and it has no authorizer. API Gateway invokes the reader. The reader and runner functions share the `merismos-reader` role, which may call Bedrock, create wakes and invoke the other functions, but may not put a record or read the canary. Among the three fleet roles only the writer puts records, and anyone may read a published record. The scheduler role may invoke only the runner and send to the wake dead-letter queue. Outside the fleet, the GitHub deploy role has all S3 actions on the Merismos buckets, all Secrets Manager actions on the canary and every Lambda action on the Merismos functions; the frontend release role only reads, lists and puts site objects, invalidates the distribution and describes its own stack.
 

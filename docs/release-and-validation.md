@@ -11,26 +11,26 @@ flowchart TB
 
     subgraph Every["Pull request, or push to a CI branch"]
         Pr(["Open a pull request or push"]):::human
-        Checks[/"CI and Frontend verification, plus hosting contract and Docs verification when their files change"\]:::cicd
+        Checks[/"CI and Frontend verification"\]:::cicd
     end
     subgraph Frontend["Merge to main: frontend"]
         Merge(["Merge to main"]):::human
         Verify{{"Frontend verification again"}}:::gate
-        Preflight{{"Backend preflight: runtime paths unchanged"}}:::gate
-        Guard{{"Main head is still this commit"}}:::gate
-        Publish[("Site bucket: assets first, HTML last")]:::store
-        Smoke{{"Smoke: served commit, headers, assets"}}:::gate
-        Testbook{{"Live Playwright testbook, desktop and mobile"}}:::gate
+        Preflight{{"Backend preflight"}}:::gate
+        Guard{{"Main still at this commit"}}:::gate
+        Publish[("Publish: HTML last")]:::store
+        Smoke{{"Smoke test"}}:::gate
+        Testbook{{"Live Playwright testbook"}}:::gate
         Receipt[("Acceptance receipt published")]:::store
-        ProofRead{{"Public proof page read without credentials"}}:::gate
+        ProofRead{{"Proof page read anonymously"}}:::gate
     end
     subgraph Backend["Manual dispatch: backend"]
         Dispatch(["Dispatch deploy.yml"]):::human
-        Plan{{"Terraform plan: fails above 12 additions"}}:::gate
+        Plan{{"Plan: at most 12 additions"}}:::gate
         DryRun>"Stopped: dry run, plan kept"]:::refused
         Apply[/"Terraform apply"\]:::cicd
-        Proofs{{"Proofs: IAM boundary, model answer, refusal kept"}}:::gate
-        Teardown[/"Terraform destroy, then list what still stands"\]:::cicd
+        Proofs{{"IAM and model proofs"}}:::gate
+        Teardown[/"Destroy, list leftovers"\]:::cicd
     end
 
     Pr --> Checks
@@ -49,6 +49,7 @@ flowchart TB
     Apply --> Proofs
     Proofs -->|"keep no, pass or fail"| Teardown
     Apply -.->|"new backend at /api/version"| Preflight
+    ProofRead ~~~ Dispatch
 
     style Every fill:none,stroke:#6e7781,stroke-width:1px
     style Frontend fill:none,stroke:#6e7781,stroke-width:1px

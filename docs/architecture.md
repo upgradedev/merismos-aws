@@ -42,45 +42,33 @@ default: `critic_model_id` defaults to empty and the deploy workflow does not se
 This follows `api.mutate`, `fleet.run_chore`, the Strands tool guard, `approval.authorise` and
 `handler.publish`/`publication_status`.
 
+### From an offer to an approved plan
+
 ```mermaid
 flowchart TB
-    accTitle: The governed flow of one offer
-    accDescr: An offer is seeded, or added through intake, which refuses personal data and instructions. Work out the split starts one run: inside the reader request in the sandbox, or on the runner Lambda for a live run, which the public API refuses without a coordinator grant, so today only the deploy workflow's proof runs start it. Each woken specialist runs its rules first; a specialist whose rule blocks is not sent to the model, the others still are. Any block refuses the offer in full, and only a live capacity block schedules a wake that escalates. Otherwise a bounded split is drafted and the gate runs seven checks. A person approves the exact plan. The sandbox keeps that decision in the session. The live writer checks the lane, evidence, digest and one-use nonce, creates the record only if absent and appends a receipt. An unknown outcome waits for an explicit reconcile, and a missing or mismatched object stays unknown until an operator investigates. The authenticated live publication and recovery drill has not been run. Claiming a share and confirming collection are separate acts.
+    accTitle: The governed flow of one offer, part 1: from an offer to an approved plan
+    accDescr: An offer is seeded, or added through intake, which refuses personal data and instructions. Work out the split starts one run: inside the reader request in the sandbox, or on the runner Lambda for a live run, which the public API refuses without a coordinator grant, so today only the deploy workflow's proof runs start it. Each woken specialist runs its rules first; a specialist whose rules block is not sent to the model, and the others call the model, which is scripted in the sandbox and Amazon Bedrock when live. Any block refuses the offer in full, and only a live capacity block schedules a wake that escalates. Otherwise a bounded split is drafted, and the gate runs seven checks before a person can approve the exact plan.
 
     Seeded[("Seeded sample offer")]:::store
     Add(["Add to sandbox"]):::human
-    Intake{{"Intake refuses personal data and instructions"}}:::gate
-    IntakeNo>"Refused at intake: says what it found"]:::refused
+    Intake{{"Intake: no personal data or instructions"}}:::gate
+    IntakeNo>"Refused at intake"]:::refused
     Run(["Work out the split"]):::human
-    Grant{{"Live change needs a coordinator grant"}}:::gate
-    NoGrant>"Refused 403: no authorizer is deployed"]:::refused
+    Grant{{"Live change: coordinator grant?"}}:::gate
+    NoGrant>"Refused 403: no authorizer"]:::refused
     Proof[/"deploy.yml proof run"\]:::cicd
-    InReader["Sandbox: reader Lambda, inside the request"]:::agent
-    InRunner["Live: runner Lambda, in the background"]:::agent
-    subgraph Chore["Same code in either Lambda"]
-        Rules{{"Each woken specialist: rules first"}}:::gate
-        Agent["Strands agent, guarded tools, can only tighten"]:::agent
-        Scripted["Sandbox: scripted model, no network"]:::agent
-        Blocked{{"Did any specialist block?"}}:::gate
-        Refused>"Refused in full: no draft, nothing to approve"]:::refused
-        Split["Bounded split drafted"]:::agent
-        Gate{{"Gate: seven checks on the draft"}}:::gate
-        GateNo>"Refused by the gate: reasons shown"]:::refused
-    end
-    Bedrock[["Live: Amazon Bedrock"]]:::model
-    Wake[/"Scheduler wake later: escalation only"/]:::edge
+    InReader["Sandbox: reader Lambda"]:::agent
+    InRunner["Live: runner Lambda"]:::agent
+    Rules{{"Each woken specialist: rules first"}}:::gate
+    Agent["Strands agent, guarded tools"]:::agent
+    Blocked{{"Did any specialist block?"}}:::gate
+    Refused>"Refused in full"]:::refused
+    Split["Bounded split drafted"]:::agent
+    Gate{{"Gate: seven checks on the draft"}}:::gate
+    GateNo>"Refused by the gate"]:::refused
+    Model[["Model: scripted in the sandbox, Amazon Bedrock when live"]]:::model
+    Wake[/"Wake later: escalation only"/]:::edge
     Approve(["Approve this exact plan"]):::human
-    Session[("Sandbox: decision kept in the session")]:::store
-    Checks{{"Writer Lambda: lane, fresh evidence, digest, one-use nonce"}}:::gate
-    WriterNo>"Refused: nothing written"]:::refused
-    Records[("S3 records: create only if absent, public read")]:::store
-    Unknown>"Stopped: outcome unknown, no blind retry"]:::refused
-    Reconcile(["Reconcile recorded outcome"]):::human
-    StillUnknown>"Stopped: still unknown, an operator investigates"]:::refused
-    Receipt[("Thread table: receipt and custody head")]:::store
-    Claim(["Claim this share"]):::human
-    Confirm(["Confirm collection"]):::human
-    Collected[("Collection recorded once")]:::store
 
     Add --> Intake
     Intake -->|"refused"| IntakeNo
@@ -93,10 +81,9 @@ flowchart TB
     Proof -.-> InRunner
     InReader --> Rules
     InRunner --> Rules
-    Rules -->|"this specialist blocks: model not asked"| Blocked
+    Rules -->|"blocks: model not asked"| Blocked
     Rules -->|"no block"| Agent
-    Agent -->|"sandbox"| Scripted
-    Agent -.->|"live runner"| Bedrock
+    Agent -->|"model calls"| Model
     Agent ---> Blocked
     Blocked -->|"yes"| Refused
     Blocked -->|"no"| Split
@@ -104,6 +91,37 @@ flowchart TB
     Split --> Gate
     Gate -->|"refused"| GateNo
     Gate -->|"passed"| Approve
+
+    classDef human fill:#854cd5,stroke:#5d28a9,stroke-width:2px,color:#ffffff
+    classDef edge fill:#16787e,stroke:#10565b,stroke-width:2px,color:#ffffff
+    classDef agent fill:#b64c05,stroke:#833704,stroke-width:2px,color:#ffffff
+    classDef gate fill:#1d7c3c,stroke:#15592b,stroke-width:2px,color:#ffffff
+    classDef store fill:#576f89,stroke:#3f5063,stroke-width:2px,color:#ffffff
+    classDef model fill:#be308a,stroke:#892363,stroke-width:2px,color:#ffffff
+    classDef cicd fill:#7f6a03,stroke:#5b4c02,stroke-width:2px,color:#ffffff
+    classDef refused fill:#d22231,stroke:#971823,stroke-width:2px,color:#ffffff,stroke-dasharray:5 5
+```
+
+### From approval to a recorded collection
+
+```mermaid
+flowchart TB
+    accTitle: The governed flow of one offer, part 2: from approval to a recorded collection
+    accDescr: In the sandbox, approval keeps the decision in the session. A live coordinator's approval goes to the writer Lambda, which checks the lane, fresh evidence, the digest and a one-use nonce, and creates the S3 record only if it is absent. A confirmed write appends a receipt and the custody head. An unknown outcome is not retried: it waits for an explicit reconcile, and a missing or mismatched object stays unknown until an operator investigates. The authenticated live publication and recovery drill has not been run. Claiming a share and confirming collection are separate acts.
+
+    Approve(["Approve this exact plan"]):::human
+    Session[("Sandbox: kept in the session")]:::store
+    Checks{{"Writer checks lane, evidence, digest, nonce"}}:::gate
+    WriterNo>"Refused: nothing written"]:::refused
+    Records[("S3 record, created only if absent")]:::store
+    Unknown>"Outcome unknown: no retry"]:::refused
+    Reconcile(["Reconcile recorded outcome"]):::human
+    StillUnknown>"Still unknown: operator investigates"]:::refused
+    Receipt[("Receipt and custody head")]:::store
+    Claim(["Claim this share"]):::human
+    Confirm(["Confirm collection"]):::human
+    Collected[("Collection recorded once")]:::store
+
     Approve -->|"sandbox"| Session
     Approve -.->|"live coordinator"| Checks
     Checks -->|"fails"| WriterNo
@@ -118,23 +136,18 @@ flowchart TB
     Claim -->|"collection time optional"| Confirm
     Confirm --> Collected
 
-    style Chore fill:none,stroke:#6e7781,stroke-width:1px
     classDef human fill:#854cd5,stroke:#5d28a9,stroke-width:2px,color:#ffffff
-    classDef edge fill:#16787e,stroke:#10565b,stroke-width:2px,color:#ffffff
-    classDef agent fill:#b64c05,stroke:#833704,stroke-width:2px,color:#ffffff
     classDef gate fill:#1d7c3c,stroke:#15592b,stroke-width:2px,color:#ffffff
     classDef store fill:#576f89,stroke:#3f5063,stroke-width:2px,color:#ffffff
-    classDef model fill:#be308a,stroke:#892363,stroke-width:2px,color:#ffffff
-    classDef cicd fill:#7f6a03,stroke:#5b4c02,stroke-width:2px,color:#ffffff
     classDef refused fill:#d22231,stroke:#971823,stroke-width:2px,color:#ffffff,stroke-dasharray:5 5
 ```
 
 Purple stadium: a person's act. Slate cylinder: data seeded or kept. Green hexagon: a rule or check that can
-stop the run. Orange rectangle: code that runs. Magenta box with double sides: the external model service.
-Teal parallelogram: a scheduled wake. Olive trapezoid: GitHub Actions. Red flag with a dashed border: a
-refusal or a stop. A dotted arrow is the live path. With no authorizer deployed, only the two deploy proof runs
-reach it: the offer-4471 run stops at the approval card and the offer-4477 run at its refusal. The authenticated
-publication and recovery drill is NOT_RUN.
+stop the run. Orange rectangle: code that runs. Magenta box with double sides: the model, scripted in the
+sandbox and Amazon Bedrock in a live run. Teal parallelogram: a scheduled wake. Olive trapezoid: GitHub
+Actions. Red flag with a dashed border: a refusal or a stop. A dotted arrow is the live path. With no
+authorizer deployed, only the two deploy proof runs reach it: the offer-4471 run stops at the approval card
+and the offer-4477 run at its refusal. The authenticated publication and recovery drill is NOT_RUN.
 
 In words: each woken specialist runs its deterministic rules first, and a specialist whose rules refuse is not
 sent to the model; the others still are. Any blocking specialist refuses the offer in full before the solver

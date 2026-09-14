@@ -77,43 +77,33 @@ public S3 records bucket, after exact approval.
 ```mermaid
 flowchart TB
     accTitle: Merismos overview, what runs where
-    accDescr: A coordinator's browser reaches CloudFront, which serves the app from an S3 bucket and forwards API paths to API Gateway, which has no authorizer. The reader Lambda answers the API, runs the sandbox agents on a scripted model, keeps sessions in DynamoDB and reads the corpus. The runner Lambda runs live agents with Amazon Bedrock when a GitHub Actions proof run starts it; a scheduled wake also invokes it, but only to append an escalation. The writer Lambda spends an approval and creates a publicly readable record. Dotted arrows are the live coordinator path, which the public API refuses.
+    accDescr: A coordinator's browser reaches Amazon CloudFront, which serves the app from an S3 bucket and forwards API paths to API Gateway, which has no authorizer. The reader Lambda answers the API, runs sandbox runs with a scripted model and keeps sessions in DynamoDB. The runner Lambda runs live agents with Amazon Bedrock when a GitHub Actions proof run starts it, and records run events in DynamoDB. The writer Lambda spends an approval in DynamoDB and creates a publicly readable record in S3. Dotted arrows are the live coordinator path, which the public API refuses.
 
     Visitor("Coordinator's browser"):::browser
-    Actions[/"GitHub Actions"\]:::cicd
-    subgraph Aws["AWS account, eu-west-1"]
-        Cdn[/"Amazon CloudFront"/]:::edge
-        Site[("S3 site bucket")]:::store
-        Api[/"API Gateway, no authorizer"/]:::edge
-        Reader["Reader Lambda: API, sandbox agents"]:::agent
-        Wake[/"EventBridge Scheduler"/]:::edge
-        Runner["Runner Lambda: live agents"]:::agent
-        Writer["Writer Lambda: publishes records"]:::agent
-        Thread[("DynamoDB thread")]:::store
-        Approvals[("DynamoDB approvals")]:::store
-        Corpus[("S3 corpus")]:::store
-        Records[("S3 records, public read")]:::store
-    end
+    Cdn[/"Amazon CloudFront"/]:::edge
+    Site[("S3 site bucket")]:::store
+    Api[/"API Gateway, no authorizer"/]:::edge
+    Reader["Reader Lambda: API and sandbox runs"]:::agent
+    Runner["Runner Lambda: live runs"]:::agent
+    Writer["Writer Lambda: records"]:::agent
+    Tables[("DynamoDB tables")]:::store
+    Records[("S3 records, public read")]:::store
     Bedrock[["Amazon Bedrock"]]:::model
+    Actions[/"GitHub Actions"\]:::cicd
 
     Visitor -->|"HTTPS"| Cdn
     Cdn -->|"app files"| Site
     Cdn -->|"API paths"| Api
     Api --> Reader
-    Reader -->|"sessions"| Thread
+    Reader -->|"sessions"| Tables
     Reader -.->|"live run"| Runner
-    Reader -...->|"live approval"| Writer
-    Actions -->|"app release"| Site
+    Reader -.->|"live approval"| Writer
     Actions -->|"proof runs"| Runner
-    Wake -->|"wake, escalation only"| Runner
     Runner -->|"model calls"| Bedrock
-    Runner -->|"reads"| Corpus
-    Reader -->|"reads"| Corpus
-    Runner --->|"run events"| Thread
-    Writer -->|"spends approval"| Approvals
+    Runner -->|"run events"| Tables
+    Writer -->|"spends approval"| Tables
     Writer -->|"creates record"| Records
 
-    style Aws fill:none,stroke:#6e7781,stroke-width:1px
     classDef browser fill:#116ad1,stroke:#0c4c96,stroke-width:2px,color:#ffffff
     classDef edge fill:#16787e,stroke:#10565b,stroke-width:2px,color:#ffffff
     classDef agent fill:#b64c05,stroke:#833704,stroke-width:2px,color:#ffffff
@@ -122,10 +112,12 @@ flowchart TB
     classDef cicd fill:#7f6a03,stroke:#5b4c02,stroke-width:2px,color:#ffffff
 ```
 
-In the diagram, the blue rounded box is the coordinator's browser, teal parallelograms are AWS entry points and the
-scheduler, orange rectangles are Lambda functions, slate cylinders are data stores, the magenta double-sided box is
-Amazon Bedrock and the olive trapezoid is GitHub Actions. Dotted arrows are the live coordinator path, which the
-public API refuses.
+In the diagram, the blue rounded box is the coordinator's browser, teal parallelograms are AWS entry points, orange
+rectangles are Lambda functions, slate cylinders are data stores (the DynamoDB thread and approvals tables and two S3
+buckets), the magenta double-sided box is Amazon Bedrock and the olive trapezoid is GitHub Actions. Dotted arrows are
+the live coordinator path, which the public API refuses. To stay readable at page width, it leaves out the S3 corpus
+both Lambdas read, the EventBridge Scheduler wake that only appends an escalation and the release job that publishes
+the app; [Infrastructure](docs/infrastructure.md) draws them.
 
 Three fleet IAM roles separate the reader, evaluator and writer; the runner runs under the reader role, and
 EventBridge Scheduler has its own role. The evaluator Lambda, not in the diagram, only answers identity probes; the
