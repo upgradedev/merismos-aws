@@ -502,13 +502,15 @@ evidence, not a Bedrock model invocation, human acceptance or measured food resc
 
 ## Cost and sustainability
 
-**One live model run costs a median of $1.62.** This was measured read-only over the five deploy
-applies between 2026-09-09 and 2026-09-13 that started a live run. The median run made 43 Bedrock
-calls to `eu.anthropic.claude-opus-5` with 170,499 input and 23,712 output tokens, and used 365.6
-Lambda GB-seconds. At the AWS Pricing API's eu-west-1 on-demand prices that is $1.62, with a range
-of $1.44 to $1.78 across the five, and Bedrock is about 99.6% of it. Other applications share the
-AWS account and CloudWatch's Bedrock totals are account-wide, so CloudTrail was used to attribute
-every model call in those runs to the Merismos runner's role. Not measured: cache tokens, cold-start
+**The live proof in one deploy apply costs a median of $1.62.** This was measured read-only over
+the five deploy applies between 2026-09-09 and 2026-09-13 that called the model. Each proof invokes
+the background runner twice: for offer-4471, which the model answers, and for the refused
+offer-4477. How the cost splits between those two invocations is not measured. The median proof
+made 43 Bedrock calls to `eu.anthropic.claude-opus-5` with 170,499 input and 23,712 output tokens,
+and used 365.6 Lambda GB-seconds. At the AWS Pricing API's eu-west-1 on-demand prices that is
+$1.62, with a range of $1.44 to $1.78 across the five, and Bedrock is about 99.6% of it. Other
+applications share the AWS account and CloudWatch's Bedrock totals are account-wide, so CloudTrail
+was used to attribute every model call in those proof windows to the Merismos runner's role. Not measured: cache tokens, cold-start
 initialisation time, DynamoDB, S3, CloudFront, Scheduler, logs, data transfer and the actual
 invoice. The functions are not attached to a VPC, so there is no hourly NAT or endpoint charge.
 
