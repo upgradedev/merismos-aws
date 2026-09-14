@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 import os
 import pathlib
 import re
@@ -18,6 +19,12 @@ SRT_WINDOW = re.compile(
     r"(\d{2}:\d{2}:\d{2},\d{3})\r?\n(.+?)(?=\r?\n\r?\n|\Z)",
     re.DOTALL,
 )
+PSNR_AVERAGE = re.compile(r"PSNR .*?average:(inf|[0-9]+(?:\.[0-9]+)?)")
+CAPTION_STYLE = (
+    "FontName=DejaVu Sans,FontSize=14,PrimaryColour=&H00FFFFFF,"
+    "BackColour=&HA0000000,BorderStyle=4,Outline=0,Shadow=0,MarginV=38,Alignment=2"
+)
+CAPTION_CROP = "crop=1920:320:0:760"
 
 
 class Gate:
@@ -167,6 +174,68 @@ def max_volume(path: pathlib.Path, start: float, duration: float) -> float | Non
     return float(match.group(1)) if match else None
 
 
+def escaped_filter_path(path: pathlib.Path) -> str:
+    return str(path).replace("\\", "/").replace(":", "\\:").replace("'", "\\'")
+
+
+def reference_psnr(
+    shipped: pathlib.Path,
+    capture: pathlib.Path,
+    captions: pathlib.Path,
+    trim_lead: float,
+    total: float,
+    *,
+    burn_captions: bool,
+) -> float | None:
+    """Compare decoded shipped caption pixels with an independent capture render."""
+    ffmpeg = os.environ.get("FFMPEG", "ffmpeg")
+    reference = (
+        f"trim=start={trim_lead:.3f}:end={trim_lead + total:.3f},"
+        "setpts=PTS-STARTPTS,fps=25,scale=1920:1080:"
+        "force_original_aspect_ratio=decrease,"
+        "pad=1920:1080:(ow-iw)/2:(oh-ih)/2:color=0x07111f"
+    )
+    if burn_captions:
+        reference += (
+            f",subtitles='{escaped_filter_path(captions)}':"
+            f"force_style='{CAPTION_STYLE}'"
+        )
+    filters = (
+        f"[0:v]setpts=PTS-STARTPTS,fps=25,{CAPTION_CROP},format=yuv420p[actual];"
+        f"[1:v]{reference},{CAPTION_CROP},format=yuv420p[reference];"
+        "[actual][reference]psnr=shortest=1"
+    )
+    result = command(
+        [
+            ffmpeg,
+            "-hide_banner",
+            "-nostats",
+            "-i",
+            str(shipped),
+            "-i",
+            str(capture),
+            "-filter_complex",
+            filters,
+            "-an",
+            "-f",
+            "null",
+            "-",
+        ]
+    )
+    if result.returncode != 0:
+        return None
+    matches = PSNR_AVERAGE.findall(result.stderr)
+    if not matches:
+        return None
+    return math.inf if matches[-1] == "inf" else float(matches[-1])
+
+
+def report_metric(value: float | None) -> float | str | None:
+    if value is None:
+        return None
+    return "inf" if math.isinf(value) else round(value, 3)
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("mp4", type=pathlib.Path)
@@ -175,6 +244,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--captions", type=pathlib.Path)
     parser.add_argument("--receipt", type=pathlib.Path)
     parser.add_argument("--capture-receipt", type=pathlib.Path)
+    parser.add_argument("--capture-media", required=True, type=pathlib.Path)
     parser.add_argument("--ffprobe-evidence", type=pathlib.Path)
     parser.add_argument("--report", type=pathlib.Path)
     return parser.parse_args()
@@ -191,6 +261,7 @@ def main() -> int:
         "captions": args.captions or base / "captions.en.srt",
         "receipt": args.receipt or base / "video-receipt.json",
         "capture": args.capture_receipt or base / "capture-receipt.json",
+        "capture_media": args.capture_media,
         "ffprobe": args.ffprobe_evidence or base / "ffprobe.json",
         "report": args.report or base / "verification-report.json",
     }
@@ -225,6 +296,7 @@ def main() -> int:
         str(ffprobe_evidence.get("releaseSha")),
     )
     video_sha = sha256(paths["mp4"])
+    capture_sha = sha256(paths["capture_media"])
     gate.check(receipt.get("sha256") == video_sha, "receipt-video-sha", video_sha)
     gate.check(ffprobe_evidence.get("sha256") == video_sha, "ffprobe-video-sha", video_sha)
     gate.check(
@@ -241,6 +313,13 @@ def main() -> int:
         receipt.get("captureReceiptSha256") == sha256(paths["capture"]),
         "receipt-capture-sha",
         sha256(paths["capture"]),
+    )
+    gate.check(
+        receipt.get("captureSha256") == capture_sha
+        and capture.get("sha256") == capture_sha
+        and capture.get("bytes") == paths["capture_media"].stat().st_size,
+        "capture-media-sha",
+        capture_sha,
     )
     gate.check(
         receipt.get("ffprobeSha256") == sha256(paths["ffprobe"]),
@@ -411,6 +490,47 @@ def main() -> int:
     gate.check(in_bounds, "captions-in-bounds", f"video={video_duration:.3f}s")
     gate.check(all(per_scene.values()), "captions-cover-scenes", str(per_scene))
 
+    captioned_psnr = uncaptioned_psnr = None
+    if not gate.failures:
+        trim_lead = float(capture.get("trimLeadSeconds", -1))
+        if 0 <= trim_lead <= 30:
+            captioned_psnr = reference_psnr(
+                paths["mp4"],
+                paths["capture_media"],
+                paths["captions"],
+                trim_lead,
+                total,
+                burn_captions=True,
+            )
+            uncaptioned_psnr = reference_psnr(
+                paths["mp4"],
+                paths["capture_media"],
+                paths["captions"],
+                trim_lead,
+                total,
+                burn_captions=False,
+            )
+        pixels_bound = (
+            captioned_psnr is not None
+            and uncaptioned_psnr is not None
+            and captioned_psnr >= 30
+            and captioned_psnr > uncaptioned_psnr + 1
+        )
+        gate.check(
+            pixels_bound,
+            "caption-pixels-bound",
+            (
+                f"captioned_reference={report_metric(captioned_psnr)}dB "
+                f"uncaptioned_reference={report_metric(uncaptioned_psnr)}dB"
+            ),
+        )
+    else:
+        gate.check(
+            False,
+            "caption-pixels-bound",
+            "not evaluated because an earlier artifact or timing gate failed",
+        )
+
     report = {
         "schemaVersion": "merismos.submission-video-verification/v1",
         "releaseSha": args.release_sha,
@@ -421,6 +541,8 @@ def main() -> int:
         "audioDurationSeconds": round(audio_duration, 3),
         "frameToleranceSeconds": frame_tolerance,
         "captionCount": len(captions),
+        "captionedReferencePsnrDb": report_metric(captioned_psnr),
+        "uncaptionedReferencePsnrDb": report_metric(uncaptioned_psnr),
         "sceneIds": scene_ids,
     }
     paths["report"].write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Prove the Merismos video gate passes good media and rejects three bad cases.
+"""Prove the Merismos video gate passes good media and rejects four bad cases.
 
 The fixtures are synthetic, contain no product capture or speech, use no network or
 credential, and are removed when the test exits.
@@ -27,6 +27,10 @@ FPS = 25
 SCENE_SECONDS = 13.0
 SPOKEN_SECONDS = 12.35
 TOTAL_SECONDS = SCENE_SECONDS * len(SCENE_IDS)
+CAPTION_STYLE = (
+    "FontName=DejaVu Sans,FontSize=14,PrimaryColour=&H00FFFFFF,"
+    "BackColour=&HA0000000,BorderStyle=4,Outline=0,Shadow=0,MarginV=38,Alignment=2"
+)
 
 
 def run(
@@ -128,6 +132,38 @@ def make_media(path: pathlib.Path, *, audio_seconds: float = TOTAL_SECONDS) -> N
     )
 
 
+def make_captioned_media(source: pathlib.Path, path: pathlib.Path, captions: pathlib.Path) -> None:
+    escaped_captions = str(captions).replace("\\", "/").replace(":", "\\:").replace("'", "\\'")
+    run(
+        [
+            "ffmpeg",
+            "-y",
+            "-loglevel",
+            "error",
+            "-i",
+            str(source),
+            "-vf",
+            (
+                f"trim=start=0:end={TOTAL_SECONDS:.3f},setpts=PTS-STARTPTS,fps={FPS},"
+                "scale=1920:1080:force_original_aspect_ratio=decrease,"
+                "pad=1920:1080:(ow-iw)/2:(oh-ih)/2:color=0x07111f,"
+                f"subtitles='{escaped_captions}':force_style='{CAPTION_STYLE}',format=yuv420p"
+            ),
+            "-frames:v",
+            str(round(TOTAL_SECONDS * FPS)),
+            "-c:v",
+            "libx264",
+            "-preset",
+            "ultrafast",
+            "-crf",
+            "20",
+            "-c:a",
+            "copy",
+            str(path),
+        ]
+    )
+
+
 def make_av_mismatch(source: pathlib.Path, path: pathlib.Path) -> None:
     run(
         [
@@ -161,7 +197,12 @@ def make_av_mismatch(source: pathlib.Path, path: pathlib.Path) -> None:
 
 
 def write_contracts(
-    directory: pathlib.Path, media: pathlib.Path, *, order=SCENE_IDS, overlap=False
+    directory: pathlib.Path,
+    media: pathlib.Path,
+    capture_media: pathlib.Path,
+    *,
+    order=SCENE_IDS,
+    overlap=False,
 ) -> None:
     scenes = [
         {
@@ -212,13 +253,13 @@ def write_contracts(
         "sceneCount": len(SCENE_IDS),
         "sceneIds": list(order),
         "scenes": capture_scenes,
-        "trimLeadSeconds": 1,
+        "trimLeadSeconds": 0,
         "timelineSeconds": TOTAL_SECONDS,
         "narrationTimingSha256": sha256(timing_path),
         "pageErrors": [],
         "requestFailures": [],
-        "bytes": 1,
-        "sha256": "3" * 64,
+        "bytes": capture_media.stat().st_size,
+        "sha256": sha256(capture_media),
     }
     write_json(capture_path, capture)
     probe = {
@@ -248,16 +289,26 @@ def write_contracts(
         "narrationSpecSha256": "2" * 64,
         "timingSha256": sha256(timing_path),
         "captionsSha256": sha256(captions_path),
-        "captureSha256": "3" * 64,
+        "captureSha256": sha256(capture_media),
         "captureReceiptSha256": sha256(capture_path),
         "ffprobeSha256": sha256(ffprobe_path),
     }
     write_json(directory / "video-receipt.json", receipt)
 
 
-def run_gate(directory: pathlib.Path, media: pathlib.Path) -> tuple[int, list[str], str]:
+def run_gate(
+    directory: pathlib.Path, media: pathlib.Path, capture_media: pathlib.Path
+) -> tuple[int, list[str], str]:
     result = run(
-        [sys.executable, str(GATE), str(media), "--release-sha", RELEASE_SHA],
+        [
+            sys.executable,
+            str(GATE),
+            str(media),
+            "--release-sha",
+            RELEASE_SHA,
+            "--capture-media",
+            str(capture_media),
+        ],
         check=False,
     )
     output = result.stdout + result.stderr
@@ -353,20 +404,37 @@ def main() -> int:
         source = root / "source.mp4"
         make_media(source)
 
-        good_dir, good = copy_case(source, root, "good")
-        write_contracts(good_dir, good)
-        rc, failures, log = run_gate(good_dir, good)
+        good_dir = root / "good"
+        good_dir.mkdir()
+        good = good_dir / "merismos-submission.mp4"
+        write_srt(good_dir / "captions.en.srt")
+        make_captioned_media(source, good, good_dir / "captions.en.srt")
+        write_contracts(good_dir, good, source)
+        rc, failures, log = run_gate(good_dir, good, source)
         results.append(("GOOD", rc == 0, rc, failures, log))
 
-        order_dir, order_media = copy_case(source, root, "bad-order")
+        missing_dir, missing_media = copy_case(source, root, "bad-missing-burn-in")
+        write_contracts(missing_dir, missing_media, source)
+        rc, failures, log = run_gate(missing_dir, missing_media, source)
+        results.append(
+            (
+                "BAD_MISSING_BURN_IN",
+                rc != 0 and "caption-pixels-bound" in failures,
+                rc,
+                failures,
+                log,
+            )
+        )
+
+        order_dir, order_media = copy_case(good, root, "bad-order")
         bad_order = ("surface", "hook", *SCENE_IDS[2:])
-        write_contracts(order_dir, order_media, order=bad_order)
-        rc, failures, log = run_gate(order_dir, order_media)
+        write_contracts(order_dir, order_media, source, order=bad_order)
+        rc, failures, log = run_gate(order_dir, order_media, source)
         results.append(("BAD_ORDER", rc != 0 and "scene-order" in failures, rc, failures, log))
 
-        caption_dir, caption_media = copy_case(source, root, "bad-caption")
-        write_contracts(caption_dir, caption_media, overlap=True)
-        rc, failures, log = run_gate(caption_dir, caption_media)
+        caption_dir, caption_media = copy_case(good, root, "bad-caption")
+        write_contracts(caption_dir, caption_media, source, overlap=True)
+        rc, failures, log = run_gate(caption_dir, caption_media, source)
         results.append(
             (
                 "BAD_CAPTION_OVERLAP",
@@ -380,9 +448,9 @@ def main() -> int:
         av_dir = root / "bad-av"
         av_dir.mkdir()
         av_media = av_dir / "merismos-submission.mp4"
-        make_av_mismatch(source, av_media)
-        write_contracts(av_dir, av_media)
-        rc, failures, log = run_gate(av_dir, av_media)
+        make_av_mismatch(good, av_media)
+        write_contracts(av_dir, av_media, source)
+        rc, failures, log = run_gate(av_dir, av_media, source)
         results.append(
             ("BAD_AV_MISMATCH", rc != 0 and "av-duration" in failures, rc, failures, log)
         )
@@ -396,7 +464,10 @@ def main() -> int:
     if not all(item[1] for item in results):
         print("::error::video gate self-test failed")
         return 1
-    print("video gate self-test: good media passed; order, caption, and A/V defects failed closed")
+    print(
+        "video gate self-test: captioned media passed; missing burn-in, order, caption, "
+        "and A/V defects failed closed"
+    )
     return 0
 
 
