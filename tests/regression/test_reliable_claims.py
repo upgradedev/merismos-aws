@@ -123,7 +123,9 @@ def test_me18_and_capture_preflight_remain_precisely_scoped():
     assert me18["requirement"] == "Actual writer read capability"
     assert me18["current_revision_status"] == "PASS_AUTOMATED_AWS"
     assert "34894779949" in me18["current_revision_observed_result_evidence"]
-    assert "not a publication drill or human signoff" in me18["current_revision_observed_result_evidence"]
+    assert "not a publication drill or human signoff" in (
+        me18["current_revision_observed_result_evidence"]
+    )
     assert "PASS_AUTOMATED_AWS" in testbook["current_public_proof"]["writer_read_capability_ME18"]
     for path in ("README.md", "docs/evidence.md", "frontend/UAT.testbook.html",
                  "frontend/public/acceptance.html"):
