@@ -305,10 +305,11 @@ def identity(ask_the_others: bool = False) -> dict[str, Any]:
     thing all three identities ask for so that a refusal is observable in a
     response body. Useful, and not the authority.
 
-    The authority is the S3 write, so it is now probed too, by attempting a real
-    ``PutObject`` under a private ``probes/`` prefix rather than by reading a
-    policy and believing it. A reader that were somehow granted the write would
-    show up here even if the canary still said denied.
+    The authority is the S3 write, so it is now probed too, by conditionally
+    creating one fixed marker under a private ``probes/`` prefix rather than by
+    reading a policy and believing it. A reader that were somehow granted the
+    write would show up here even if the canary still said denied. Repeated
+    probes exercise the permission without creating more object versions.
     """
     me = role()
     canary_reached, canary_said = _attempt_publish_credential()
@@ -359,9 +360,11 @@ def identity(ask_the_others: bool = False) -> dict[str, Any]:
 def _attempt_publish_authority() -> tuple[bool, str]:
     """Try the write that publishing actually needs, and report what came back.
 
-    Writes a zero byte object under ``probes/``, which the bucket policy does
-    **not** open to the public, so a successful probe leaves a private marker
-    rather than an empty file in the record space a funder reads.
+    Conditionally creates one zero byte object under ``probes/``, which the
+    bucket policy does **not** open to the public. ``IfNoneMatch`` means a
+    repeated probe cannot overwrite the marker or create another version. S3
+    checks authority before returning the expected precondition response, so
+    an existing marker still proves the writer can attempt the real operation.
     """
     bucket = os.environ.get("MERISMOS_RECORDS_BUCKET", "")
     if not bucket:
@@ -370,9 +373,14 @@ def _attempt_publish_authority() -> tuple[bool, str]:
         import boto3
 
         boto3.client("s3").put_object(
-            Bucket=bucket, Key=f"probes/identity-{role()}", Body=b""
+            Bucket=bucket,
+            Key=f"probes/identity-{role()}",
+            Body=b"",
+            IfNoneMatch="*",
         )
     except Exception as error:  # noqa: BLE001 - the refusal is the answer
+        if _already_there(error):
+            return True, _aws_said(error)
         return False, _aws_said(error)
     return True, "granted"
 

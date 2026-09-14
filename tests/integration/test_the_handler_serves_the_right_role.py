@@ -98,7 +98,10 @@ class _Fake:
             return {"SecretString": "a-marker"}
         raise _Denied("secretsmanager:GetSecretValue")
 
-    def put_object(self, Bucket: str, Key: str, Body: bytes):  # noqa: N803
+    def put_object(
+        self, Bucket: str, Key: str, Body: bytes, IfNoneMatch: str  # noqa: N803
+    ):
+        assert IfNoneMatch == "*", "the identity probe can create another object version"
         self.log.append(("write", f"{Bucket}/{Key}"))
         if self.write_ok:
             return {}
@@ -167,6 +170,80 @@ def test_identity_reports_a_grant_when_the_writer_asks(monkeypatch):
 
     assert reported["publish_authority"]["can_write"] is True
     assert reported["boundary_canary"]["can_read"] is True
+
+
+@pytest.mark.parametrize(
+    ("code", "status"),
+    [("PreconditionFailed", 412), ("ConditionalRequestConflict", 409)],
+)
+def test_repeated_or_concurrent_probe_is_a_grant_without_an_overwrite(
+    monkeypatch, code, status
+):
+    """An existing fixed marker proves permission without minting a new version."""
+    monkeypatch.setenv("MERISMOS_ROLE", "writer")
+    monkeypatch.setenv("MERISMOS_PUBLISH_SECRET", "merismos/publish")
+    monkeypatch.setenv("MERISMOS_RECORDS_BUCKET", "merismos-records")
+    attempts = []
+
+    class _Conditional:
+        def get_secret_value(self, SecretId: str):  # noqa: N803
+            return {"SecretString": "a-marker"}
+
+        def put_object(self, **request):
+            attempts.append(request)
+            raise _AlreadyThere(code, status)
+
+    monkeypatch.setattr("boto3.client", lambda *_a, **_k: _Conditional())
+
+    reported = _json(handler.handler(_event("GET", "/identity")))
+
+    assert reported["publish_authority"] == {
+        "what_it_is": (
+            "s3:PutObject on the records bucket. This is what publishing "
+            "a record actually needs"
+        ),
+        "can_write": True,
+        "what_aws_said": code,
+    }
+    assert attempts == [
+        {
+            "Bucket": "merismos-records",
+            "Key": "probes/identity-writer",
+            "Body": b"",
+            "IfNoneMatch": "*",
+        }
+    ]
+
+
+def test_repeated_writer_probe_creates_only_one_version(monkeypatch):
+    monkeypatch.setenv("MERISMOS_ROLE", "writer")
+    monkeypatch.setenv("MERISMOS_PUBLISH_SECRET", "merismos/publish")
+    monkeypatch.setenv("MERISMOS_RECORDS_BUCKET", "merismos-records")
+    attempts = []
+    successful_creates = []
+
+    class _OneMarker:
+        def get_secret_value(self, SecretId: str):  # noqa: N803
+            return {"SecretString": "a-marker"}
+
+        def put_object(self, **request):
+            attempts.append(request)
+            if not successful_creates:
+                successful_creates.append(request)
+                return {}
+            raise _AlreadyThere("PreconditionFailed", 412)
+
+    monkeypatch.setattr("boto3.client", lambda *_a, **_k: _OneMarker())
+
+    first = _json(handler.handler(_event("GET", "/identity")))
+    repeated = _json(handler.handler(_event("GET", "/identity")))
+
+    assert first["publish_authority"]["can_write"] is True
+    assert repeated["publish_authority"]["can_write"] is True
+    assert repeated["publish_authority"]["what_aws_said"] == "PreconditionFailed"
+    assert len(attempts) == 2
+    assert len(successful_creates) == 1
+    assert attempts[0] == attempts[1]
 
 
 def test_identity_never_returns_the_credential_itself(monkeypatch):
@@ -349,3 +426,14 @@ class _Denied(Exception):
     def __init__(self, action: str) -> None:
         super().__init__(f"not authorized to perform {action}")
         self.response = {"Error": {"Code": "AccessDeniedException"}}
+
+
+class _AlreadyThere(Exception):
+    """A conditional S3 create reached an existing marker or raced another create."""
+
+    def __init__(self, code: str, status: int) -> None:
+        super().__init__(code)
+        self.response = {
+            "Error": {"Code": code},
+            "ResponseMetadata": {"HTTPStatusCode": status},
+        }

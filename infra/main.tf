@@ -381,6 +381,29 @@ resource "aws_s3_bucket_versioning" "records" {
   }
 }
 
+# Identity capability checks use one conditional marker per role. Older
+# versions from deployments before that bound are private evidence, not public
+# records, and are removed after one day. The current marker is retained so a
+# repeated If-None-Match probe cannot create another version.
+resource "aws_s3_bucket_lifecycle_configuration" "records" {
+  bucket = aws_s3_bucket.records.id
+
+  rule {
+    id     = "expire-noncurrent-identity-probes"
+    status = "Enabled"
+
+    filter {
+      prefix = "probes/"
+    }
+
+    noncurrent_version_expiration {
+      noncurrent_days = 1
+    }
+  }
+
+  depends_on = [aws_s3_bucket_versioning.records]
+}
+
 # Seed the filing so a fresh deployment has something to apportion. Terraform
 # owns these because a judge cloning this repository and applying it should get
 # a working fleet, not an empty bucket and a runbook.
