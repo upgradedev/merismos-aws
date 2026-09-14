@@ -11,7 +11,7 @@ LIVE = "https://d2qnkmlhs7y5fp.cloudfront.net/"
 
 @pytest.mark.parametrize("path", [
     "README.md", "docs/devpost-description.md", "docs/video-script.md",
-    "docs/the-screenshots-to-submit.md", "docs/BEDROCK_AGENTCORE_ARCHITECTURE.md",
+    "docs/the-screenshots-to-submit.md", "docs/architecture.md",
     "docs/deploy-2026-09-02.md", "docs/live-run-2026-09-02.md",
 ])
 def test_first_screen_names_persona_live_path_and_real_demo_limit(path):
