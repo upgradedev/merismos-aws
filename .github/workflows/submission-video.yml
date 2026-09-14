@@ -16,12 +16,16 @@ on:
       - ".github/workflows/submission-video.yml"
   workflow_dispatch:
     inputs:
-      release_sha:
-        description: "Exact frozen SHA served by frontend and backend"
+      frontend_sha:
+        description: "Exact frozen frontend SHA served by CloudFront"
+        required: true
+        type: string
+      backend_sha:
+        description: "Exact frozen backend SHA returned by /api/version"
         required: true
         type: string
       deploy_run_id:
-        description: "Successful deploy.yml apply run for this SHA with keep=yes"
+        description: "Successful deploy.yml apply run for the backend SHA with keep=yes"
         required: true
         type: string
       frontend_run_id:
@@ -32,6 +36,15 @@ on:
         description: "Optional single beat to re-synthesize: hook, surface, trigger, live, sponsor, evidence, close"
         required: false
         type: string
+      acknowledge_attempt:
+        description: "Optional exact unresolved .attempt.json filename after reviewing provider billing"
+        required: false
+        type: string
+      retry_attempt_reviewed:
+        description: "I reviewed the named provider attempt and authorise one bounded retry"
+        required: true
+        default: false
+        type: boolean
       voice_rights_attested:
         description: "I confirm this ElevenLabs voice is authorized for public competition use"
         required: true
@@ -42,7 +55,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: merismos-submission-video-${{ github.event_name == 'workflow_dispatch' && inputs.release_sha || github.ref }}
+  group: merismos-submission-video-${{ github.event_name == 'workflow_dispatch' && inputs.frontend_sha || github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -57,6 +70,7 @@ jobs:
       - name: Validate the seven-beat narration contract without TTS
         run: |
           set -euo pipefail
+          node --check video/capture-production.mjs
           python3 video/generate-narration.py --validate
           python3 -m py_compile \
             video/generate-narration.py \
@@ -86,11 +100,14 @@ jobs:
       actions: read
       contents: read
     env:
-      MERISMOS_RELEASE_SHA: ${{ inputs.release_sha }}
+      MERISMOS_FRONTEND_SHA: ${{ inputs.frontend_sha }}
+      MERISMOS_BACKEND_SHA: ${{ inputs.backend_sha }}
       MERISMOS_DEPLOY_RUN_ID: ${{ inputs.deploy_run_id }}
       MERISMOS_FRONTEND_RUN_ID: ${{ inputs.frontend_run_id }}
       MERISMOS_VIDEO_URL: https://d2qnkmlhs7y5fp.cloudfront.net/
       NARRATION_FORCE: ${{ inputs.rerender_beat }}
+      NARRATION_ACKNOWLEDGE_ATTEMPT: ${{ inputs.acknowledge_attempt }}
+      NARRATION_RETRY_ATTESTED: ${{ inputs.retry_attempt_reviewed }}
     steps:
       - name: Bind production to the frozen source and successful release runs
         env:
@@ -98,23 +115,24 @@ jobs:
           VOICE_RIGHTS_ATTESTED: ${{ inputs.voice_rights_attested }}
         run: |
           set -euo pipefail
-          [[ "${MERISMOS_RELEASE_SHA}" =~ ^[a-f0-9]{40}$ ]]
+          [[ "${MERISMOS_FRONTEND_SHA}" =~ ^[a-f0-9]{40}$ ]]
+          [[ "${MERISMOS_BACKEND_SHA}" =~ ^[a-f0-9]{40}$ ]]
           [[ "${MERISMOS_DEPLOY_RUN_ID}" =~ ^[1-9][0-9]*$ ]]
           [[ "${MERISMOS_FRONTEND_RUN_ID}" =~ ^[1-9][0-9]*$ ]]
           test "${VOICE_RIGHTS_ATTESTED}" = "true" || {
             echo "::error::ElevenLabs public-use rights were not attested"
             exit 1
           }
-          test "${GITHUB_SHA}" = "${MERISMOS_RELEASE_SHA}"
-          test "$(gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq .sha)" = "${MERISMOS_RELEASE_SHA}"
+          test "${GITHUB_SHA}" = "${MERISMOS_FRONTEND_SHA}"
+          test "$(gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq .sha)" = "${MERISMOS_FRONTEND_SHA}"
 
-          test "$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${MERISMOS_DEPLOY_RUN_ID}" --jq .head_sha)" = "${MERISMOS_RELEASE_SHA}"
+          test "$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${MERISMOS_DEPLOY_RUN_ID}" --jq .head_sha)" = "${MERISMOS_BACKEND_SHA}"
           test "$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${MERISMOS_DEPLOY_RUN_ID}" --jq .conclusion)" = "success"
           test "$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${MERISMOS_DEPLOY_RUN_ID}" --jq .path)" = ".github/workflows/deploy.yml"
           test "$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${MERISMOS_DEPLOY_RUN_ID}/jobs" --jq '[.jobs[].steps[] | select(.name == "Apply") | .conclusion] | unique | join(",")')" = "success"
           test "$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${MERISMOS_DEPLOY_RUN_ID}/jobs" --jq '[.jobs[].steps[] | select(.name == "Tear down") | .conclusion] | unique | join(",")')" = "skipped"
 
-          test "$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${MERISMOS_FRONTEND_RUN_ID}" --jq .head_sha)" = "${MERISMOS_RELEASE_SHA}"
+          test "$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${MERISMOS_FRONTEND_RUN_ID}" --jq .head_sha)" = "${MERISMOS_FRONTEND_SHA}"
           test "$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${MERISMOS_FRONTEND_RUN_ID}" --jq .conclusion)" = "success"
           test "$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${MERISMOS_FRONTEND_RUN_ID}" --jq .path)" = ".github/workflows/frontend-deploy.yml"
 
@@ -122,6 +140,13 @@ jobs:
             ""|hook|surface|trigger|live|sponsor|evidence|close) ;;
             *) echo "::error::rerender_beat is not one of the seven scene IDs"; exit 1 ;;
           esac
+          if [[ -n "${NARRATION_ACKNOWLEDGE_ATTEMPT}" ]]; then
+            [[ "${NARRATION_ACKNOWLEDGE_ATTEMPT}" =~ ^[a-z][a-z-]{1,24}\.[a-f0-9]{16}\.[1-9][0-9]*\.attempt\.json$ ]]
+            test "${NARRATION_RETRY_ATTESTED}" = "true" || {
+              echo "::error::the named provider attempt was not attested as reviewed"
+              exit 1
+            }
+          fi
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -140,10 +165,14 @@ jobs:
         uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: ${{ runner.temp }}/merismos-submission-video/narration
-          key: merismos-video-narration-v1-${{ hashFiles('video/narration.json', 'video/generate-narration.py') }}-${{ github.run_id }}-${{ github.run_attempt }}
+          key: merismos-video-narration-v2-${{ hashFiles('video/narration.json', 'video/generate-narration.py') }}-${{ github.run_id }}-${{ github.run_attempt }}
           restore-keys: |
-            merismos-video-narration-v1-${{ hashFiles('video/narration.json', 'video/generate-narration.py') }}-
-            merismos-video-narration-v1-
+            merismos-video-narration-v2-${{ hashFiles('video/narration.json', 'video/generate-narration.py') }}-
+            merismos-video-narration-v2-
+
+      - name: Reconcile one explicitly reviewed provider attempt
+        if: inputs.acknowledge_attempt != ''
+        run: python3 video/generate-narration.py --acknowledge-attempt "${NARRATION_ACKNOWLEDGE_ATTEMPT}"
 
       - name: Install ephemeral media tooling
         run: |
@@ -164,6 +193,7 @@ jobs:
         run: python3 video/generate-narration.py
 
       - name: Save reusable per-beat narration cache
+        if: always()
         uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: ${{ runner.temp }}/merismos-submission-video/narration
@@ -194,7 +224,8 @@ jobs:
           python3 scripts/verify_video_sync.py \
             "${MERISMOS_VIDEO_ROOT}/output/merismos-submission.mp4" \
             --capture-media "${MERISMOS_VIDEO_ROOT}/capture/production.webm" \
-            --release-sha "${MERISMOS_RELEASE_SHA}"
+            --frontend-sha "${MERISMOS_FRONTEND_SHA}" \
+            --backend-sha "${MERISMOS_BACKEND_SHA}"
 
       - name: Validate the upload package
         run: |
@@ -204,13 +235,17 @@ jobs:
             test -s "${output}/${name}"
           done
           jq -e \
-            --arg sha "${MERISMOS_RELEASE_SHA}" \
+            --arg frontend "${MERISMOS_FRONTEND_SHA}" \
+            --arg backend "${MERISMOS_BACKEND_SHA}" \
             --argjson deploy "${MERISMOS_DEPLOY_RUN_ID}" \
-            --argjson frontend "${MERISMOS_FRONTEND_RUN_ID}" \
-            '.schemaVersion == "merismos.submission-video-receipt/v1"
-             and .releaseSha == $sha
+            --argjson frontend_run "${MERISMOS_FRONTEND_RUN_ID}" \
+            '.schemaVersion == "merismos.submission-video-receipt/v2"
+             and .frontendSha == $frontend
+             and .backendSha == $backend
+             and .servedFrontendCommit == $frontend
+             and .answeringBackendCommit == $backend
              and .deployRunId == $deploy
-             and .frontendRunId == $frontend
+             and .frontendRunId == $frontend_run
              and .durationSeconds >= 90
              and .durationSeconds < 175
              and .fps == 25
@@ -220,19 +255,38 @@ jobs:
              and (.sha256 | test("^[a-f0-9]{64}$"))
              and .bytes > 1000000' \
             "${output}/video-receipt.json" >/dev/null
-          jq -e --arg sha "${MERISMOS_RELEASE_SHA}" \
-            '.passed == true and .releaseSha == $sha and .failures == []' \
+          jq -e --arg frontend "${MERISMOS_FRONTEND_SHA}" --arg backend "${MERISMOS_BACKEND_SHA}" \
+            '.schemaVersion == "merismos.submission-video-verification/v2"
+             and .passed == true
+             and .frontendSha == $frontend
+             and .backendSha == $backend
+             and .failures == []' \
             "${output}/verification-report.json" >/dev/null
           test "$(sha256sum "${output}/merismos-submission.mp4" | awk '{print $1}')" = \
             "$(jq -er .sha256 "${output}/video-receipt.json")"
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: merismos-submission-video-${{ inputs.release_sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          name: merismos-submission-video-${{ inputs.frontend_sha }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/merismos-submission-video/output/
           if-no-files-found: error
           retention-days: 90
           compression-level: 0
+
+      - name: Preserve storyboards, timing and provider-attempt evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: merismos-submission-video-review-${{ inputs.frontend_sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/merismos-submission-video/review/
+            ${{ runner.temp }}/merismos-submission-video/narration/*.attempt.json
+            ${{ runner.temp }}/merismos-submission-video/narration/*.cache.json
+            ${{ runner.temp }}/merismos-submission-video/narration/timing.json
+            ${{ runner.temp }}/merismos-submission-video/capture/capture-receipt.json
+            ${{ runner.temp }}/merismos-submission-video/output/verification-report.json
+          if-no-files-found: warn
+          retention-days: 90
 
       - name: Remove runner-only media
         if: always()

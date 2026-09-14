@@ -87,6 +87,7 @@ route, with no credentials.
 | `frontend-deploy.yml` (Deploy AWS frontend) | every push to `main`; manual dispatch | Frontend verification, the backend release preflight, the stale-dispatch guard, publication with HTML last, a smoke test, then `aws-uat.yml` |
 | `aws-uat.yml` (Live AWS acceptance) | called by `frontend-deploy.yml`; manual dispatch | the live desktop and mobile Playwright journeys against CloudFront, the acceptance receipt, and a read of the public proof page without credentials |
 | `deploy.yml` (Deploy, prove, tear down) | manual dispatch only, in the `aws` environment | a Terraform plan that fails above 12 additions, a dry run by default, apply, IAM and model proofs, an optional destroy, and a listing of what still stands |
+| `submission-video.yml` (Submission video) | pull requests that change the video pipeline; production only by manual dispatch on `main` | narration-contract and negative media-gate tests on a pull request; on an attested production dispatch, exact frontend and backend release binding, per-beat ElevenLabs narration, the live browser journey, 1080p composition, burned captions and artifact-chain verification |
 | `still-up.yml` (The judges can still reach it) | Mondays and Thursdays at 09:00 UTC; manual dispatch | anonymous checks of the CloudFront root, `release.json`, `acceptance.html` and the safe `/api/version` route; it does not invoke `/identity` or use the contradictory offer-4471 record as a health proxy |
 | `source-measurement.yml` (Source-only dispatch measurement) | pushes to `codex/dispatch-measurement-20260910`; manual dispatch | 20 preregistered Playwright attempts on the offline harness |
 
@@ -114,6 +115,29 @@ The runtime paths are `src`, `pyproject.toml`, `.python-version`, `requirements*
 `infra/build.sh` and `infra/package_backend.py` (`RUNTIME_PATHS` in
 `infra/backend_release_preflight.py`). A merge that changes any of them blocks the frontend release until
 a `deploy.yml` apply ships a backend packaged from that merge or later.
+
+## Submission video production
+
+[`submission-video.yml`](../.github/workflows/submission-video.yml) keeps the frontend and backend release
+identities separate. A documentation or video-pipeline merge republishes the frontend from the new `main` commit,
+while the compatible backend can remain at an earlier deployed commit. Production therefore receives an exact
+`frontend_sha`, an exact `backend_sha`, the successful frontend release run and the successful backend apply run.
+It refuses a frontend commit that is not both the workflow commit and current `main`, a backend commit that does
+not match the apply run, a failed run, a deploy that tore down, or a public release that answers with either wrong
+commit.
+
+Pull requests make no ElevenLabs call. They validate the seven-beat narration and run negative media tests that
+prove malformed order, mismatched release identity, missing captions and broken audio or video fail closed. A
+manual production dispatch also requires an explicit public-use voice-rights attestation. It synthesises and
+caches narration per beat. A durable attempt entry is written before each paid call, unresolved attempts block a
+retry, and cumulative new narration is capped at 12,000 characters. After reviewing provider billing, an owner can
+name that exact attempt ledger and attest one bounded retry; the acknowledged characters still count toward the
+cap. ElevenLabs character alignment drives the
+captions. The workflow records the actual public product, burns those captions into the 1920 by 1080 H.264 output
+and emits the MP4, SRT captions, timing, capture receipt, ffprobe record and final verification report as one
+artifact. The verifier checks a 90 to 174 second duration, 25 frames per second, one-frame audio and video
+alignment, caption timing and the caption pixels in the shipped file. Review screenshots and provider-attempt
+records survive a failed production job. Public upload remains a separate owner step.
 
 ## Backend deploy
 
@@ -169,5 +193,5 @@ Timing runs from file selection to visible simulated collection confirmation; se
 manifest export are separate. Raw failures and missing attempts remain in the denominator.
 The protocol must be committed before instrumentation runs. CI-only local HTTP timings and
 traffic-body counts are not AWS latency, dollar costs, human time saved or rescued food.
-Running this protocol against AWS, or with a paid model, needs separate owner authorisation. The measured
-cost in the README came from a separate read-only measurement of past deploy applies.
+Running this protocol against AWS, or with a paid model, needs separate owner authorisation. The historical cost
+estimate in the README was derived separately from past deploy applies and is not an invoice measurement.

@@ -10,14 +10,18 @@ const SCENE_IDS = ["hook", "surface", "trigger", "live", "sponsor", "evidence", 
 const SHA = /^[a-f0-9]{40}$/u;
 const RUN_ID = /^[1-9][0-9]*$/u;
 const root = process.env.MERISMOS_VIDEO_ROOT;
-const releaseSha = process.env.MERISMOS_RELEASE_SHA;
+const frontendSha = process.env.MERISMOS_FRONTEND_SHA;
+const backendSha = process.env.MERISMOS_BACKEND_SHA;
 const deployRunId = process.env.MERISMOS_DEPLOY_RUN_ID;
 const frontendRunId = process.env.MERISMOS_FRONTEND_RUN_ID;
 const configuredUrl = process.env.MERISMOS_VIDEO_URL || "https://d2qnkmlhs7y5fp.cloudfront.net/";
 const appUrl = configuredUrl.endsWith("/") ? configuredUrl : `${configuredUrl}/`;
+const slidesUrl = new URL("./slides.html", import.meta.url).href;
 
-if (!root || !SHA.test(releaseSha ?? "")) {
-  throw new Error("MERISMOS_VIDEO_ROOT and an exact lowercase MERISMOS_RELEASE_SHA are required.");
+if (!root || !SHA.test(frontendSha ?? "") || !SHA.test(backendSha ?? "")) {
+  throw new Error(
+    "MERISMOS_VIDEO_ROOT plus exact lowercase MERISMOS_FRONTEND_SHA and MERISMOS_BACKEND_SHA are required.",
+  );
 }
 if (!RUN_ID.test(deployRunId ?? "") || !RUN_ID.test(frontendRunId ?? "")) {
   throw new Error("Exact deploy and frontend GitHub Actions run IDs are required.");
@@ -28,6 +32,8 @@ if (appUrl !== "https://d2qnkmlhs7y5fp.cloudfront.net/") {
 
 const captureDir = path.join(root, "capture");
 mkdirSync(path.join(captureDir, "raw"), { recursive: true });
+const reviewDir = path.join(root, "review");
+mkdirSync(reviewDir, { recursive: true });
 const timingPath = path.join(root, "narration", "timing.json");
 const timingBytes = readFileSync(timingPath);
 const timing = JSON.parse(timingBytes.toString("utf8"));
@@ -58,20 +64,26 @@ async function jsonResponse(url) {
   return response.json();
 }
 
-const release = await jsonResponse(`${appUrl}release.json?video_release=${releaseSha}`);
-if (release.commit !== releaseSha) throw new Error("The public release.json is not the frozen SHA.");
-const backend = await jsonResponse(`${appUrl}api/version?video_release=${releaseSha}`);
-if (backend.commit !== releaseSha || backend.status !== "known" || backend.source !== "ci_package") {
+const release = await jsonResponse(`${appUrl}release.json?video_release=${frontendSha}`);
+if (release.commit !== frontendSha) throw new Error("The public release.json is not the frozen frontend SHA.");
+const backend = await jsonResponse(`${appUrl}api/version?video_backend=${backendSha}`);
+if (
+  backend.schema_version !== 1 ||
+  backend.application !== "merismos" ||
+  backend.commit !== backendSha ||
+  backend.status !== "known" ||
+  backend.source !== "ci_package"
+) {
   throw new Error("The answering backend is not the exact frozen CI package.");
 }
-const rootResponse = await context.request.get(`${appUrl}?video_release=${releaseSha}`, {
+const rootResponse = await context.request.get(`${appUrl}?video_release=${frontendSha}`, {
   headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
   failOnStatusCode: false,
 });
 if (rootResponse.status() !== 200) throw new Error(`The product root returned HTTP ${rootResponse.status()}.`);
 const rootHtml = await rootResponse.text();
 const rootCommits = [...rootHtml.matchAll(/<meta name="application-commit" content="([0-9a-f]{40})">/gu)];
-if (rootCommits.length !== 1 || rootCommits[0][1] !== releaseSha) {
+if (rootCommits.length !== 1 || rootCommits[0][1] !== frontendSha) {
   throw new Error("The served root HTML is not the frozen SHA.");
 }
 
@@ -92,7 +104,7 @@ page.on("requestfailed", (request) => {
 });
 
 const captureStarted = Date.now();
-await page.goto(`${appUrl}?video_release=${releaseSha}`, { waitUntil: "networkidle", timeout: 60_000 });
+await page.goto(`${appUrl}?video_release=${frontendSha}`, { waitUntil: "networkidle", timeout: 60_000 });
 await page.getByRole("heading", { name: "Dashboard", exact: true }).waitFor();
 
 // Recording preflight: defeat a persisted Live choice and start a genuinely fresh sandbox.
@@ -108,12 +120,17 @@ const freshWorkspace = page.waitForResponse(
   (response) => response.url().includes("/api/workspace?mode=sandbox") && response.status() === 200,
 );
 await page.getByRole("button", { name: "Yes, start fresh", exact: true }).click();
-if ((await freshSession).status() !== 200) throw new Error("Fresh sandbox creation failed.");
+if ((await freshSession).status() !== 201) throw new Error("Fresh sandbox creation failed.");
 await freshWorkspace;
 await page.getByRole("heading", { name: "Dashboard", exact: true }).waitFor();
 await page.waitForFunction(() => !document.querySelector("#mode")?.hasAttribute("disabled"));
 await about.evaluate((element) => { element.open = false; });
 await page.evaluate(() => window.scrollTo(0, 0));
+
+// Start the measured story on a source-controlled title scene. The fresh
+// deployed sandbox remains active when the next beat returns to the dashboard.
+await page.goto(`${slidesUrl}?scene=hook`, { waitUntil: "load", timeout: 60_000 });
+await page.getByRole("heading", { name: /One offer\. Several constraints/iu }).waitFor();
 
 const timelineStarted = Date.now();
 const observedScenes = [];
@@ -126,7 +143,8 @@ async function holdScene(id, action) {
   }
   const started = Date.now();
   const observedStart = (started - timelineStarted) / 1000;
-  await action();
+  await action(planned);
+  await page.screenshot({ path: path.join(reviewDir, `${id}.png`), fullPage: false });
   const actionMilliseconds = Date.now() - started;
   if (actionMilliseconds > planned) {
     throw new Error(
@@ -159,17 +177,24 @@ async function clickForResponse(button, ending, expectedStatus = 200) {
   }
 }
 
-await holdScene("hook", async () => {
-  await page.getByRole("region", { name: "Your next donation" }).waitFor();
-  await page.evaluate(() => window.scrollTo({ top: 0, behavior: "smooth" }));
+await holdScene("hook", async (planned) => {
+  await page.waitForTimeout(Math.min(4_000, planned * 0.25));
 });
 
 await holdScene("surface", async () => {
+  await gotoHash("#/dashboard", "Dashboard");
+  await page.getByRole("region", { name: "Your next donation" }).waitFor();
   await page.getByRole("link", { name: "+ Add offer", exact: true }).click();
   await page.getByRole("heading", { name: "Add an offer", exact: true }).waitFor();
   await page.getByRole("button", { name: "Try success", exact: true }).click();
+  const offerTitle = page.getByLabel("What is being donated?", { exact: true });
+  await offerTitle.fill("Evening bakery surplus");
+  if ((await offerTitle.inputValue()) !== "Evening bakery surplus") {
+    throw new Error("The editable offer title did not retain the recorded change.");
+  }
   await clickForResponse(page.getByRole("button", { name: "Add to sandbox", exact: true }), "/api/offers/new");
   await page.getByRole("button", { name: "Work out the split", exact: true }).waitFor();
+  decisionUrl = page.url();
 });
 
 await holdScene("trigger", async () => {
@@ -180,30 +205,11 @@ await holdScene("trigger", async () => {
     "/run",
   );
   await page.getByRole("heading", { name: "Approve this exact plan", exact: true }).waitFor();
+  await page.waitForTimeout(650);
+  await page.getByRole("heading", { name: "Approve this exact plan", exact: true }).scrollIntoViewIfNeeded();
 });
 
 await holdScene("live", async () => {
-  await gotoHash("#/offers/new", "Add an offer");
-  await page.getByRole("button", { name: "Try refusal", exact: true }).click();
-  await clickForResponse(page.getByRole("button", { name: "Add to sandbox", exact: true }), "/api/offers/new");
-  await clickForResponse(page.getByRole("button", { name: "Work out the split", exact: true }), "/run");
-  await page.getByText(/cold chain/iu).first().waitFor();
-
-  await gotoHash("#/offers/new", "Add an offer");
-  await page.getByRole("button", { name: "Try correction", exact: true }).click();
-  await clickForResponse(
-    page.getByRole("button", { name: "Add to sandbox", exact: true }),
-    "/api/offers/new",
-    400,
-  );
-  await page.getByRole("alert").getByText(/phone number/iu).waitFor();
-  await page.getByLabel("Donor's food and collection note").fill(
-    "Invented donation for the demonstration; collect before evening.",
-  );
-  await clickForResponse(page.getByRole("button", { name: "Add to sandbox", exact: true }), "/api/offers/new");
-  decisionUrl = page.url();
-  await clickForResponse(page.getByRole("button", { name: "Work out the split", exact: true }), "/run");
-  await page.getByRole("heading", { name: "Approve this exact plan", exact: true }).waitFor();
   await page.getByText("Read the exact record text", { exact: true }).click();
   await page.getByLabel(/I have reviewed this exact allocation/iu).check();
   await clickForResponse(page.getByRole("button", { name: "Approve in sandbox", exact: true }), "/approve");
@@ -218,11 +224,21 @@ await holdScene("live", async () => {
   await pickup.getByText("Simulation confirmed", { exact: false }).waitFor();
 });
 
-await holdScene("sponsor", async () => {
+await holdScene("sponsor", async (planned) => {
+  await page.goto(`${slidesUrl}?scene=architecture`, { waitUntil: "load", timeout: 60_000 });
+  await page.getByRole("heading", { name: /Rules first\. Strands when eligible/iu }).waitFor();
+  await page.waitForTimeout(Math.min(3_500, planned * 0.18));
+  await page.screenshot({ path: path.join(reviewDir, "sponsor-architecture-slide.png"), fullPage: false });
   await gotoHash("#/architecture", "AWS architecture");
-  const strands = page.getByText(/Strands/iu).first();
-  await strands.scrollIntoViewIfNeeded();
-  await strands.waitFor();
+  const dwell = Math.min(1_300, Math.max(450, planned * 0.06));
+  await page.getByRole("button", { name: /CloudFront \+ S3 SPA/iu }).click();
+  await page.waitForTimeout(dwell);
+  await page.getByRole("button", { name: /Four Lambdas, one package/iu }).click();
+  await page.waitForTimeout(dwell);
+  await page.getByRole("button", { name: /Strands agents/iu }).click();
+  const inspector = page.getByRole("heading", { name: /Strands agents \(Strands Agents SDK/iu });
+  await inspector.waitFor();
+  await inspector.scrollIntoViewIfNeeded();
 });
 
 await holdScene("evidence", async () => {
@@ -234,10 +250,48 @@ await holdScene("evidence", async () => {
   await evidence.scrollIntoViewIfNeeded();
 });
 
-await holdScene("close", async () => {
+await holdScene("close", async (planned) => {
   await gotoHash("#/impact", "Impact and limits");
-  await page.evaluate(() => window.scrollTo({ top: 0, behavior: "smooth" }));
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.waitForTimeout(Math.min(2_500, planned * 0.18));
+  await page.getByText("WHAT IS NOT MEASURED", { exact: true }).evaluate((element) => {
+    element.scrollIntoView({ behavior: "smooth", block: "center" });
+  });
+  await page.waitForTimeout(Math.min(1_500, planned * 0.1));
+  await page.goto(`${slidesUrl}?scene=close`, { waitUntil: "load", timeout: 60_000 });
+  await page.getByRole("heading", { name: /The allocation, its reasons/iu }).waitFor();
 });
+
+// Fail if either deployed surface moved while the measured story was recorded.
+const closingToken = `${frontendSha}-${Date.now()}`;
+const closingRelease = await jsonResponse(`${appUrl}release.json?video_release_end=${closingToken}`);
+const closingBackend = await jsonResponse(`${appUrl}api/version?video_backend_end=${closingToken}`);
+if (closingRelease.commit !== frontendSha) {
+  throw new Error("The frontend release changed during production capture.");
+}
+if (
+  closingBackend.schema_version !== 1 ||
+  closingBackend.application !== "merismos" ||
+  closingBackend.commit !== backendSha ||
+  closingBackend.status !== "known" ||
+  closingBackend.source !== "ci_package"
+) {
+  throw new Error("The answering backend changed during production capture.");
+}
+const closingRootResponse = await context.request.get(`${appUrl}?video_release_end=${closingToken}`, {
+  headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
+  failOnStatusCode: false,
+});
+if (closingRootResponse.status() !== 200) {
+  throw new Error(`The closing product root returned HTTP ${closingRootResponse.status()}.`);
+}
+const closingRootHtml = await closingRootResponse.text();
+const closingRootCommits = [
+  ...closingRootHtml.matchAll(/<meta name="application-commit" content="([0-9a-f]{40})">/gu),
+];
+if (closingRootCommits.length !== 1 || closingRootCommits[0][1] !== frontendSha) {
+  throw new Error("The served root HTML changed during production capture.");
+}
 
 const timelineSeconds = (Date.now() - timelineStarted) / 1000;
 await context.close();
@@ -247,13 +301,15 @@ const finalPath = path.join(captureDir, "production.webm");
 renameSync(rawPath, finalPath);
 const bytes = readFileSync(finalPath);
 const receipt = {
-  schemaVersion: "merismos.submission-video-capture/v1",
-  releaseSha,
+  schemaVersion: "merismos.submission-video-capture/v2",
+  frontendSha,
+  backendSha,
   deployRunId: Number(deployRunId),
   frontendRunId: Number(frontendRunId),
   sourceUrl: appUrl,
-  servedFrontendCommit: release.commit,
-  answeringBackendCommit: backend.commit,
+  servedFrontendCommit: closingRelease.commit,
+  answeringBackendCommit: closingBackend.commit,
+  releaseVerifiedBeforeAndAfter: true,
   sceneCount: SCENE_IDS.length,
   sceneIds: SCENE_IDS,
   scenes: observedScenes,

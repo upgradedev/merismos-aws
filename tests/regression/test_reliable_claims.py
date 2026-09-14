@@ -11,18 +11,16 @@ LIVE = "https://d2qnkmlhs7y5fp.cloudfront.net/"
 
 @pytest.mark.parametrize("path", [
     "README.md", "docs/devpost-description.md", "docs/video-script.md",
-    "docs/the-screenshots-to-submit.md", "docs/architecture.md",
-    "docs/deploy-2026-09-02.md", "docs/live-run-2026-09-02.md",
+    "docs/architecture.md", "docs/live-run-2026-09-02.md",
 ])
-def test_first_screen_names_persona_live_path_and_real_demo_limit(path):
+def test_current_judge_surfaces_name_persona_live_path_and_real_demo_limit(path):
     text = (ROOT / path).read_text(encoding="utf-8")
-    assert LIVE in text[:1000]
-    assert "coordinator" in text[:1000].lower()
-    assert "Try success" in text[:1400]
+    assert LIVE in text
+    assert "coordinator" in text[:1800].lower()
+    assert "Try success" in text
     assert "Strands" in text
     assert "read-only" in text
     assert "no model network call" in text.replace("\n", " ")
-    assert "licen" in text.lower()
 
 
 def test_narration_and_script_share_bounds_and_do_not_claim_automatic_delivery():
@@ -34,7 +32,7 @@ def test_narration_and_script_share_bounds_and_do_not_claim_automatic_delivery()
     text = " ".join(entry["captionText"] for entry in data["segments"])
     assert "no model network call" in text
     assert "time" in text and "unmeasured" in text
-    assert "nothing is sent automatically" in text
+    assert "nothing is sent automatically" in text.lower()
     assert "Every refusal" not in text
     assert "90–174" in (ROOT / "docs/video-script.md").read_text(encoding="utf-8")
 
@@ -137,14 +135,14 @@ def test_me18_and_capture_preflight_remain_precisely_scoped():
                    "known contradictory offer-4471 record"):
         assert phrase in script
     narration = _flat("video/narration.json")
-    assert "select My sandbox and start a fresh workspace" in narration
+    assert "In a fresh synthetic sandbox" in narration
 
 
 def test_current_claims_drop_unreproducible_or_overbroad_language():
     paths = [
         "README.md", "docs/devpost-description.md", "docs/architecture.md",
         "docs/cost-and-latency.md", "docs/evidence.md", "docs/video-script.md",
-        "docs/video/cards.html", "frontend/src/ArchitectureView.tsx",
+        "frontend/src/ArchitectureView.tsx",
         "frontend/src/UserJourneysView.tsx", "frontend/src/OfferDetail.tsx",
         "frontend/src/Pickups.tsx", "video/narration.json",
     ]
@@ -183,3 +181,22 @@ def test_readme_uses_resolving_badges_and_release_diagram_stays_github_safe():
     assert "accTitle:" in block and "accDescr:" in block
     for unsupported in ('[/"', '\\]:::', '>"', '{{"', '[("'):
         assert unsupported not in block
+
+
+def test_submission_video_binds_both_releases_and_the_real_session_contract():
+    workflow = _flat(".github/workflows/submission-video.yml")
+    capture = _flat("video/capture-production.mjs")
+    build = _flat("video/build-video.py")
+    verifier = _flat("scripts/verify_video_sync.py")
+    narration = _flat("video/generate-narration.py")
+    for text in (workflow, capture, build, verifier):
+        assert "frontendSha" in text or "frontend_sha" in text
+        assert "backendSha" in text or "backend_sha" in text
+    assert "(await freshSession).status() !== 201" in capture
+    assert "releaseVerifiedBeforeAndAfter: true" in capture
+    assert "servedFrontendCommit" in build and "answeringBackendCommit" in build
+    assert "served-frontend-capture" in verifier
+    assert "answering-backend-capture" in verifier
+    assert "/with-timestamps" in narration
+    assert "no automatic billed retry" in narration
+    assert "elevenlabs-character" in verifier

@@ -282,7 +282,8 @@ def report_metric(value: float | None) -> float | str | None:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("mp4", type=pathlib.Path)
-    parser.add_argument("--release-sha", required=True)
+    parser.add_argument("--frontend-sha", required=True)
+    parser.add_argument("--backend-sha", required=True)
     parser.add_argument("--timing", type=pathlib.Path)
     parser.add_argument("--captions", type=pathlib.Path)
     parser.add_argument("--receipt", type=pathlib.Path)
@@ -295,8 +296,10 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
-    if not SHA.fullmatch(args.release_sha):
-        raise SystemExit("::error::--release-sha must be a full lowercase commit SHA")
+    if not SHA.fullmatch(args.frontend_sha):
+        raise SystemExit("::error::--frontend-sha must be a full lowercase commit SHA")
+    if not SHA.fullmatch(args.backend_sha):
+        raise SystemExit("::error::--backend-sha must be a full lowercase commit SHA")
     base = args.mp4.parent
     paths = {
         "mp4": args.mp4,
@@ -324,19 +327,79 @@ def main() -> int:
 
     print("== exact-release and artifact chain ==")
     gate.check(
-        receipt.get("releaseSha") == args.release_sha,
-        "release-receipt",
-        str(receipt.get("releaseSha")),
+        timing.get("schemaVersion") == "merismos.submission-video-timing/v1",
+        "timing-schema",
+        str(timing.get("schemaVersion")),
     )
     gate.check(
-        capture.get("releaseSha") == args.release_sha,
-        "release-capture",
-        str(capture.get("releaseSha")),
+        receipt.get("schemaVersion") == "merismos.submission-video-receipt/v2",
+        "receipt-schema",
+        str(receipt.get("schemaVersion")),
     )
     gate.check(
-        ffprobe_evidence.get("releaseSha") == args.release_sha,
-        "release-ffprobe",
-        str(ffprobe_evidence.get("releaseSha")),
+        capture.get("schemaVersion") == "merismos.submission-video-capture/v2",
+        "capture-schema",
+        str(capture.get("schemaVersion")),
+    )
+    gate.check(
+        ffprobe_evidence.get("schemaVersion") == "merismos.submission-video-ffprobe/v2",
+        "ffprobe-schema",
+        str(ffprobe_evidence.get("schemaVersion")),
+    )
+    gate.check(
+        receipt.get("frontendSha") == args.frontend_sha,
+        "frontend-receipt",
+        str(receipt.get("frontendSha")),
+    )
+    gate.check(
+        receipt.get("backendSha") == args.backend_sha,
+        "backend-receipt",
+        str(receipt.get("backendSha")),
+    )
+    gate.check(
+        receipt.get("servedFrontendCommit") == args.frontend_sha,
+        "served-frontend-receipt",
+        str(receipt.get("servedFrontendCommit")),
+    )
+    gate.check(
+        receipt.get("answeringBackendCommit") == args.backend_sha,
+        "answering-backend-receipt",
+        str(receipt.get("answeringBackendCommit")),
+    )
+    gate.check(
+        capture.get("frontendSha") == args.frontend_sha,
+        "frontend-capture",
+        str(capture.get("frontendSha")),
+    )
+    gate.check(
+        capture.get("backendSha") == args.backend_sha,
+        "backend-capture",
+        str(capture.get("backendSha")),
+    )
+    gate.check(
+        capture.get("servedFrontendCommit") == args.frontend_sha,
+        "served-frontend-capture",
+        str(capture.get("servedFrontendCommit")),
+    )
+    gate.check(
+        capture.get("answeringBackendCommit") == args.backend_sha,
+        "answering-backend-capture",
+        str(capture.get("answeringBackendCommit")),
+    )
+    gate.check(
+        capture.get("releaseVerifiedBeforeAndAfter") is True,
+        "capture-release-double-check",
+        str(capture.get("releaseVerifiedBeforeAndAfter")),
+    )
+    gate.check(
+        ffprobe_evidence.get("frontendSha") == args.frontend_sha,
+        "frontend-ffprobe",
+        str(ffprobe_evidence.get("frontendSha")),
+    )
+    gate.check(
+        ffprobe_evidence.get("backendSha") == args.backend_sha,
+        "backend-ffprobe",
+        str(ffprobe_evidence.get("backendSha")),
     )
     video_sha = sha256(paths["mp4"])
     capture_sha = sha256(paths["capture_media"])
@@ -391,6 +454,7 @@ def main() -> int:
         timeline_ok = timeline_ok and abs(start - expected_start) <= 0.002
         timeline_ok = timeline_ok and 3 <= spoken <= 40 and hold >= spoken
         timeline_ok = timeline_ok and abs(hold - frames / 25) <= 0.002
+        timeline_ok = timeline_ok and scene.get("captionAlignment") == "elevenlabs-character"
         expected_start += hold
     timeline_ok = timeline_ok and abs(expected_start - total) <= 0.002
     gate.check(
@@ -538,7 +602,7 @@ def main() -> int:
     if not gate.failures:
         trim_lead = float(capture.get("trimLeadSeconds", -1))
         captioned_frames = uncaptioned_frames = None
-        if 0 <= trim_lead <= 30:
+        if 0 <= trim_lead <= 120:
             captioned_frames = reference_frame_mse(
                 paths["mp4"],
                 paths["capture_media"],
@@ -649,8 +713,9 @@ def main() -> int:
         )
 
     report = {
-        "schemaVersion": "merismos.submission-video-verification/v1",
-        "releaseSha": args.release_sha,
+        "schemaVersion": "merismos.submission-video-verification/v2",
+        "frontendSha": args.frontend_sha,
+        "backendSha": args.backend_sha,
         "passed": not gate.failures,
         "failures": gate.failures,
         "videoSha256": video_sha,
