@@ -3,7 +3,7 @@
 Maria, a fictional volunteer food coordinator, uses Merismos rules and Strands agents to check each share before
 approving an exact allocation.
 
-**Good Neighbor Agents · Human-approved food sharing, checked by Strands agents**
+Good Neighbor Agents · **Human-approved food sharing, checked by Strands agents**
 
 [Open the working AWS application](https://d2qnkmlhs7y5fp.cloudfront.net/). No account or installation is needed.
 Choose **+ Add offer → Try success** to edit an invented donation, then **Add to sandbox** and **Work out the
