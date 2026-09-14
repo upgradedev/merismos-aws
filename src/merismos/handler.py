@@ -331,11 +331,12 @@ def _aws_said(error: Exception) -> str:
 def _ask_the_other_identities() -> dict[str, Any]:
     """Ask the evaluator and the writer what AWS tells each of them.
 
-    The reader holds ``lambda:InvokeFunction`` on both already, for delegating
-    the gate and for publishing. This spends that grant on the one thing a
-    stranger cannot do for themselves: the other two sit behind Function URLs
-    requiring AWS credentials, so their refusals, which are the ones carrying the
-    argument, were unverifiable by anybody being asked to believe them.
+    The reader holds ``lambda:InvokeFunction`` on both already: on the writer for
+    publishing and filing offers, and on the evaluator for this probe alone, since
+    the draft gate runs in-process in ``fleet.run_chore``. This spends that grant
+    on the one thing a stranger cannot do for themselves: the other two sit behind
+    Function URLs requiring AWS credentials, so their refusals, which are the ones
+    carrying the argument, were unverifiable by anybody being asked to believe them.
 
     An identity that does not answer is reported as not having answered.
     Fabricating a denial for a role that never replied would be inventing the
@@ -1173,8 +1174,10 @@ def _offer(offer_id: str):
 def _run_in_background(event: dict) -> dict[str, Any]:
     """Run one chore to completion and record the result in the thread.
 
-    This is the reader invoking itself with InvocationType Event, so it has the
-    function's own 900 second budget rather than the gateway's 30. The chore is
+    This runs in the runner, invoked with InvocationType Event (see
+    ``background.start``). The runner carries the reader's role in its own
+    concurrency pool and has a 900 second budget, rather than the gateway's 30 or
+    the reader's 60. The chore is
     unchanged: same specialists, same guard, same gate. What is different is
     that a model can actually be used, which is the whole point of doing it this
     way.

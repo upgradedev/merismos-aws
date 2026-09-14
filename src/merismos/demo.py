@@ -159,8 +159,9 @@ def show(result: Any, colour: bool) -> None:
 def the_case_that_settles_it(corpus: Any, colour: bool) -> None:
     """Offer 4483, read both ways, side by side.
 
-    This is the comparison the README reports, run live rather than quoted, so a
-    viewer sees the two answers rather than being told about them.
+    This is the comparison ``tests/unit/test_rules_alone_are_not_enough.py``
+    pins, run live rather than quoted, so a viewer sees the two answers rather
+    than being told about them.
     """
     offer = next((o for o in read_offers(corpus) if o["id"] == "offer-4483"), None)
     if offer is None:
