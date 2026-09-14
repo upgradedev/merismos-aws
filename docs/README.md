@@ -4,12 +4,12 @@ Start with the [README](../README.md): what Merismos does, a short sandbox flow,
 
 ## Current reference
 
-- [Architecture](architecture.md): how one offer moves from intake to a recorded collection, and where each trust boundary sits.
-- [Infrastructure](infrastructure.md): every AWS resource, what each IAM role may do, what lives outside Terraform and what is not deployed.
+- [Architecture](architecture.md): how one offer moves from intake to a recorded collection, drawn in two diagrams, and where each trust boundary sits.
+- [Infrastructure](infrastructure.md): two diagrams of who can call what and who can touch which data, then every AWS resource, what each IAM role may do, what lives outside Terraform and what is not deployed.
 - [Evidence and honest limits](evidence.md): the three evidence levels, current public acceptance, retained CI evidence, and what is not measured or not run.
 - [Model evaluation](model-evaluation.md): the preregistered interpretation evaluation and the cited candidate, prepared in source and not run against a model.
 - [Cost and latency](cost-and-latency.md): the measured cost of the live proof, what bounds a problem, the sandbox latency sample, the HTTP correlation headers and how the deployment comes down.
-- [Release and validation](release-and-validation.md): what each GitHub Actions workflow checks, how a change reaches AWS and how these documents are verified.
+- [Release and validation](release-and-validation.md): a diagram of how a change reaches AWS, what each GitHub Actions workflow checks and how these documents are verified.
 
 ## Dated records
 
