@@ -2,7 +2,7 @@ import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { expect, it, vi } from 'vitest';
 import { Offers, Status, Summary } from './components';
-import { OfferDetail } from './OfferDetail';
+import { OfferDetail, runStep } from './OfferDetail';
 import { History, PickupCard, Pickups } from './Pickups';
 import { AddOffer, intakeErrorField, type IntakeValues } from './AddOffer';
 import { row, workspace } from './test/fixtures';
@@ -54,6 +54,35 @@ it('renders missing, running, refused, ready and already-recorded states truthfu
   rerender(<OfferDetail row={{...ready,status:'running',progress:row.progress}} data={data} busy mutate={mutate}/>); expect(screen.getByText('Working…')).toBeDisabled();
   rerender(<OfferDetail row={{...ready,result:{outcome:'blocked'},offer:{...row.offer,allergens:[]}}} data={data} busy={false} mutate={mutate}/>); expect(screen.getByText('Declared none')).toBeVisible(); expect(screen.getByText(/No allocation was approved/)).toBeVisible();
   rerender(<OfferDetail row={{...row,plan:{...row.plan!,recorded:true}}} data={data} busy={false} mutate={mutate}/>); expect(screen.getByText('The recorded plan')).toBeVisible(); expect(screen.getByText('Open collection tasks →')).toBeVisible();
+});
+it('marks the run steps done, in progress and not started from the reported stage', () => {
+  const data=workspace(); const mutate=vi.fn(); const running={...row,status:'running',result:{},plan:null};
+  const steps=()=>within(screen.getByText('Reading the offer').closest('ol')!).getAllByRole('listitem');
+  const states=()=>steps().map(item=>item.querySelector('.run-step-state')!.textContent);
+  const currentIndex=()=>steps().findIndex(item=>item.getAttribute('aria-current')==='step');
+  const {rerender}=render(<OfferDetail row={{...running,progress:undefined}} data={data} busy={false} mutate={mutate}/>);
+  expect(steps()).toHaveLength(4); expect(states()).toEqual(['In progress','Not started','Not started','Not started']); expect(currentIndex()).toBe(0);
+  rerender(<OfferDetail row={{...running,progress:{stage:'the specialists are reading the filing',specialists_answered:2}}} data={data} busy={false} mutate={mutate}/>);
+  expect(states()).toEqual(['Done','In progress','Not started','Not started']); expect(currentIndex()).toBe(1); expect(steps().filter(item=>item.hasAttribute('aria-current'))).toHaveLength(1);
+  rerender(<OfferDetail row={{...running,progress:{stage:'done',specialists_answered:4}}} data={data} busy={false} mutate={mutate}/>);
+  expect(states()).toEqual(['Done','Done','Done','In progress']); expect(currentIndex()).toBe(3);
+  rerender(<OfferDetail row={{...running,progress:{stage:'Checking the draft',specialists_answered:4}}} data={data} busy={false} mutate={mutate}/>);
+  expect(states()).toEqual(['In progress','Not started','Not started','Not started']); expect(currentIndex()).toBe(0);
+  expect(runStep('the gate is checking the draft')).toBe(2); expect(runStep(' Deciding who wakes ')).toBe(1); expect(runStep('constructor')).toBe(0); expect(runStep('')).toBe(0);
+});
+it('points a disabled approval at the reason its consent box is disabled instead of asking to tick it', () => {
+  const data=workspace(); const tick='Available once you tick the box above.';
+  const {rerender}=render(<OfferDetail row={row} data={data} busy={false} mutate={vi.fn()}/>);
+  expect(screen.getByRole('checkbox')).toBeEnabled(); expect(screen.getByText('Approve in sandbox')).toHaveAttribute('aria-describedby',screen.getByText(tick).id);
+  rerender(<OfferDetail row={row} data={data} busy mutate={vi.fn()}/>);
+  expect(screen.getByRole('checkbox')).toBeDisabled(); expect(screen.queryByText(tick)).toBeNull();
+  expect(screen.getByText('Recording decision…')).toHaveAttribute('aria-describedby',screen.getByText('Approval paused while the workspace loads, saves or needs a refresh.').id);
+  rerender(<OfferDetail row={{...row,plan:{...row.plan!,run_id:'another-run'}}} data={data} busy={false} mutate={vi.fn()}/>);
+  expect(screen.getByRole('checkbox')).toBeDisabled(); expect(screen.queryByText(tick)).toBeNull();
+  expect(screen.getByText('Approve in sandbox')).toHaveAttribute('aria-describedby',screen.getByText('Allocation quantities or run identity are unavailable or inconsistent. Refresh and review before approving.').id);
+  rerender(<OfferDetail row={row} data={{...data,mode:'live',can_write:false}} busy={false} mutate={vi.fn()}/>);
+  expect(screen.getByRole('checkbox')).toBeDisabled(); expect(screen.queryByText(tick)).toBeNull();
+  expect(screen.getByText('Approve and publish')).toBeDisabled(); expect(screen.getByText('Approve and publish')).toHaveAttribute('aria-describedby',screen.getByText(data.authorization_note).id);
 });
 it('clearly gates live approval and displays its consequence', async () => {
   const data=workspace(); data.mode='live'; data.can_write=false;
