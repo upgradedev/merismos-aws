@@ -221,6 +221,8 @@ await holdScene("live", async () => {
   pickup = page.getByRole("article").filter({ has: page.getByRole("heading", { name: pickupName, exact: true }) });
   await pickup.getByLabel("This collection actually happened in the simulation.").check();
   await clickForResponse(pickup.getByRole("button", { name: "Confirm collection" }), "/pickup");
+  await page.getByRole("combobox", { name: "Show" }).selectOption("confirmed");
+  pickup = page.getByRole("article").filter({ has: page.getByRole("heading", { name: pickupName, exact: true }) });
   await pickup.getByText("Simulation confirmed", { exact: false }).waitFor();
 });
 
