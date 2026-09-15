@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1280" height="320" viewBox="0 0 1280 320" role="img" aria-labelledby="title desc">
-  <title id="title">Merismos: one donation, checked allocation, confirmed collection</title>
-  <desc id="desc">A three-step summary. A coordinator adds a synthetic food offer. Rules and eligible Strands agents check the offer and propose a bounded split. A person approves the exact plan and separately confirms collection.</desc>
+  <title id="title">Merismos: one synthetic donation, checked allocation, simulated collection confirmation</title>
+  <desc id="desc">A three-step summary. A coordinator adds a synthetic food offer. Rules and eligible Strands agents check the offer and propose a bounded split. A person approves the exact plan and separately records a simulated collection confirmation.</desc>
   <defs>
     <linearGradient id="background" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0" stop-color="#0b0f1e"/>
@@ -43,8 +43,8 @@
     <text x="490" y="238" font-size="18" fill="#aab2c8">Rules first, Strands when eligible</text>
     <text x="490" y="264" font-size="18" fill="#aab2c8">Every share keeps its reason</text>
 
-    <text x="902" y="205" font-size="24" font-weight="650" fill="#e8ebf5">Approve and collect</text>
+    <text x="902" y="205" font-size="24" font-weight="650" fill="#e8ebf5">Approve, then confirm</text>
     <text x="902" y="238" font-size="18" fill="#aab2c8">Exact plan approval by a person</text>
-    <text x="902" y="264" font-size="18" fill="#aab2c8">Collection needs separate confirmation</text>
+    <text x="902" y="264" font-size="18" fill="#aab2c8">Collection confirmation is simulated</text>
   </g>
 </svg>
