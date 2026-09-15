@@ -9,8 +9,9 @@ Each level proves something different:
 
 - Offline CI runs the Python suite, and runs the Playwright journeys against the local HTTP harness, with no AWS
   credentials. It shows what the source does, not what AWS runs.
-- Frontend release identity is the commit marker in the served HTML and `release.json`, which every push to `main`
-  republishes. It shows which frontend build is served, not which backend answers.
+- Frontend release identity is the commit marker in the served HTML and `release.json`. Every push to `main` starts
+  the guarded release pipeline, but only a successful full pipeline republishes them. They show which frontend build
+  is served, not which backend answers.
 - Live AWS acceptance runs the desktop and mobile Playwright journeys against CloudFront and publishes a receipt
   that records the answering backend's commit. It is scripted synthetic AWS software evidence, not a Bedrock model
   invocation or human acceptance.
@@ -46,8 +47,8 @@ checks the identical retained run receipt and requires an observation within 24 
 malformed proof is pending or unknown; stale or mismatched proof is historical, never a current pass.
 
 Successful preflight, product journeys and postflight produce an allowlisted aggregate from the
-current run's Playwright `test-results/e2e.xml`, with zero failures/skips. Release run
-[34898819337](https://github.com/upgradedev/merismos-aws/actions/runs/34898819337) recorded 40 of 40
+current run's Playwright `test-results/e2e.xml`, with zero failures/skips. Acceptance run
+[34909237304, attempt 1](https://github.com/upgradedev/merismos-aws/actions/runs/34909237304/attempts/1) recorded 40 of 40
 desktop/mobile product journeys (`npm run test:e2e -- --forbid-only --project=desktop --project=mobile`).
 The offline-only `mobile-webkit` project is not part of that live run. Retry, rerun and flaky
 result tags are rejected even when summary counters report zero failures.
