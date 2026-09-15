@@ -1,6 +1,6 @@
 # Merismos
 
-![Merismos keeps one synthetic donation, its checked allocation and its collection handoff together](docs/assets/banner.svg)
+![Merismos keeps one synthetic donation, its checked allocation and its simulated collection confirmation together](docs/assets/banner.svg)
 
 [![CI](https://github.com/upgradedev/merismos-aws/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/upgradedev/merismos-aws/actions/workflows/ci.yml)
 [![Frontend verification](https://github.com/upgradedev/merismos-aws/actions/workflows/frontend-ci.yml/badge.svg?branch=main)](https://github.com/upgradedev/merismos-aws/actions/workflows/frontend-ci.yml)
@@ -9,6 +9,7 @@
 ![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white)
 ![React 19.1.1](https://img.shields.io/badge/React-19.1.1-149ECA?logo=react&logoColor=white)
 [![Strands Agents 1.53+](https://img.shields.io/badge/Strands%20Agents-1.53%2B-71decd)](docs/architecture.md)
+[![Amazon Bedrock proof: Claude Opus 5](https://img.shields.io/badge/Amazon%20Bedrock%20proof-Claude%20Opus%205-e06cb6)](docs/architecture.md#what-runs-where)
 
 Maria, a fictional volunteer food coordinator, uses Merismos rules and Strands agents to check each share before approving an exact allocation.
 
@@ -19,6 +20,8 @@ AWS Lambda, Amazon API Gateway, Amazon Bedrock, Amazon DynamoDB, Amazon S3, Amaz
 Scheduler, Amazon SQS, AWS IAM, AWS Secrets Manager, Amazon CloudWatch and Terraform.
 
 > **Synthetic sandbox.** No account or installation. It runs a real Strands loop with a fixed scripted planner and no model network call. Nothing is published or sent. Choose **+ Add offer → Try success** to edit an invented donation.
+
+![Merismos Dashboard on the live synthetic demo, with one editable offer and the allocation-to-collection journey](docs/assets/devpost-thumbnail.png)
 
 ## Try one short flow
 
@@ -96,7 +99,7 @@ artifact IDs and acceptance receipts.
 
 ## Architecture
 
-![Merismos production architecture on AWS, separating the public sandbox, private live runner and exact writer approval](docs/assets/overview.svg)
+![Compact Merismos architecture on AWS, separating the public sandbox, private live runner and exact writer approval](docs/assets/overview.svg)
 
 A browser reaches Amazon CloudFront, which serves the React app from a private S3 bucket and passes API requests,
 uncached, to an Amazon API Gateway HTTP API. The API invokes the reader, one of four AWS Lambda functions built from
@@ -105,8 +108,9 @@ Live runs happen in the runner, which calls Amazon Bedrock; with no authorizer d
 repository is `deploy.yml`, dispatched by hand. Of the four functions, only the writer publishes records to the
 public S3 records bucket, after exact approval.
 
-The compact diagram leaves out the S3 corpus, the EventBridge Scheduler wake that only appends an escalation and
-the release job that publishes the app. [Infrastructure](docs/infrastructure.md) draws those boundaries, and the
+The compact diagram leaves out the private S3 site and corpus buckets, evaluator, EventBridge Scheduler and its SQS
+dead-letter queue, Secrets Manager boundary canary, CloudWatch and release roles. [Infrastructure](docs/infrastructure.md)
+draws those call and data boundaries and lists every resource. The
 [governed flow](docs/architecture.md#governed-flow-of-one-offer) follows one offer through rules, Strands and approval.
 
 Three fleet IAM roles separate the reader, evaluator and writer; the runner runs under the reader role, and
