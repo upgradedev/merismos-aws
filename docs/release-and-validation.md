@@ -1,8 +1,8 @@
 # Release and validation
 
 Every release check runs in GitHub Actions on the exact source under review. A pull request deploys
-nothing; a push to `main` publishes the frontend; the backend changes only when someone dispatches
-`deploy.yml` by hand.
+nothing; a push to `main` starts the guarded frontend release pipeline and publishes only after its
+checks pass; the backend changes only when someone dispatches `deploy.yml` by hand.
 
 ```mermaid
 flowchart TB
@@ -68,11 +68,11 @@ release that changed runtime paths pass its preflight, on the next push to `main
 the frontend release.
 
 In words: a pull request runs CI and Frontend verification, plus the AWS hosting contract and Docs
-verification when their files change. A push to `main` runs Frontend verification again, checks that the
-backend answering `/api/version` matches the runtime source, confirms that `main` has not moved,
-publishes the site, smoke tests it, runs the live Playwright testbook against AWS, publishes an
-acceptance receipt and reads the public proof page without credentials. The backend deploys only when
-someone dispatches `deploy.yml` by hand, and it defaults to a dry run. Twice a week, `still-up.yml`
+verification when their files change. A push to `main` starts Frontend verification again, checks that the
+backend answering `/api/version` matches the runtime source and confirms that `main` has not moved. If every
+gate passes, it publishes the site, smoke tests it, runs the live Playwright testbook against AWS, publishes an
+acceptance receipt and reads the public proof page without credentials. The backend deploys only when someone
+dispatches `deploy.yml` by hand, and it defaults to a dry run. Twice a week, `still-up.yml`
 anonymously checks the judge-facing CloudFront root, release manifest, acceptance page and safe backend version
 route, with no credentials.
 
@@ -84,7 +84,7 @@ route, with no credentials.
 | `frontend-ci.yml` (Frontend verification) | every pull request; pushes to `main` and `codex/**`; manual dispatch; called by `frontend-deploy.yml` | dependency audits; the React build; Ruff and the offline Python suite; Vitest with coverage floors; Playwright desktop, mobile and `mobile-webkit` journeys against the real Python HTTP API; the proof display fixtures |
 | `aws-hosting-ci.yml` (AWS hosting contract) | pull requests, and pushes to `main` or `codex/**`, that change hosting or release files; manual dispatch | routing, publishing order, receipt and pipeline contract tests, and a render of the CloudFormation template |
 | `docs.yml` (Docs verification) | pull requests, and pushes to `main`, that change `README.md`, `docs/` or the docs lint files; manual dispatch | Markdown lint, diagram rules, a broken-diagram canary and a render of every Mermaid block in both themes |
-| `frontend-deploy.yml` (Deploy AWS frontend) | every push to `main`; manual dispatch | Frontend verification, the backend release preflight, the stale-dispatch guard, publication with HTML last, a smoke test, then `aws-uat.yml` |
+| `frontend-deploy.yml` (Deploy AWS frontend) | every push to `main`; manual dispatch | Frontend verification, the backend release preflight and the stale-dispatch guard; when they pass, publication with HTML last, a smoke test, then `aws-uat.yml` |
 | `aws-uat.yml` (Live AWS acceptance) | called by `frontend-deploy.yml`; manual dispatch | the live desktop and mobile Playwright journeys against CloudFront, the acceptance receipt, and a read of the public proof page without credentials |
 | `deploy.yml` (Deploy, prove, tear down) | manual dispatch only, in the `aws` environment | a Terraform plan that fails above 12 additions, a dry run by default, apply, IAM and model proofs, an optional destroy, and a listing of what still stands |
 | `submission-video.yml` (Submission video) | pull requests that change the video pipeline; production only by manual dispatch on `main` | narration-contract and negative media-gate tests on a pull request; on an attested production dispatch, exact frontend and backend release binding, per-beat ElevenLabs narration, the live browser journey, 1080p composition, burned captions and artifact-chain verification |
@@ -93,14 +93,14 @@ route, with no credentials.
 
 ## Frontend release on a push to main
 
-`frontend-deploy.yml` runs on every push to `main` and on manual dispatch. It runs Frontend verification
+`frontend-deploy.yml` starts on every push to `main` and on manual dispatch. It runs Frontend verification
 again, then the release job: the backend release preflight, a check that the lock is committed and the
 release role is set, a build from the lock, a guard that refuses a stale dispatch once `main` has moved,
 publication with HTML switched last, and a smoke test of the served commit, assets, headers and API
 errors. `aws-uat.yml` then runs the live Playwright testbook against AWS, publishes the acceptance
-receipt and reads the public proof page without credentials. Every push to `main`, a docs-only merge
-included, republishes the frontend with that merge commit as its release, so no page here names the
-commit that is currently served.
+receipt and reads the public proof page without credentials. When those gates pass, a `main` push,
+including a docs-only merge, republishes the frontend with that merge commit as its release; therefore
+no page here names the commit that is currently served.
 
 ### Backend release preflight
 
@@ -118,13 +118,13 @@ a `deploy.yml` apply ships a backend packaged from that merge or later.
 
 ## Submission video production
 
-[`submission-video.yml`](../.github/workflows/submission-video.yml) keeps the frontend and backend release
-identities separate. A documentation or video-pipeline merge republishes the frontend from the new `main` commit,
-while the compatible backend can remain at an earlier deployed commit. Production therefore receives an exact
-`frontend_sha`, an exact `backend_sha`, the successful frontend release run and the successful backend apply run.
-It refuses a frontend commit that is not both the workflow commit and current `main`, a backend commit that does
-not match the apply run, a failed run, a deploy that tore down, or a public release that answers with either wrong
-commit.
+[`submission-video.yml`](../.github/workflows/submission-video.yml) keeps renderer source, the frozen frontend and
+the backend release identities separate. The workflow commit must equal current `main`, so the renderer always
+comes from the reviewed tip. Independently, `frontend_sha` must equal the commit of the named successful frontend
+deployment and the commit served by the public release; a video-only repair therefore does not require republishing
+the frozen product. `backend_sha` must likewise equal the named successful backend apply and the answering backend.
+Production refuses a failed release run, a backend deploy that tore down, or a public release that answers with
+either wrong product commit.
 
 Pull requests make no ElevenLabs call. They validate the seven-beat narration and run negative media tests that
 prove malformed order, mismatched release identity, missing captions and broken audio or video fail closed. A

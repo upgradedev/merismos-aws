@@ -91,7 +91,7 @@ In words: anyone reaches CloudFront, which serves the site from a private bucket
 
 ### Edge and hosting
 
-CloudFormation stack `merismos-frontend`, parameters in `infra/frontend.json:2-6`. No workflow or script in the repository creates or updates the stack; `.github/workflows/frontend-deploy.yml:46` refuses to release until it exists, and `.github/workflows/aws-hosting-ci.yml:34` only renders the template.
+CloudFormation stack `merismos-frontend`, parameters in `infra/frontend.json:2-6`. No workflow or script in the repository creates or updates the stack; `.github/workflows/frontend-deploy.yml:41-47` requires the configured release role, and the publisher resolves the named stack before writing anything (`infra/frontend_publish.py:72-79`), so a missing stack stops the release. `.github/workflows/aws-hosting-ci.yml:34` only renders the template.
 
 | Resource | Name pattern | What it does | Source |
 | --- | --- | --- | --- |
@@ -103,7 +103,7 @@ CloudFormation stack `merismos-frontend`, parameters in `infra/frontend.json:2-6
 | CloudFront distribution | live host `d2qnkmlhs7y5fp.cloudfront.net` (`.github/workflows/aws-uat.yml:32`) | HTTP redirected to HTTPS, default certificate; `/api/*`, `/api`, `/healthz`, `/offer/*`, `/config` and `/identity` go to the API Gateway origin uncached; `/assets/*` is cached; everything else comes from the site bucket uncached | `infra/frontend_stack.py:11-13`, `:43-56`, `:110-143` |
 | Release role | `merismos-frontend-release` | See [the release role](#merismos-frontend-release-cloudformation) | `infra/frontend_stack.py:159-187` |
 
-Objects written by CI, not by the stack: release files under `releases/<sha>/` plus root copies, `assets/*` cached for a year, everything else `no-store`, then an invalidation of `/`, `/index.html` and `/release.json` (`infra/frontend_publish.py:81-96`); acceptance receipts `acceptance/runs/<run>-<attempt>.json`, created only if absent, and `acceptance.json` (`infra/acceptance_receipt.py:177`, `:199-210`).
+Objects written by CI, not by the stack: release files under `releases/<sha>/` plus root copies, `assets/*` cached for a year, everything else `no-store`, then an invalidation of `/`, `/index.html` and `/release.json` (`infra/frontend_publish.py:81-96`); acceptance receipts `acceptance/runs/<run>-<attempt>.json`, created only if absent, and `acceptance.json` (`infra/acceptance_receipt.py:178`, `:200-211`).
 
 ### API
 
@@ -140,10 +140,10 @@ Sources: timeout keys on the function name (`infra/main.tf:94`), memory on the r
 | --- | --- | --- | --- |
 | `aws_dynamodb_table.thread` | `merismos-thread` | Ledger events, custody heads (a two-item transaction) and workspace sessions, in separate partitions; on-demand; key `subject` and `entry_id`; indexes `by-run` and `by-kind`; point-in-time recovery; no time-to-live (TTL) | `infra/main.tf:236-276`; `src/merismos/ledger.py:300-336`; `src/merismos/workspace_store.py:3-5` |
 | `aws_dynamodb_table.approvals` | `merismos-approvals` | One-use approvals, with `ttl` one day after expiry, and same-category lanes; on-demand; key `nonce`; point-in-time recovery | `infra/main.tf:278-299`; `src/merismos/approval.py:227`, `:270-291` |
-| `aws_s3_bucket.corpus` with public access block and versioning | `merismos-corpus-<hex>` | The network's filing: private, versioned, emptied on destroy while `destroyable` is true; the writer files typed offers under `offers/` | `infra/main.tf:308-326`; `infra/variables.tf:59`; `src/merismos/handler.py:726-739` |
-| `aws_s3_object.corpus` | 14 objects | Seeds `corpus/**`: 3 offers, 3 manifests, 5 organisations, 3 registers | `infra/main.tf:387-394` |
+| `aws_s3_bucket.corpus` with public access block and versioning | `merismos-corpus-<hex>` | The network's filing: private, versioned, emptied on destroy while `destroyable` is true; the writer files typed offers under `offers/` | `infra/main.tf:308-326`; `infra/variables.tf:59`; `src/merismos/handler.py:685-766` |
+| `aws_s3_object.corpus` | 14 objects | Seeds `corpus/**`: 3 offers, 3 manifests, 5 organisations, 3 registers | `infra/main.tf:410-417` |
 | `aws_s3_bucket.records` with public access block, bucket policy, versioning and a probe-only lifecycle | `merismos-records-<hex>` | Published records `records/offer-<n>[-cN].md`, created only if absent; anyone may `s3:GetObject` on `records/*` and nothing else. The bucket is versioned. A lifecycle rule scoped only to noncurrent `probes/` versions expires them after one day; it does not expire published `records/` objects | `infra/main.tf`; `src/merismos/handler.py` |
-| `aws_secretsmanager_secret.publish` with a version | `merismos/publish-<hex>` | A boundary canary that the publish path never reads; recovery window 0 days | `infra/main.tf:401-429`; `infra/iam.tf:11-15` |
+| `aws_secretsmanager_secret.publish` with a version | `merismos/publish-<hex>` | A boundary canary that the publish path never reads; recovery window 0 days | `infra/main.tf:424-452`; `infra/iam.tf:11-15` |
 
 Sandbox runs keep their events inside the workspace item, not as ledger rows (`src/merismos/api.py:529-537`).
 `/identity` conditionally writes zero-byte objects at fixed `probes/identity-<role>` keys, outside the public
@@ -156,12 +156,12 @@ retention; it does not make these endpoints cost-free (`src/merismos/handler.py`
 
 | Terraform address | Name | What it does | Source |
 | --- | --- | --- | --- |
-| `aws_scheduler_schedule_group.wakes` | `merismos-wakes` | Holds the one-shot schedules that application code creates | `infra/main.tf:435-437` |
-| `aws_sqs_queue.wake_dlq` | `merismos-wake-dlq` | Dead-letter queue for wakes, 14-day retention | `infra/main.tf:439-442` |
-| `aws_lambda_permission.scheduler_may_wake_the_reader` | `AllowSchedulerInvoke` | EventBridge Scheduler may invoke `merismos-runner` (the address says reader; the target is the runner) | `infra/main.tf:446-452` |
+| `aws_scheduler_schedule_group.wakes` | `merismos-wakes` | Holds the one-shot schedules that application code creates | `infra/main.tf:458-460` |
+| `aws_sqs_queue.wake_dlq` | `merismos-wake-dlq` | Dead-letter queue for wakes, 14-day retention | `infra/main.tf:462-465` |
+| `aws_lambda_permission.scheduler_may_wake_the_reader` | `AllowSchedulerInvoke` | EventBridge Scheduler may invoke `merismos-runner` (the address says reader; the target is the runner) | `infra/main.tf:469-475` |
 | `aws_iam_role.scheduler` | `merismos-scheduler` | See [the scheduler role](#merismos-scheduler) | `infra/iam.tf:336-378` |
 
-Schedules are named `merismos-wake-<id>`, fire once, delete themselves, retry 3 times within an hour and send failures to the queue (`src/merismos/deferral.py:168-213`). The runner creates them during a live run (`src/merismos/handler.py:1264-1270`; `src/merismos/fleet.py:977`). A wake only appends an escalation: no model, no writer, no approval (`src/merismos/handler.py:221-222`, `:843-864`). Sandbox runs pass no scheduler (`src/merismos/api.py:534-535`; `src/merismos/fleet.py:716`).
+Schedules are named `merismos-wake-<id>`, fire once, delete themselves, retry 3 times within an hour and send failures to the queue (`src/merismos/deferral.py:168-213`). The runner creates them during a live run (`src/merismos/handler.py:1247-1283`; `src/merismos/fleet.py:977`). A wake only appends an escalation: no model, no writer, no approval (`src/merismos/handler.py:221-222`, `:851-872`). Sandbox runs pass no scheduler (`src/merismos/api.py:534-535`; `src/merismos/fleet.py:716`).
 
 ### Observability
 
@@ -205,20 +205,20 @@ Policy at `infra/iam.tf:182-193`.
 - `RecordTheVerdict`: PutItem and GetItem on the thread table (`:183-187`).
 - `DetectReadOnlyLegacyRuns`: Query on `index/by-run` (`:188-192`).
 - An explicit Deny on reading the canary (`:318-323`). No S3, Bedrock or Lambda statement.
-- Only `/identity?all=1` invokes this function (`src/merismos/handler.py:394-437`); the product's draft gate runs in-process (`src/merismos/fleet.py:797`).
+- Only `/identity?all=1` invokes this function (`src/merismos/handler.py:402-445`); the product's draft gate runs in-process (`src/merismos/fleet.py:797`).
 
 ### `merismos-writer`
 
 Policy at `infra/iam.tf:199-280`.
 
-- `ReadTheBoundaryCanary`: GetSecretValue on the canary (`:205-208`), used only by the identity probe (`src/merismos/handler.py:440-451`).
-- `SpendTheApproval`: GetItem and UpdateItem on the approvals table (`:273-277`).
-- `RecordThePublish`: PutItem, GetItem and Query on the thread table and indexes (`:279-283`).
-- `ListApprovalEvidence`: ListBucket on the corpus for `offers/*`, `orgs/*` and `registers/*` (`:285-294`).
-- `ReadApprovalEvidence`: GetObject on those prefixes (`:296-304`).
-- `ReconcileExactPublication`: GetObject on `records/*` (`:306-310`), used only by recovery (`src/merismos/handler.py:663`).
-- `PublishTheRecord`: PutObject on `records/*` and `probes/*` (`:320-327`). Among the three fleet roles, only the writer holds it.
-- `FileAnOfferAPersonTyped`: PutObject on corpus `offers/*` (`:334-338`).
+- `ReadTheBoundaryCanary`: GetSecretValue on the canary (`:205-208`), used only by the identity probe (`src/merismos/handler.py:448-459`).
+- `SpendTheApproval`: GetItem and UpdateItem on the approvals table (`:210-216`).
+- `RecordThePublish`: PutItem, GetItem and Query on the thread table and indexes (`:218-222`).
+- `ListApprovalEvidence`: ListBucket on the corpus for `offers/*`, `orgs/*` and `registers/*` (`:224-233`).
+- `ReadApprovalEvidence`: GetObject on those prefixes (`:235-243`).
+- `ReconcileExactPublication`: GetObject on `records/*` (`:245-249`), used only by recovery (`src/merismos/handler.py:660-682`).
+- `PublishTheRecord`: PutObject on `records/*` and `probes/*` (`:251-266`). Among the three fleet roles, only the writer holds it.
+- `FileAnOfferAPersonTyped`: PutObject on corpus `offers/*` (`:268-278`).
 
 ### `merismos-scheduler`
 
@@ -269,7 +269,7 @@ Jobs with no AWS credentials: `still-up.yml` (`:27`, `:39-40`), the acceptance a
 | API authorizer | No authorizer resource, and the routes set no authorization type. The code needs an authorizer context with `merismos:coordinate` for live changes, so every public live change gets 403 | `infra/gateway.tf:56-66`; `src/merismos/api.py:140-147`, `:347-348`; `.github/workflows/deploy.yml:276-300` |
 | Web application firewall | No web ACL on the distribution and no WAF resource | `infra/frontend_stack.py:113-139` |
 | Alarm notification | Neither alarm sets `alarm_actions` or `ok_actions`; no SNS topic | `infra/gateway.tf:123-149` |
-| Customer-managed encryption keys | None. The site and state buckets declare AES256; the corpus and records buckets, both tables, the secret, the queue and the log groups declare no encryption setting, so the AWS default applies | `infra/frontend_stack.py:69-71`; `infra/bootstrap.sh:62-65`; `infra/main.tf:69-73`, `:236-299`, `:308-382`, `:401-418`, `:439-442`; `infra/gateway.tf:68-71` |
+| Customer-managed encryption keys | None. The site and state buckets declare AES256; the corpus and records buckets, both tables, the secret, the queue and the log groups declare no encryption setting, so the AWS default applies | `infra/frontend_stack.py:69-71`; `infra/bootstrap.sh:62-65`; `infra/main.tf:69-73`, `:236-299`, `:308-382`, `:424-452`, `:462-465`; `infra/gateway.tf:68-71` |
 | Tracing | No `tracing_config` | `infra/main.tf:75-163` |
 | Lambda dead-letter queue or failure destination | None on any function; the only event invoke configuration is the reader's zero retries | `infra/main.tf:75-163`; `infra/gateway.tf:118-121` |
 | CPU architecture setting | No `architectures` argument, so the AWS default (x86_64) applies | `infra/main.tf:75-163` |
